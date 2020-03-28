@@ -1,6 +1,6 @@
 apply plugin: 'maven'
 apply plugin: 'signing'
-apply plugin: 'java'
+apply plugin: 'java-library'
 apply plugin: 'com.google.protobuf'
 
 sourceCompatibility = 1.7
@@ -10,13 +10,13 @@ repositories {
 }
 
 dependencies {
-    implementation 'com.google.protobuf:protobuf-java:3.5.1'
-    testCompile group: 'junit', name: 'junit', version: '4.12'
+    api  'com.google.protobuf:protobuf-java:3.11.1'
+    testCompile group: 'junit', name: 'junit', version: '4.13'
 }
 
 protobuf {
     protoc {
-        artifact = 'com.google.protobuf:protoc:3.0.0'
+        artifact = 'com.google.protobuf:protoc:3.11.4'
     }
 }
 
@@ -47,49 +47,49 @@ artifacts {
     archives javadocJar
 }
 
-signing {
-    sign configurations.archives
-}
+//signing {
+//    sign configurations.archives
+//}
 
-uploadArchives {
-    repositories {
-        mavenDeployer {
-            beforeDeployment { MavenDeployment deployment -> signing.signPom(deployment) }
-
-            repository(url: "https://oss.sonatype.org/service/local/staging/deploy/maven2/") {
-                authentication(userName: ossrhUsername, password: ossrhPassword)
-            }
-            snapshotRepository(url: "https://oss.sonatype.org/content/repositories/snapshots/") {
-                authentication(userName: ossrhUsername, password: ossrhPassword)
-            }
-            pom.project {
-                name 'JavaSteam-tf'
-                packaging 'jar'
-                description 'TF classes for JavaSteam.'
-                url 'https://github.com/Longi94/JavaSteam'
-                inceptionYear '2018'
-
-                scm {
-                    connection 'scm:git:git://github.com/Longi94/JavaSteam.git'
-                    developerConnection 'scm:git:ssh://github.com:Longi94/JavaSteam.git'
-                    url 'http://github.com/Longi94/JavaSteam/tree/master'
-                }
-
-                licenses {
-                    license {
-                        name 'MIT License'
-                        url 'http://www.opensource.org/licenses/mit-license.php'
-                    }
-                }
-
-                developers {
-                    developer {
-                        id 'Longi'
-                        name 'Long Tran'
-                        email 'lngtrn94@gmail.com'
-                    }
-                }
-            }
-        }
-    }
-}
+//uploadArchives {
+//    repositories {
+//        mavenDeployer {
+//            beforeDeployment { MavenDeployment deployment -> signing.signPom(deployment) }
+//
+//            repository(url: "https://oss.sonatype.org/service/local/staging/deploy/maven2/") {
+//                authentication(userName: ossrhUsername, password: ossrhPassword)
+//            }
+//            snapshotRepository(url: "https://oss.sonatype.org/content/repositories/snapshots/") {
+//                authentication(userName: ossrhUsername, password: ossrhPassword)
+//            }
+//            pom.project {
+//                name 'JavaSteam-tf'
+//                packaging 'jar'
+//                description 'TF classes for JavaSteam.'
+//                url 'https://github.com/Longi94/JavaSteam'
+//                inceptionYear '2018'
+//
+//                scm {
+//                    connection 'scm:git:git://github.com/Longi94/JavaSteam.git'
+//                    developerConnection 'scm:git:ssh://github.com:Longi94/JavaSteam.git'
+//                    url 'http://github.com/Longi94/JavaSteam/tree/master'
+//                }
+//
+//                licenses {
+//                    license {
+//                        name 'MIT License'
+//                        url 'http://www.opensource.org/licenses/mit-license.php'
+//                    }
+//                }
+//
+//                developers {
+//                    developer {
+//                        id 'Longi'
+//                        name 'Long Tran'
+//                        email 'lngtrn94@gmail.com'
+//                    }
+//                }
+//            }
+//        }
+//    }
+//}

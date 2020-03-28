@@ -1,11 +1,13 @@
 import in.dragonbra.steamlanguagegen.SteamLanguageGenPlugin
 
 buildscript {
+    ext.kotlin_version = '1.3.71'
+
     repositories {
         mavenCentral()
     }
     dependencies {
-        classpath 'com.google.protobuf:protobuf-gradle-plugin:0.8.8'
+        classpath 'com.google.protobuf:protobuf-gradle-plugin:0.8.12'
     }
 }
 
@@ -31,28 +33,28 @@ repositories {
 }
 
 dependencies {
-    implementation 'com.google.code.gson:gson:2.8.5'
+    implementation 'com.google.code.gson:gson:2.8.6'
     implementation 'com.google.protobuf:protobuf-java:3.5.1'
-    implementation 'com.squareup.okhttp3:okhttp:3.12.1'
-    implementation 'org.apache.commons:commons-lang3:3.8.1'
-    implementation 'org.java-websocket:Java-WebSocket:1.3.9'
-    testCompile 'junit:junit:4.12'
-    testCompile 'commons-codec:commons-codec:1.11'
+    implementation 'com.squareup.okhttp3:okhttp:3.12.8'
+    implementation 'org.apache.commons:commons-lang3:3.9'
+    implementation 'org.java-websocket:Java-WebSocket:1.4.1'
+    testCompile 'junit:junit:4.13'
+    testCompile 'commons-codec:commons-codec:1.14'
     testCompile 'commons-io:commons-io:2.6'
-    testCompile 'org.bouncycastle:bcprov-jdk15on:1.60'
-    testCompile 'org.mockito:mockito-core:2.23.4'
-    testCompile 'com.squareup.okhttp3:mockwebserver:3.12.1'
+    testCompile 'org.bouncycastle:bcprov-jdk15on:1.64'
+    testCompile 'org.mockito:mockito-core:3.3.3'
+    testCompile 'com.squareup.okhttp3:mockwebserver:3.12.8'
     testCompile 'pl.pragmatists:JUnitParams:1.1.1'
 }
 
 protobuf {
     protoc {
-        artifact = 'com.google.protobuf:protoc:3.0.0'
+        artifact = 'com.google.protobuf:protoc:3.6.1'
     }
 }
 
 jacoco {
-    toolVersion = "0.8.1"
+    toolVersion = "0.8.5"
 }
 
 jacocoTestReport {
@@ -93,49 +95,49 @@ artifacts {
     archives javadocJar
 }
 
-signing {
-    sign configurations.archives
-}
+//signing {
+//    sign configurations.archives
+//}
 
-uploadArchives {
-    repositories {
-        mavenDeployer {
-            beforeDeployment { MavenDeployment deployment -> signing.signPom(deployment) }
-
-            repository(url: "https://oss.sonatype.org/service/local/staging/deploy/maven2/") {
-                authentication(userName: ossrhUsername, password: ossrhPassword)
-            }
-            snapshotRepository(url: "https://oss.sonatype.org/content/repositories/snapshots/") {
-                authentication(userName: ossrhUsername, password: ossrhPassword)
-            }
-            pom.project {
-                name 'JavaSteam'
-                packaging 'jar'
-                description 'Java library to interact with Valve\'s Steam network.'
-                url 'https://github.com/Longi94/JavaSteam'
-                inceptionYear '2018'
-
-                scm {
-                    connection 'scm:git:git://github.com/Longi94/JavaSteam.git'
-                    developerConnection 'scm:git:ssh://github.com:Longi94/JavaSteam.git'
-                    url 'http://github.com/Longi94/JavaSteam/tree/master'
-                }
-
-                licenses {
-                    license {
-                        name 'MIT License'
-                        url 'http://www.opensource.org/licenses/mit-license.php'
-                    }
-                }
-
-                developers {
-                    developer {
-                        id 'Longi'
-                        name 'Long Tran'
-                        email 'lngtrn94@gmail.com'
-                    }
-                }
-            }
-        }
-    }
-}
+//uploadArchives {
+//    repositories {
+//        mavenDeployer {
+//            beforeDeployment { MavenDeployment deployment -> signing.signPom(deployment) }
+//
+//            repository(url: "https://oss.sonatype.org/service/local/staging/deploy/maven2/") {
+//                authentication(userName: ossrhUsername, password: ossrhPassword)
+//            }
+//            snapshotRepository(url: "https://oss.sonatype.org/content/repositories/snapshots/") {
+//                authentication(userName: ossrhUsername, password: ossrhPassword)
+//            }
+//            pom.project {
+//                name 'JavaSteam'
+//                packaging 'jar'
+//                description 'Java library to interact with Valve\'s Steam network.'
+//                url 'https://github.com/Longi94/JavaSteam'
+//                inceptionYear '2018'
+//
+//                scm {
+//                    connection 'scm:git:git://github.com/Longi94/JavaSteam.git'
+//                    developerConnection 'scm:git:ssh://github.com:Longi94/JavaSteam.git'
+//                    url 'http://github.com/Longi94/JavaSteam/tree/master'
+//                }
+//
+//                licenses {
+//                    license {
+//                        name 'MIT License'
+//                        url 'http://www.opensource.org/licenses/mit-license.php'
+//                    }
+//                }
+//
+//                developers {
+//                    developer {
+//                        id 'Longi'
+//                        name 'Long Tran'
+//                        email 'lngtrn94@gmail.com'
+//                    }
+//                }
+//            }
+//        }
+//    }
+//}
