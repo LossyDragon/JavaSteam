@@ -52,6 +52,11 @@ public class SmartCMServerList {
             endPoints = SteamDirectory.load(configuration);
         }
 
+        if (endPoints.isEmpty() && configuration.isAllowDirectoryFetch()) {
+            logger.debug("Could not query SteamDirectory, falling back to cm0");
+            endPoints.add(ServerRecord.createSocketServer(new InetSocketAddress("cm0.steampowered.com", 27017)));
+        }
+
         logger.debug("Resolved " + endPoints.size() + " servers");
         replaceList(endPoints);
     }
