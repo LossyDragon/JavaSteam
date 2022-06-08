@@ -264,9 +264,9 @@ public class SteamIDTests extends TestBase {
     @Test
     public void steamIDHashCodeUsesLongHashCode() {
         SteamID sid = new SteamID(172376458626834L);
-        Long longValue = 172376458626834L;
+        long longValue = 172376458626834L;
 
-        assertEquals(sid.hashCode(), longValue.hashCode());
+        assertEquals(sid.hashCode(), Long.hashCode(longValue));
     }
 
     @Test

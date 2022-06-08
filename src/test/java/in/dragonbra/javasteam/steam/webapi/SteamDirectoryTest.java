@@ -13,6 +13,7 @@ import org.apache.commons.io.IOUtils;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 import static org.junit.Assert.assertEquals;
@@ -28,13 +29,13 @@ public class SteamDirectoryTest extends TestBase {
         MockWebServer server = new MockWebServer();
 
         server.enqueue(new MockResponse().setBody(IOUtils.toString(
-                WebAPITest.class.getClassLoader().getResource("testresponses/GetCMList.vdf"), "UTF-8")));
+                WebAPITest.class.getClassLoader().getResource("testresponses/GetCMList.vdf"), StandardCharsets.UTF_8)));
 
         server.start();
 
         final HttpUrl baseUrl = server.url("/");
 
-        SteamConfiguration config = SteamConfiguration.create(new Consumer<ISteamConfigurationBuilder>() {
+        SteamConfiguration config = SteamConfiguration.create(new Consumer<>() {
             @Override
             public void accept(ISteamConfigurationBuilder b) {
                 b.withWebAPIBaseAddress(baseUrl.toString());

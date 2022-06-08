@@ -20,7 +20,7 @@ public class SteamConfigurationTest {
 
     private final SteamConfiguration defaultConfig = SteamConfiguration.createDefault();
 
-    private final SteamConfiguration modifiedConfig = SteamConfiguration.create(new Consumer<ISteamConfigurationBuilder>() {
+    private final SteamConfiguration modifiedConfig = SteamConfiguration.create(new Consumer<>() {
         @Override
         public void accept(ISteamConfigurationBuilder builder) {
             builder.withDirectoryFetch(false)

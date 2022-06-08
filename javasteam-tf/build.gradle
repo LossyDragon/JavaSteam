@@ -1,16 +1,16 @@
-apply plugin: 'maven'
+apply plugin: 'maven-publish'
 apply plugin: 'signing'
 apply plugin: 'java'
 apply plugin: 'com.google.protobuf'
 
-sourceCompatibility = 1.7
+sourceCompatibility = 11
 
 repositories {
     mavenCentral()
 }
 
 dependencies {
-    implementation 'com.google.protobuf:protobuf-java:3.19.3'
+    implementation 'com.google.protobuf:protobuf-java:3.20.1'
     testImplementation 'junit:junit:4.13.2'
 }
 
@@ -29,12 +29,12 @@ sourceSets {
 }
 
 task sourcesJar(type: Jar, dependsOn: classes) {
-    classifier = 'sources'
+    archiveClassifier = 'sources'
     from sourceSets.main.allSource
 }
 
 task javadocJar(type: Jar, dependsOn: javadoc) {
-    classifier = 'javadoc'
+    archiveClassifier = 'javadoc'
     from javadoc.destinationDir
 }
 
@@ -51,45 +51,46 @@ signing {
     sign configurations.archives
 }
 
-uploadArchives {
-    repositories {
-        mavenDeployer {
-            beforeDeployment { MavenDeployment deployment -> signing.signPom(deployment) }
-
-            repository(url: "https://oss.sonatype.org/service/local/staging/deploy/maven2/") {
-                authentication(userName: ossrhUsername, password: ossrhPassword)
-            }
-            snapshotRepository(url: "https://oss.sonatype.org/content/repositories/snapshots/") {
-                authentication(userName: ossrhUsername, password: ossrhPassword)
-            }
-            pom.project {
-                name 'JavaSteam-tf'
-                packaging 'jar'
-                description 'TF classes for JavaSteam.'
-                url 'https://github.com/Longi94/JavaSteam'
-                inceptionYear '2018'
-
-                scm {
-                    connection 'scm:git:git://github.com/Longi94/JavaSteam.git'
-                    developerConnection 'scm:git:ssh://github.com:Longi94/JavaSteam.git'
-                    url 'http://github.com/Longi94/JavaSteam/tree/master'
-                }
-
-                licenses {
-                    license {
-                        name 'MIT License'
-                        url 'http://www.opensource.org/licenses/mit-license.php'
-                    }
-                }
-
-                developers {
-                    developer {
-                        id 'Longi'
-                        name 'Long Tran'
-                        email 'lngtrn94@gmail.com'
-                    }
-                }
-            }
-        }
-    }
-}
+// TODO fix
+//uploadArchives {
+//    repositories {
+//        mavenDeployer {
+//            beforeDeployment { MavenDeployment deployment -> signing.signPom(deployment) }
+//
+//            repository(url: "https://oss.sonatype.org/service/local/staging/deploy/maven2/") {
+//                authentication(userName: ossrhUsername, password: ossrhPassword)
+//            }
+//            snapshotRepository(url: "https://oss.sonatype.org/content/repositories/snapshots/") {
+//                authentication(userName: ossrhUsername, password: ossrhPassword)
+//            }
+//            pom.project {
+//                name 'JavaSteam-tf'
+//                packaging 'jar'
+//                description 'TF classes for JavaSteam.'
+//                url 'https://github.com/Longi94/JavaSteam'
+//                inceptionYear '2018'
+//
+//                scm {
+//                    connection 'scm:git:git://github.com/Longi94/JavaSteam.git'
+//                    developerConnection 'scm:git:ssh://github.com:Longi94/JavaSteam.git'
+//                    url 'http://github.com/Longi94/JavaSteam/tree/master'
+//                }
+//
+//                licenses {
+//                    license {
+//                        name 'MIT License'
+//                        url 'http://www.opensource.org/licenses/mit-license.php'
+//                    }
+//                }
+//
+//                developers {
+//                    developer {
+//                        id 'Longi'
+//                        name 'Long Tran'
+//                        email 'lngtrn94@gmail.com'
+//                    }
+//                }
+//            }
+//        }
+//    }
+//}

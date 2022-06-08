@@ -4,8 +4,6 @@ import in.dragonbra.javasteam.TestBase;
 import org.junit.Assert;
 import org.junit.Test;
 
-import static org.junit.Assert.*;
-
 /**
  * @author lngtr
  * @since 2018-04-16

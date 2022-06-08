@@ -102,12 +102,12 @@ public class SteamAppsTest extends HandlerTestBase<SteamApps> {
 
     @Test(expected = IllegalArgumentException.class)
     public void picsGetProductInfoNull() {
-        handler.picsGetProductInfo(null, new LinkedList<PICSRequest>(), false);
+        handler.picsGetProductInfo(null, new LinkedList<>(), false);
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void picsGetProductInfoNull2() {
-        handler.picsGetProductInfo(new LinkedList<PICSRequest>(), null, false);
+        handler.picsGetProductInfo(new LinkedList<>(), null, false);
     }
 
     @Test

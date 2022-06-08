@@ -26,7 +26,7 @@ public class SmartCMServerListTest extends TestBase {
 
     @Before
     public void setUp() {
-        SteamConfiguration configuration = SteamConfiguration.create(new Consumer<ISteamConfigurationBuilder>() {
+        SteamConfiguration configuration = SteamConfiguration.create(new Consumer<>() {
             @Override
             public void accept(ISteamConfigurationBuilder b) {
                 b.withDirectoryFetch(false);

@@ -16,6 +16,7 @@ import org.junit.Test;
 
 import java.io.IOException;
 import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -52,7 +53,7 @@ public class WebAPITest extends TestBase {
 
         baseUrl = server.url("/");
 
-        config = SteamConfiguration.create(new Consumer<ISteamConfigurationBuilder>() {
+        config = SteamConfiguration.create(new Consumer<>() {
             @Override
             public void accept(ISteamConfigurationBuilder b) {
                 b.withWebAPIBaseAddress(baseUrl.toString());
@@ -78,7 +79,7 @@ public class WebAPITest extends TestBase {
 
     @Test
     public void steamConfigWebApiInterface() {
-        SteamConfiguration config = SteamConfiguration.create(new Consumer<ISteamConfigurationBuilder>() {
+        SteamConfiguration config = SteamConfiguration.create(new Consumer<>() {
             @Override
             public void accept(ISteamConfigurationBuilder b) {
                 b.withWebAPIBaseAddress("http://example.com/")
@@ -111,7 +112,7 @@ public class WebAPITest extends TestBase {
     public void testAsyncCall() throws IOException, InterruptedException {
         WebAPI api = config.getWebAPI("TestInterface");
 
-        api.call("TestFunction", new Consumer<KeyValue>() {
+        api.call("TestFunction", new Consumer<>() {
             @Override
             public void accept(KeyValue result) {
                 assertEquals("stringvalue", result.get("name").asString());
@@ -139,7 +140,7 @@ public class WebAPITest extends TestBase {
         RecordedRequest request = server.takeRequest();
         assertEquals("/TestInterface/TestFunction/v1", request.getPath());
         assertEquals("POST", request.getMethod());
-        assertEquals("format=vdf", request.getBody().readString(Charset.forName("UTF-8")));
+        assertEquals("format=vdf", request.getBody().readString(StandardCharsets.UTF_8));
     }
 
     @Test
@@ -190,7 +191,7 @@ public class WebAPITest extends TestBase {
         RecordedRequest request = server.takeRequest();
         assertEquals("/TestInterface/TestFunction/v1", request.getPath());
         assertEquals("POST", request.getMethod());
-        assertEquals("key1=value1&key2=value2&format=vdf", request.getBody().readString(Charset.forName("UTF-8")));
+        assertEquals("key1=value1&key2=value2&format=vdf", request.getBody().readString(StandardCharsets.UTF_8));
     }
 
     @Test(expected = IllegalArgumentException.class)

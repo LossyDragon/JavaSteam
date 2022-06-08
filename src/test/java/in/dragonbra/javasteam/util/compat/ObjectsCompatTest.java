@@ -10,7 +10,7 @@ import in.dragonbra.javasteam.TestBase;
 public class ObjectsCompatTest extends TestBase {
 
     @Test
-    public void testEquals() throws Exception {
+    public void testEquals() {
         final String a = "aaa";
         final String b = "bbb";
         final String c = null;
