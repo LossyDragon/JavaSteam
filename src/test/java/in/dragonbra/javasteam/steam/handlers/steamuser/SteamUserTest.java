@@ -13,21 +13,22 @@ import in.dragonbra.javasteam.steam.handlers.HandlerTestBase;
 import in.dragonbra.javasteam.steam.handlers.steamuser.callback.*;
 import in.dragonbra.javasteam.types.JobID;
 import in.dragonbra.javasteam.types.SteamID;
-import org.junit.Test;
-import org.junit.runner.RunWith;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.junit.MockitoJUnitRunner;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.Date;
 
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 /**
  * @author lngtr
  * @since 2018-03-24
  */
-@RunWith(MockitoJUnitRunner.Silent.class)
+@ExtendWith(MockitoExtension.class)
 public class SteamUserTest extends HandlerTestBase<SteamUser> {
 
     @Override
@@ -65,24 +66,29 @@ public class SteamUserTest extends HandlerTestBase<SteamUser> {
         assertEquals(EResult.NoConnection, callback.getResult());
     }
 
-    @Test(expected = IllegalArgumentException.class)
+    @Test
     public void logOnNoDetails() {
-        LogOnDetails details = new LogOnDetails();
-        handler.logOn(details);
+        Assertions.assertThrows(IllegalArgumentException.class, () -> {
+                    LogOnDetails details = new LogOnDetails();
+                    handler.logOn(details);
+                }
+        );
     }
 
-    @Test(expected = IllegalArgumentException.class)
+    @Test
     public void logOnNullDetails() {
-        handler.logOn(null);
+        Assertions.assertThrows(IllegalArgumentException.class, () -> handler.logOn(null));
     }
 
-    @Test(expected = IllegalArgumentException.class)
+    @Test
     public void logOnLoginKeyWithNoRemember() {
-        LogOnDetails details = new LogOnDetails();
-        details.setUsername("testusername");
-        details.setLoginKey("loginkey");
+        Assertions.assertThrows(IllegalArgumentException.class, () -> {
+            LogOnDetails details = new LogOnDetails();
+            details.setUsername("testusername");
+            details.setLoginKey("loginkey");
 
-        handler.logOn(details);
+            handler.logOn(details);
+        });
     }
 
     @Test
@@ -98,9 +104,9 @@ public class SteamUserTest extends HandlerTestBase<SteamUser> {
         assertEquals(EAccountType.AnonUser, id.getAccountType());
     }
 
-    @Test(expected = IllegalArgumentException.class)
+    @Test
     public void logOnAnonymousNullDetails() {
-        handler.logOnAnonymous(null);
+        Assertions.assertThrows(IllegalArgumentException.class, () -> handler.logOnAnonymous(null));
     }
 
     @Test
@@ -162,9 +168,9 @@ public class SteamUserTest extends HandlerTestBase<SteamUser> {
         assertArrayEquals(new byte[]{0, 1, 2, 3}, msg.getBody().getShaFile().toByteArray());
     }
 
-    @Test(expected = IllegalArgumentException.class)
+    @Test
     public void machineAuthResponseNullDetails() {
-        handler.sendMachineAuthResponse(null);
+        Assertions.assertThrows(IllegalArgumentException.class, () -> handler.sendMachineAuthResponse(null));
     }
 
     @Test
@@ -190,14 +196,14 @@ public class SteamUserTest extends HandlerTestBase<SteamUser> {
         assertEquals(123, msg.getBody().getUniqueId());
     }
 
-    @Test(expected = IllegalArgumentException.class)
+    @Test
     public void acceptNewLoginKeyNullCallback() {
-        handler.acceptNewLoginKey(null);
+        Assertions.assertThrows(IllegalArgumentException.class, () -> handler.acceptNewLoginKey(null));
     }
 
-    @Test(expected = IllegalArgumentException.class)
+    @Test
     public void handleNullPacket() {
-        handler.handleMsg(null);
+        Assertions.assertThrows(IllegalArgumentException.class, () -> handler.handleMsg(null));
     }
 
     @Test

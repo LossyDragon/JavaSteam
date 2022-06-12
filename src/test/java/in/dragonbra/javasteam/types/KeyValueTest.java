@@ -7,19 +7,19 @@ import in.dragonbra.javasteam.util.stream.MemoryStream;
 import in.dragonbra.javasteam.util.stream.SeekOrigin;
 import org.apache.commons.codec.DecoderException;
 import org.apache.commons.codec.binary.Hex;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import java.io.EOFException;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.EnumSet;
 import java.util.UUID;
 
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * @author lngtr
@@ -29,8 +29,8 @@ public class KeyValueTest extends TestBase {
 
     public static final String TEST_OBJECT_HEX = "00546573744F626A65637400016B65790076616C7565000808";
 
-    @Rule
-    public TemporaryFolder folder = new TemporaryFolder();
+    @TempDir
+    Path folder;
 
     @Test
     public void keyValueInitializesCorrectly() {
@@ -143,10 +143,10 @@ public class KeyValueTest extends TestBase {
         assertFalse(kv.get("name").asBoolean());
 
         kv.get("name").setValue("1000");
-        assertTrue("values other than 0 are truthy", kv.get("name").asBoolean());
+        assertTrue(kv.get("name").asBoolean(), "values other than 0 are truthy");
 
         kv.get("name").setValue("inavlidbool");
-        assertFalse("values that cannot be converted to integers are falsey", kv.get("name").asBoolean());
+        assertFalse(kv.get("name").asBoolean(), "values that cannot be converted to integers are falsey");
     }
 
     @Test
@@ -219,7 +219,7 @@ public class KeyValueTest extends TestBase {
         kv.getChildren().add(new KeyValue("watching_from_server", "[A:1:864468994:5412]"));
 
         File tempFile;
-        tempFile = folder.newFile();
+        tempFile = folder.resolve("keyValuesWritesBinaryToFile").toFile();
 
         kv.saveToFile(tempFile, true);
 
@@ -286,7 +286,7 @@ public class KeyValueTest extends TestBase {
         success = kv.tryReadAsBinary(ms);
         assertEquals(ms.getLength(), ms.getPosition());
 
-        assertTrue("Should have read test object.", success);
+        assertTrue(success, "Should have read test object.");
         assertEquals("TestObject", kv.getName());
         assertEquals(1, kv.getChildren().size());
         assertEquals("key", kv.getChildren().get(0).getName());
@@ -304,7 +304,7 @@ public class KeyValueTest extends TestBase {
         assertEquals(TEST_OBJECT_HEX.length() / 2, ms.getPosition());
         assertEquals(16, ms.getLength() - ms.getPosition());
 
-        assertTrue("Should have read test object.", success);
+        assertTrue(success, "Should have read test object.");
         assertEquals("TestObject", kv.getName());
         assertEquals(1, kv.getChildren().size());
         assertEquals("key", kv.getChildren().get(0).getName());
@@ -322,12 +322,12 @@ public class KeyValueTest extends TestBase {
             MemoryStream ms = new MemoryStream(binary);
             try {
                 success = kv.tryReadAsBinary(ms);
-                assertFalse(true);
+                fail();
             } catch (EOFException ignored) {
             }
             assertEquals(ms.getLength(), ms.getPosition());
 
-            assertFalse("Should not have read test object.", success);
+            assertFalse(success, "Should not have read test object.");
         }
     }
 
@@ -362,7 +362,7 @@ public class KeyValueTest extends TestBase {
         kv.getChildren().add(kv2);
 
         String text;
-        File temporaryFile = folder.newFile();
+        File temporaryFile = folder.resolve("keyValuesSavesTextToFile").toFile();
         kv.saveToFile(temporaryFile, false);
         text = new String(Files.readAllBytes(Paths.get(temporaryFile.getPath())));
 

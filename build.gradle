@@ -5,23 +5,23 @@ buildscript {
         mavenCentral()
     }
     dependencies {
-        classpath 'com.google.protobuf:protobuf-gradle-plugin:0.8.17'
+        classpath 'com.google.protobuf:protobuf-gradle-plugin:0.8.18'
     }
 }
 
 group 'in.dragonbra'
-version '1.1.0'
+version '1.2.0'
 
 allprojects {
     group 'in.dragonbra'
-    version '1.1.0'
+    version '1.2.0'
 }
 
-apply plugin: 'maven-publish'
-apply plugin: 'signing'
-apply plugin: 'java'
 apply plugin: 'com.google.protobuf'
 apply plugin: 'jacoco'
+apply plugin: 'java'
+apply plugin: 'maven-publish'
+apply plugin: 'signing'
 apply plugin: SteamLanguageGenPlugin
 
 sourceCompatibility = 11
@@ -32,24 +32,38 @@ repositories {
 
 dependencies {
     implementation 'com.google.code.gson:gson:2.9.0'
-    implementation 'com.google.protobuf:protobuf-java:3.20.1'
+    implementation 'com.google.protobuf:protobuf-java:3.21.1'
     implementation 'com.squareup.okhttp3:okhttp:4.9.3'
     implementation 'commons-validator:commons-validator:1.7'
     implementation 'org.apache.commons:commons-lang3:3.12.0'
     implementation 'org.java-websocket:Java-WebSocket:1.5.3'
-    testImplementation 'com.squareup.okhttp3:mockwebserver:4.9.3'
     testImplementation 'commons-codec:commons-codec:1.15'
     testImplementation 'commons-io:commons-io:2.11.0'
-    testImplementation 'junit:junit:4.13.2'
     testImplementation 'org.bouncycastle:bcprov-jdk15on:1.70'
-    testImplementation 'org.mockito:mockito-core:4.5.1'
-    testImplementation 'pl.pragmatists:JUnitParams:1.1.1'
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.8.2'
+    testImplementation 'org.junit.jupiter:junit-jupiter-engine:5.8.2'
+    testImplementation 'org.junit.jupiter:junit-jupiter-params:5.8.2'
+    testImplementation 'org.mockito:mockito-core:4.6.1'
+    testImplementation 'org.mockito:mockito-junit-jupiter:4.6.1'
+    testImplementation 'com.squareup.okhttp3:mockwebserver3-junit5:5.0.0-alpha.8' // ugh
 }
 
 protobuf {
     protoc {
         artifact = 'com.google.protobuf:protoc:3.18.0'
     }
+}
+
+// Only allow JUnit 5
+configurations {
+    all {
+        exclude group: 'junit', module: 'junit'
+        exclude group: 'org.junit.vintage', module: 'junit-vintage-engine'
+    }
+}
+
+test {
+    useJUnitPlatform()
 }
 
 jacoco {

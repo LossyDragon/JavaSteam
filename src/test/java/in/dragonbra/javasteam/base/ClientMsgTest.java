@@ -2,11 +2,11 @@ package in.dragonbra.javasteam.base;
 
 import in.dragonbra.javasteam.generated.MsgClientChatEnter;
 import in.dragonbra.javasteam.steam.CMClient;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * @author lngtr
@@ -15,7 +15,7 @@ import static org.junit.Assert.assertEquals;
 public class ClientMsgTest {
 
     // this test vector is a packet meant for a ClientMsg<MsgClientChatEnter>
-    private static final byte[] STRUCT_MSG_DATA = new byte[] {
+    private static final byte[] STRUCT_MSG_DATA = new byte[]{
             (byte) 0x27, (byte) 0x03, (byte) 0x00, (byte) 0x00, (byte) 0x24, (byte) 0x02, (byte) 0x00, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF,
             (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xEF, (byte) 0xAC, (byte) 0x15, (byte) 0x89, (byte) 0x00, (byte) 0x01, (byte) 0x00, (byte) 0x10, (byte) 0x01,
             (byte) 0x8E, (byte) 0x56, (byte) 0x11, (byte) 0x00, (byte) 0xBC, (byte) 0x4E, (byte) 0x2A, (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x88, (byte) 0x01, (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00,

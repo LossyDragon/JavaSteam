@@ -9,13 +9,12 @@ import in.dragonbra.javasteam.enums.EMsg;
 import in.dragonbra.javasteam.generated.MsgHdr;
 import in.dragonbra.javasteam.generated.MsgHdrProtoBuf;
 import in.dragonbra.javasteam.util.stream.BinaryWriter;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * @author lngtr

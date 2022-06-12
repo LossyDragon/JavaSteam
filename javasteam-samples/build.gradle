@@ -1,5 +1,5 @@
 group 'in.dragonbra'
-version '1.1.0'
+version '1.2.0'
 
 apply plugin: 'java'
 
@@ -14,7 +14,7 @@ dependencies {
     implementation 'org.bouncycastle:bcprov-jdk15on:1.70'
 
     // To access protobufs directly as shown in Sample #2
-    implementation 'com.google.protobuf:protobuf-java:3.20.1'
+    implementation 'com.google.protobuf:protobuf-java:3.21.1'
 
-    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.8.2'
 }

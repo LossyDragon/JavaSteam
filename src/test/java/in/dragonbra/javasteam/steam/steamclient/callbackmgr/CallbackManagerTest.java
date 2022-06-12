@@ -4,14 +4,14 @@ import in.dragonbra.javasteam.TestBase;
 import in.dragonbra.javasteam.steam.steamclient.SteamClient;
 import in.dragonbra.javasteam.types.JobID;
 import in.dragonbra.javasteam.util.compat.Consumer;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.UUID;
 
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * @author lngtr
@@ -22,7 +22,7 @@ public class CallbackManagerTest extends TestBase {
     private SteamClient client;
     private CallbackManager mgr;
 
-    @Before
+    @BeforeEach
     public void setUp() {
         client = new SteamClient();
         mgr = new CallbackManager(client);
