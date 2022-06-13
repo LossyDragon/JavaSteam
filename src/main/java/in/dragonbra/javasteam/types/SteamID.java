@@ -24,20 +24,19 @@ public class SteamID {
     private static final Map<EAccountType, Character> ACCOUNT_TYPE_CHARS;
 
     static {
-        Map<EAccountType, Character> accountTypeChars = new HashMap<>();
 
-        accountTypeChars.put(EAccountType.AnonGameServer, 'A');
-        accountTypeChars.put(EAccountType.GameServer, 'G');
-        accountTypeChars.put(EAccountType.Multiseat, 'M');
-        accountTypeChars.put(EAccountType.Pending, 'P');
-        accountTypeChars.put(EAccountType.ContentServer, 'C');
-        accountTypeChars.put(EAccountType.Clan, 'g');
-        accountTypeChars.put(EAccountType.Chat, 'T'); // Lobby chat is 'L', Clan chat is 'c'
-        accountTypeChars.put(EAccountType.Invalid, 'I');
-        accountTypeChars.put(EAccountType.Individual, 'U');
-        accountTypeChars.put(EAccountType.AnonUser, 'a');
-
-        ACCOUNT_TYPE_CHARS = Collections.unmodifiableMap(accountTypeChars);
+        ACCOUNT_TYPE_CHARS = Map.of(
+                EAccountType.AnonGameServer, 'A',
+                EAccountType.GameServer, 'G',
+                EAccountType.Multiseat, 'M',
+                EAccountType.Pending, 'P',
+                EAccountType.ContentServer, 'C',
+                EAccountType.Clan, 'g',
+                EAccountType.Chat, 'T', // Lobby chat is 'L', Clan chat is 'c'
+                EAccountType.Invalid, 'I',
+                EAccountType.Individual, 'U',
+                EAccountType.AnonUser, 'a'
+        );
     }
 
     public static final char UNKNOWN_ACCOUNT_TYPE_CHAR = 'i';
@@ -431,6 +430,7 @@ public class SteamID {
         }
 
         if (getAccountType() == EAccountType.GameServer) {
+            //noinspection RedundantIfStatement
             if (getAccountID() == 0)
                 return false;
         }
