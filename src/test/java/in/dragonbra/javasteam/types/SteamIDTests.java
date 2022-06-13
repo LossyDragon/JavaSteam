@@ -33,7 +33,6 @@ public class SteamIDTests extends TestBase {
         assertEquals(EUniverse.Beta, sid.getAccountUniverse());
         assertEquals(EAccountType.Chat, sid.getAccountType());
 
-
         sid = new SteamID(4321, EUniverse.Invalid, EAccountType.Pending);
 
         assertEquals(4321L, sid.getAccountID());
@@ -69,7 +68,6 @@ public class SteamIDTests extends TestBase {
         assertEquals(SteamID.DESKTOP_INSTANCE, sidEven.getAccountInstance());
         assertEquals(EUniverse.Public, sidEven.getAccountUniverse());
 
-
         SteamID sidOdd = new SteamID("STEAM_0:1:4491990");
 
         assertEquals(8983981L, sidOdd.getAccountID());
@@ -104,7 +102,6 @@ public class SteamIDTests extends TestBase {
         sidClanChat.setFromSteam3String("[c:1:123]");
         assertEquals(123L, sidClanChat.getAccountID());
         assertEquals(EUniverse.Public, sidClanChat.getAccountUniverse());
-
         assertTrue((sidClanChat.getAccountInstance() & SteamID.ChatInstanceFlags.CLAN.code()) > 0);
         assertEquals(EAccountType.Chat, sidClanChat.getAccountType());
 
@@ -258,6 +255,8 @@ public class SteamIDTests extends TestBase {
         SteamID sid3 = new SteamID(12345L);
 
         assertNotEquals(sid, sid3);
+
+        // Skipping implicit conversion checks.
     }
 
     @Test
@@ -363,12 +362,81 @@ public class SteamIDTests extends TestBase {
 
     @ParameterizedTest(name = "{index} => EAccountType=''{0}''")
     @EnumSource(value = EAccountType.class, names = {
-            "AnonGameServer", "AnonUser", "Clan", "ConsoleUser",
-            "ContentServer", "GameServer", "Individual", "Multiseat", "Pending",})
-    public void tryGetClanIDOnlySupportsChatRooms(EAccountType type) {
+            "AnonGameServer", "AnonUser", "ConsoleUser", "ContentServer",
+            "GameServer", "Individual", "Multiseat", "Pending",})
+    public void tryGetClanIDOnlySupportsClanChatRooms(EAccountType type) {
         SteamID chatID = new SteamID(4, SteamID.ChatInstanceFlags.CLAN.code(), EUniverse.Public, type);
 
         SteamID groupID = chatID.tryGetClanID();
         assertNull(groupID);
+    }
+
+    @ParameterizedTest(name = "{index} => EAccountType=''{0}''")
+    @EnumSource(value = EAccountType.class, names = {
+            "AnonGameServer", "AnonUser", "ConsoleUser", "ContentServer", "Clan",
+            "Chat", "GameServer", "Individual", "Multiseat", "Pending",})
+    public void knownAccountTypesAreValid(EAccountType type) {
+        SteamID sid = new SteamID(76561198074261126L);
+        sid.setAccountInstance(0); // for Clan to pass
+        sid.setAccountType(type);
+        assertTrue(sid.isValid());
+    }
+
+    @Test
+    public void unknownAccountTypesAreInvalid() {
+        SteamID sid = new SteamID(76561198074261126L);
+
+        EAccountType accountType = EAccountType.Invalid;
+        sid.setAccountType(accountType);
+        assertFalse(sid.isValid());
+
+        // Our enums return null for invalid codes, lets verify that.
+        accountType = EAccountType.from(11);
+        assertNull(accountType);
+
+        accountType = EAccountType.from(12);
+        assertNull(accountType);
+
+        accountType = EAccountType.from(13);
+        assertNull(accountType);
+    }
+
+    @ParameterizedTest(name = "{index} => EUniverse=''{0}''")
+    @EnumSource(value = EUniverse.class, names = {"Public", "Beta", "Internal", "Dev"})
+    public void KnownAccountUniversesAreValid(EUniverse universe) {
+        SteamID sid = new SteamID(76561198074261126L);
+        sid.setAccountUniverse(universe);
+        assertTrue(sid.isValid());
+    }
+
+    @Test
+    public void unknownAccountUniversesAreInvalid() {
+        SteamID sid = new SteamID(76561198074261126L);
+
+        EUniverse eUniverse = EUniverse.Invalid;
+        sid.setAccountUniverse(eUniverse);
+        assertFalse(sid.isValid());
+
+        // Our enums return null for invalid codes, lets verify that.
+        eUniverse = EUniverse.from(5);
+        assertNull(eUniverse);
+
+        eUniverse = EUniverse.from(6);
+        assertNull(eUniverse);
+
+        eUniverse = EUniverse.from(7);
+        assertNull(eUniverse);
+    }
+
+    @Test
+    public void eUniverseEnumHasNotChanged() {
+        // If this enum has changed, update SteamID.IsValid
+        assertEquals(5, EUniverse.values().length);
+    }
+
+    @Test
+    public void eAccountTypeEnumHasNotChanged() {
+        // If this enum has changed, update SteamID.IsValid
+        assertEquals(11, EAccountType.values().length);
     }
 }

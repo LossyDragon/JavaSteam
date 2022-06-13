@@ -15,6 +15,15 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 public class ServerRecordTest extends TestBase {
 
+    @SuppressWarnings("ConstantConditions")
+    @Test
+    public void nullsAreEqualOperator() {
+        ServerRecord l = null;
+        ServerRecord r = null;
+
+        assertSame(l, r);
+    }
+
     @Test
     public void nullIsNotEqual() {
         ServerRecord s = ServerRecord.createWebSocketServer("host:1");

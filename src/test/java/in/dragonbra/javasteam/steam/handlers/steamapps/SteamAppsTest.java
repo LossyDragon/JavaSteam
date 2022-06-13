@@ -17,8 +17,6 @@ import in.dragonbra.javasteam.steam.handlers.steamapps.callback.*;
 import in.dragonbra.javasteam.types.JobID;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.Date;
 import java.util.LinkedList;
@@ -29,7 +27,6 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author lngtr
  * @since 2018-04-09
  */
-@ExtendWith(MockitoExtension.class)
 public class SteamAppsTest extends HandlerTestBase<SteamApps> {
 
     @Override

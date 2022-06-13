@@ -8,9 +8,7 @@ import org.junit.jupiter.api.Test;
 
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.util.ArrayList;
-import java.util.EnumSet;
-import java.util.List;
+import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -34,9 +32,9 @@ public class SmartCMServerListTest extends TestBase {
 
         List<ServerRecord> seedList = new ArrayList<>();
         seedList.add(ServerRecord.createSocketServer(new InetSocketAddress(InetAddress.getLoopbackAddress(), 27025)));
-        seedList.add(ServerRecord.createSocketServer(new InetSocketAddress(InetAddress.getLoopbackAddress(), 27026)));
-        seedList.add(ServerRecord.createSocketServer(new InetSocketAddress(InetAddress.getLoopbackAddress(), 27027)));
-        seedList.add(ServerRecord.createSocketServer(new InetSocketAddress(InetAddress.getLoopbackAddress(), 27028)));
+        seedList.add(ServerRecord.createSocketServer(new InetSocketAddress(InetAddress.getLoopbackAddress(), 27035)));
+        seedList.add(ServerRecord.createSocketServer(new InetSocketAddress(InetAddress.getLoopbackAddress(), 27045)));
+        seedList.add(ServerRecord.createSocketServer(new InetSocketAddress(InetAddress.getLoopbackAddress(), 27105)));
 
         serverList.replaceList(seedList);
 
@@ -102,10 +100,7 @@ public class SmartCMServerListTest extends TestBase {
         ServerRecord neutralRecord = ServerRecord.createSocketServer(new InetSocketAddress(InetAddress.getLoopbackAddress(), 27016));
         ServerRecord badRecord = ServerRecord.createSocketServer(new InetSocketAddress(InetAddress.getLoopbackAddress(), 27017));
 
-        List<ServerRecord> serverRecords = new ArrayList<>();
-        serverRecords.add(badRecord);
-        serverRecords.add(neutralRecord);
-        serverRecords.add(goodRecord);
+        List<ServerRecord> serverRecords = Arrays.asList(badRecord, neutralRecord, goodRecord);
         serverList.replaceList(serverRecords);
 
         serverList.tryMark(goodRecord.getEndpoint(), goodRecord.getProtocolTypes(), ServerQuality.GOOD);
@@ -123,6 +118,11 @@ public class SmartCMServerListTest extends TestBase {
         assertEquals(1, nextRecord.getProtocolTypes().size());
         assertTrue(nextRecord.getProtocolTypes().contains(ProtocolTypes.TCP));
     }
+
+    // TODO not implemented
+//    @Test
+//    public void getNextServerCandidate_AllEndpointsByHostAreBad() {
+//    }
 
     @Test
     public void getNextServerCandidate_OnlyReturnsMatchingServerOfType() {
@@ -175,6 +175,68 @@ public class SmartCMServerListTest extends TestBase {
         assertEquals(record.getEndpoint(), endPoint.getEndpoint());
         assertEquals(1, endPoint.getProtocolTypes().size());
         assertTrue(endPoint.getProtocolTypes().contains(ProtocolTypes.TCP));
+    }
+
+    @Test
+    public void getNextServerCandidate_MarkIterateAllCandidates() {
+        serverList.getAllEndPoints();
+
+        var recordA = ServerRecord.createWebSocketServer("10.0.0.1:27030");
+        var recordB = ServerRecord.createWebSocketServer("10.0.0.2:27030");
+        var recordC = ServerRecord.createWebSocketServer("10.0.0.3:27030");
+
+        List<ServerRecord> serverRecords = Arrays.asList(recordA, recordB, recordC);
+        serverList.replaceList(serverRecords);
+
+        var candidatesReturned = new HashSet<ServerRecord>();
+
+        var candidate = serverList.getNextServerCandidate(ProtocolTypes.WEB_SOCKET);
+        assertTrue(candidatesReturned.add(candidate), "Candidate " + candidate.getEndpoint() + " already seen");
+        serverList.tryMark(candidate.getEndpoint(), ProtocolTypes.WEB_SOCKET, ServerQuality.BAD);
+
+        candidate = serverList.getNextServerCandidate(ProtocolTypes.WEB_SOCKET);
+        assertTrue(candidatesReturned.add(candidate), "Candidate " + candidate.getEndpoint() + " already seen");
+        serverList.tryMark(candidate.getEndpoint(), ProtocolTypes.WEB_SOCKET, ServerQuality.BAD);
+
+        candidate = serverList.getNextServerCandidate(ProtocolTypes.WEB_SOCKET);
+        assertTrue(candidatesReturned.add(candidate), "Candidate " + candidate.getEndpoint() + " already seen");
+        serverList.tryMark(candidate.getEndpoint(), ProtocolTypes.WEB_SOCKET, ServerQuality.BAD);
+
+        assertEquals(3, candidatesReturned.size(), "All candidates returned");
+    }
+
+    @Test
+    public void getNextServerCandidate_MarkIterateAllBadCandidates() throws InterruptedException {
+        serverList.getAllEndPoints();
+
+        var recordA = ServerRecord.createWebSocketServer("10.0.0.1:27030");
+        var recordB = ServerRecord.createWebSocketServer("10.0.0.2:27030");
+        var recordC = ServerRecord.createWebSocketServer("10.0.0.3:27030");
+
+        List<ServerRecord> serverRecords = Arrays.asList(recordA, recordB, recordC);
+        serverList.replaceList(serverRecords);
+        serverList.tryMark(recordA.getEndpoint(), ProtocolTypes.WEB_SOCKET, ServerQuality.BAD);
+        serverList.tryMark(recordB.getEndpoint(), ProtocolTypes.WEB_SOCKET, ServerQuality.BAD);
+        serverList.tryMark(recordC.getEndpoint(), ProtocolTypes.WEB_SOCKET, ServerQuality.BAD);
+
+        var candidatesReturned = new HashSet<ServerRecord>();
+
+        var candidate = serverList.getNextServerCandidate(ProtocolTypes.WEB_SOCKET);
+        assertTrue(candidatesReturned.add(candidate), "Candidate " + candidate.getEndpoint() + " already seen");
+        Thread.sleep(10);
+        serverList.tryMark(candidate.getEndpoint(), ProtocolTypes.WEB_SOCKET, ServerQuality.BAD);
+
+        candidate = serverList.getNextServerCandidate(ProtocolTypes.WEB_SOCKET);
+        assertTrue(candidatesReturned.add(candidate), "Candidate " + candidate.getEndpoint() + " already seen");
+        Thread.sleep(10);
+        serverList.tryMark(candidate.getEndpoint(), ProtocolTypes.WEB_SOCKET, ServerQuality.BAD);
+
+        candidate = serverList.getNextServerCandidate(ProtocolTypes.WEB_SOCKET);
+        assertTrue(candidatesReturned.add(candidate), "Candidate " + candidate.getEndpoint() + " already seen");
+        Thread.sleep(10);
+        serverList.tryMark(candidate.getEndpoint(), ProtocolTypes.WEB_SOCKET, ServerQuality.BAD);
+
+        assertEquals(3, candidatesReturned.size(), "All candidates returned");
     }
 
     @Test

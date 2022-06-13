@@ -15,25 +15,160 @@ import in.dragonbra.javasteam.types.JobID;
 import in.dragonbra.javasteam.types.SteamID;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.Mockito;
 
 import java.util.Date;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.when;
 
 /**
  * @author lngtr
  * @since 2018-03-24
  */
-@ExtendWith(MockitoExtension.class)
 public class SteamUserTest extends HandlerTestBase<SteamUser> {
 
     @Override
     protected SteamUser createHandler() {
         return new SteamUser();
+    }
+
+    @Test
+    public void logOnPostsLoggedOnCallbackWhenNoConnection() {
+        reset(steamClient);
+        when(steamClient.isConnected()).thenReturn(false);
+
+        LogOnDetails details = new LogOnDetails();
+        details.setUsername("iamauser");
+        details.setPassword("lamepassword");
+
+        handler.logOn(details);
+
+        var callback = verifyCallback();
+        assertNotNull(callback);
+        assertInstanceOf(LoggedOnCallback.class, callback);
+
+        var loc = (LoggedOnCallback) callback;
+        assertEquals(EResult.NoConnection, loc.getResult());
+    }
+
+    @Test
+    public void logOnThrowsExceptionIfDetailsNotProvided() {
+        Assertions.assertThrows(IllegalArgumentException.class, () -> handler.logOn(null));
+    }
+
+    @Test
+    public void logOnThrowsExceptionIfDetailsNotProvided_2() {
+        Assertions.assertThrows(IllegalArgumentException.class, () -> {
+                    LogOnDetails details = new LogOnDetails();
+                    handler.logOn(details);
+                }
+        );
+    }
+
+    @Test
+    public void logOnThrowsExceptionIfUsernameNotProvided_OnlyPassword() {
+        Assertions.assertThrows(IllegalArgumentException.class, () -> {
+            LogOnDetails details = new LogOnDetails();
+            details.setPassword("def");
+            handler.logOn(details);
+        });
+    }
+
+    @Test
+    public void logOnThrowsExceptionIfUsernameNotProvided_OnlyLoginKey() {
+        Assertions.assertThrows(IllegalArgumentException.class, () -> {
+            LogOnDetails details = new LogOnDetails();
+            details.setLoginKey("def");
+            handler.logOn(details);
+        });
+    }
+
+    @Test
+    public void logOnThrowsExceptionIfUsernameNotProvided_OnlyLoginKey_ShouldRememberPassword() {
+        Assertions.assertThrows(IllegalArgumentException.class, () -> {
+            LogOnDetails details = new LogOnDetails();
+            details.setLoginKey("def");
+            details.setShouldRememberPassword(true);
+            handler.logOn(details);
+        });
+    }
+
+    @Test
+    public void logOnThrowsExceptionIfPasswordAndLoginKeyNotProvided() {
+        Assertions.assertThrows(IllegalArgumentException.class, () -> {
+            LogOnDetails details = new LogOnDetails();
+            details.setUsername("abc");
+            handler.logOn(details);
+        });
+    }
+
+    @Test
+    public void logOnThrowsExceptionIfLoginKeyProvidedWithoutShouldRememberPassword() {
+        Assertions.assertThrows(IllegalArgumentException.class, () -> {
+            LogOnDetails details = new LogOnDetails();
+            details.setUsername("abc");
+            details.setLoginKey("def");
+            handler.logOn(details);
+        });
+    }
+
+    @Test
+    public void logOnDoesNotThrowExceptionIfUserNameAndPasswordProvided() {
+        Assertions.assertDoesNotThrow(() -> {
+            LogOnDetails details = new LogOnDetails();
+            details.setUsername("abc");
+            details.setPassword("def");
+
+            handler.logOn(details);
+        });
+    }
+
+    @Test
+    public void logOnDoesNotThrowExceptionIfUserNameAndLoginKeyProvided() {
+        Assertions.assertDoesNotThrow(() -> {
+            LogOnDetails details = new LogOnDetails();
+            details.setUsername("abc");
+            details.setLoginKey("def");
+            details.setShouldRememberPassword(true);
+
+            handler.logOn(details);
+        });
+    }
+
+    @Test
+    public void logOnAnonymousPostsLoggedOnCallbackWhenNoConnection() {
+        reset(steamClient);
+        when(steamClient.isConnected()).thenReturn(false);
+
+        handler.logOnAnonymous();
+
+        var callback = verifyCallback();
+        assertNotNull(callback);
+        assertInstanceOf(LoggedOnCallback.class, callback);
+
+        var loc = (LoggedOnCallback) callback;
+        assertEquals(EResult.NoConnection, loc.getResult());
+    }
+
+    @Test
+    public void logOnAnonymous() {
+        handler.logOnAnonymous();
+
+        ArgumentCaptor<IClientMsg> msgCaptor = ArgumentCaptor.forClass(IClientMsg.class);
+        Mockito.verify(steamClient).send(msgCaptor.capture());
+
+        ClientMsgProtobuf<CMsgClientLogon.Builder> msg = verifySend(EMsg.ClientLogon);
+
+        SteamID id = new SteamID(msg.getProtoHeader().getSteamid());
+        assertEquals(EAccountType.AnonUser, id.getAccountType());
+    }
+
+    @Test
+    public void logOnAnonymousNullDetails() {
+        Assertions.assertThrows(IllegalArgumentException.class, () -> handler.logOnAnonymous(null));
     }
 
     @Test
@@ -51,81 +186,10 @@ public class SteamUserTest extends HandlerTestBase<SteamUser> {
     }
 
     @Test
-    public void logOnNotConnected() {
-        reset(steamClient);
-        when(steamClient.isConnected()).thenReturn(false);
-
-        LogOnDetails details = new LogOnDetails();
-        details.setUsername("testusername");
-        details.setPassword("testpassword");
-
-        handler.logOn(details);
-
-        LoggedOnCallback callback = verifyCallback();
-
-        assertEquals(EResult.NoConnection, callback.getResult());
-    }
-
-    @Test
-    public void logOnNoDetails() {
-        Assertions.assertThrows(IllegalArgumentException.class, () -> {
-                    LogOnDetails details = new LogOnDetails();
-                    handler.logOn(details);
-                }
-        );
-    }
-
-    @Test
-    public void logOnNullDetails() {
-        Assertions.assertThrows(IllegalArgumentException.class, () -> handler.logOn(null));
-    }
-
-    @Test
-    public void logOnLoginKeyWithNoRemember() {
-        Assertions.assertThrows(IllegalArgumentException.class, () -> {
-            LogOnDetails details = new LogOnDetails();
-            details.setUsername("testusername");
-            details.setLoginKey("loginkey");
-
-            handler.logOn(details);
-        });
-    }
-
-    @Test
-    public void logOnAnonymous() {
-        handler.logOnAnonymous();
-
-        ArgumentCaptor<IClientMsg> msgCaptor = ArgumentCaptor.forClass(IClientMsg.class);
-        verify(steamClient).send(msgCaptor.capture());
-
-        ClientMsgProtobuf<CMsgClientLogon.Builder> msg = verifySend(EMsg.ClientLogon);
-
-        SteamID id = new SteamID(msg.getProtoHeader().getSteamid());
-        assertEquals(EAccountType.AnonUser, id.getAccountType());
-    }
-
-    @Test
-    public void logOnAnonymousNullDetails() {
-        Assertions.assertThrows(IllegalArgumentException.class, () -> handler.logOnAnonymous(null));
-    }
-
-    @Test
-    public void logOnAnonymousNotConnected() {
-        reset(steamClient);
-        when(steamClient.isConnected()).thenReturn(false);
-
-        handler.logOnAnonymous();
-
-        LoggedOnCallback callback = verifyCallback();
-
-        assertEquals(EResult.NoConnection, callback.getResult());
-    }
-
-    @Test
     public void logOff() {
         handler.logOff();
 
-        verify(steamClient).setExpectDisconnection(true);
+        Mockito.verify(steamClient).setExpectDisconnection(true);
 
         ClientMsgProtobuf<CMsgClientLogOff.Builder> msg = verifySend(EMsg.ClientLogOff);
 

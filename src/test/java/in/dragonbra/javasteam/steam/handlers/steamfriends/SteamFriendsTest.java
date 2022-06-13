@@ -16,8 +16,6 @@ import in.dragonbra.javasteam.types.SteamID;
 import in.dragonbra.javasteam.util.stream.SeekOrigin;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
@@ -29,7 +27,6 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author lngtr
  * @since 2018-03-27
  */
-@ExtendWith(MockitoExtension.class)
 public class SteamFriendsTest extends HandlerTestBase<SteamFriends> {
 
     @Override

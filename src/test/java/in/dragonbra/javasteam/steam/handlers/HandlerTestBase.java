@@ -14,9 +14,11 @@ import in.dragonbra.javasteam.steam.steamclient.configuration.SteamConfiguration
 import in.dragonbra.javasteam.types.JobID;
 import in.dragonbra.javasteam.types.SteamID;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.Mockito;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.net.InetAddress;
 
@@ -27,6 +29,7 @@ import static org.mockito.Mockito.*;
  * @author lngtr
  * @since 2018-03-24
  */
+@ExtendWith(MockitoExtension.class)
 public abstract class HandlerTestBase<T extends ClientMsgHandler> extends TestBase {
 
     protected static final JobID SOURCE_JOB_ID = new JobID(916351965);
