@@ -93,7 +93,7 @@ public class CryptoHelper {
      * @throws CryptoException deception while encrypting
      */
     public static byte[] symmetricDecrypt(byte[] input, byte[] key) throws CryptoException {
-        return symmetricDecrypt(input, key, new Passable<byte[]>());
+        return symmetricDecrypt(input, key, new Passable<>());
     }
 
     /**

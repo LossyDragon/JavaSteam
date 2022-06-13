@@ -11,7 +11,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
-import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 /**
@@ -91,12 +91,7 @@ public class KeyValue {
             throw new IllegalArgumentException("key is null");
         }
 
-        Iterator<KeyValue> iter = children.iterator();
-        while (iter.hasNext()) {
-            if (key.equalsIgnoreCase(iter.next().name)) {
-                iter.remove();
-            }
-        }
+        children.removeIf(keyValue -> key.equalsIgnoreCase(keyValue.name));
 
         value.setName(key);
         children.add(value);
@@ -471,7 +466,7 @@ public class KeyValue {
             throw new IllegalArgumentException("input is null");
         }
 
-        byte[] bytes = input.getBytes(Charset.forName("UTF-8"));
+        byte[] bytes = input.getBytes(StandardCharsets.UTF_8);
 
         try (ByteArrayInputStream bais = new ByteArrayInputStream(bytes)) {
             KeyValue kv = new KeyValue();
@@ -522,7 +517,7 @@ public class KeyValue {
         // 2. String KeyValue
         if (value == null) {
             os.write(Type.NONE.code());
-            os.write(name.getBytes(Charset.forName("UTF-8")));
+            os.write(name.getBytes(StandardCharsets.UTF_8));
             os.write(0);
             for (KeyValue child : children) {
                 child.recursiveSaveBinaryToStreamCore(os);
@@ -530,9 +525,9 @@ public class KeyValue {
             os.write(Type.END.code());
         } else {
             os.write(Type.STRING.code());
-            os.write(name.getBytes(Charset.forName("UTF-8")));
+            os.write(name.getBytes(StandardCharsets.UTF_8));
             os.write(0);
-            os.write(value.getBytes(Charset.forName("UTF-8")));
+            os.write(value.getBytes(StandardCharsets.UTF_8));
             os.write(0);
         }
     }
@@ -589,7 +584,7 @@ public class KeyValue {
         if (quote) {
             str = "\"" + str + "\"";
         }
-        byte[] bytes = str.getBytes(Charset.forName("UTF-8"));
+        byte[] bytes = str.getBytes(StandardCharsets.UTF_8);
         os.write(bytes);
     }
 
@@ -620,7 +615,7 @@ public class KeyValue {
                 break;
             }
 
-            current.setName(br.readNullTermString(Charset.forName("UTF-8")));
+            current.setName(br.readNullTermString(StandardCharsets.UTF_8));
             switch (type) {
                 case NONE:
                     KeyValue child = new KeyValue();
@@ -630,7 +625,7 @@ public class KeyValue {
                     }
                     break;
                 case STRING:
-                    current.setValue(br.readNullTermString(Charset.forName("UTF-8")));
+                    current.setValue(br.readNullTermString(StandardCharsets.UTF_8));
                     break;
                 case WIDESTRING:
                     logger.debug("Encountered WideString type when parsing binary KeyValue, which is unsupported. Returning false.");

@@ -19,6 +19,10 @@ import java.util.stream.IntStream;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+/**
+ * @author lossy
+ * @since 2022-06-13
+ */
 public class SteamClientTest {
 
     @Test
