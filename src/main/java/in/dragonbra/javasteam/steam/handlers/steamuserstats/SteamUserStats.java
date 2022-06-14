@@ -50,6 +50,7 @@ public class SteamUserStats extends ClientMsgHandler {
     public JobID getNumberOfCurrentPlayers(int appId) {
         ClientMsgProtobuf<CMsgDPGetNumberOfCurrentPlayers.Builder> msg =
                 new ClientMsgProtobuf<>(CMsgDPGetNumberOfCurrentPlayers.class, EMsg.ClientGetNumberOfCurrentPlayersDP);
+
         JobID jobID = client.getNextJobID();
         msg.setSourceJobID(jobID);
 

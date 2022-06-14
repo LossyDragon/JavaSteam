@@ -122,6 +122,10 @@ public class ClientMsgProtobuf<BodyType extends GeneratedMessageV3.Builder<BodyT
         return body;
     }
 
+    public void setBody(BodyType body) {
+        this.body = body;
+    }
+
     @Override
     public byte[] serialize() {
         ByteArrayOutputStream baos = new ByteArrayOutputStream(0);
