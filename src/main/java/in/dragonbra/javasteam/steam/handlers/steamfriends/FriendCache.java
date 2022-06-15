@@ -153,7 +153,7 @@ public class FriendCache {
 
             account.setSteamID(steamId);
 
-            return this.putIfAbsent(steamId, account);
+            return this.computeIfAbsent(steamId, s -> account);
         }
     }
 

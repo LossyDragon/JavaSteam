@@ -94,13 +94,16 @@ public class FriendCacheTest extends HandlerTestBase<SteamFriends> {
         assertTrue(clan2.isClanAccount());
         assertTrue(clan3.isClanAccount());
 
-        accountCache.getClan(clan1);
-        accountCache.getClan(clan2);
-        accountCache.getClan(clan3);
+        var clan1exist = accountCache.getClan(clan1);
+        var clan2exist = accountCache.getClan(clan2);
+        var clan3exist = accountCache.getClan(clan3);
 
-        assertTrue(accountCache.getClans().contains(accountCache.getClan(clan1)));
-        assertTrue(accountCache.getClans().contains(accountCache.getClan(clan2)));
-        assertTrue(accountCache.getClans().contains(accountCache.getClan(clan3)));
+        assertTrue(accountCache.getClans().contains(clan1exist));
+        assertTrue(accountCache.getClans().contains(clan2exist));
+        assertTrue(accountCache.getClans().contains(clan3exist));
+        assertEquals(clan1,  clan1exist.getSteamID());
+        assertEquals(clan2,  clan2exist.getSteamID());
+        assertEquals(clan3,  clan3exist.getSteamID());
 
         assertEquals(3, accountCache.getClans().size());
 
@@ -111,11 +114,13 @@ public class FriendCacheTest extends HandlerTestBase<SteamFriends> {
         assertTrue(user1.isIndividualAccount());
         assertTrue(user2.isIndividualAccount());
 
-        accountCache.getUser(user1);
-        accountCache.getUser(user2);
+        var user1Exist = accountCache.getUser(user1);
+        var user2Exist = accountCache.getUser(user2);
 
-        assertTrue(accountCache.getUsers().contains(accountCache.getUser(user1)));
-        assertTrue(accountCache.getUsers().contains(accountCache.getUser(user2)));
+        assertTrue(accountCache.getUsers().contains(user1Exist));
+        assertTrue(accountCache.getUsers().contains(user2Exist));
+        assertEquals(user1, user1Exist.getSteamID());
+        assertEquals(user2, user2Exist.getSteamID());
 
         assertEquals(2, accountCache.getUsers().size());
 
