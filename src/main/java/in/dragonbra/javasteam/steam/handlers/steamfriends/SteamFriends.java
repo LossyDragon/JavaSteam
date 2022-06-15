@@ -290,7 +290,7 @@ public class SteamFriends extends ClientMsgHandler {
             throw new IllegalArgumentException("steamId is null");
         }
 
-        return cache.getClans().getAccount(steamId).getName();
+        return cache.getClan(steamId).getName();
     }
 
     /**
@@ -304,11 +304,11 @@ public class SteamFriends extends ClientMsgHandler {
             throw new IllegalArgumentException("steamId is null");
         }
 
-        return cache.getClans().getAccount(steamId).getRelationship();
+        return cache.getClan(steamId).getRelationship();
     }
 
     /**
-     * Gets a SHA-1 hash representing the clan's avatar.
+     * Gets an SHA-1 hash representing the clan's avatar.
      *
      * @param steamId The SteamID of the clan to get the avatar of.
      * @return A byte array representing a SHA-1 hash of the clan's avatar, or null if the clan could not be found.
@@ -318,7 +318,7 @@ public class SteamFriends extends ClientMsgHandler {
             throw new IllegalArgumentException("steamId is null");
         }
 
-        return cache.getClans().getAccount(steamId).getAvatarHash();
+        return cache.getClan(steamId).getAvatarHash();
     }
 
     /**
@@ -866,6 +866,7 @@ public class SteamFriends extends ClientMsgHandler {
 
         // cache off our local name
         cache.getLocalUser().setName(accInfo.getBody().getPersonaName());
+        cache.getLocalUser().setSteamID(client.getSteamID());
     }
 
     private void handleFriendMsg(IPacketMsg packetMsg) {
@@ -924,7 +925,7 @@ public class SteamFriends extends ClientMsgHandler {
                         friendList.add(friendId);
                     }
                 } else if (friendId.isClanAccount()) {
-                    var clan = cache.getClans().getAccount(friendId);
+                    var clan = cache.getClan(friendId);
 
                     clan.setRelationship(EClanRelationship.from(friend.getEfriendrelationship()));
 
@@ -984,7 +985,7 @@ public class SteamFriends extends ClientMsgHandler {
                     cacheFriend.setGameAppID(friend.getGamePlayedAppId());
                 }
             } else if (friendId.isClanAccount()) {
-                FriendCache.Clan cacheClan = cache.getClans().getAccount(friendId);
+                FriendCache.Clan cacheClan = cache.getClan(friendId);
 
                 if (flags.contains(EClientPersonaStateFlag.PlayerName)) {
                     cacheClan.setName(friend.getPlayerName());

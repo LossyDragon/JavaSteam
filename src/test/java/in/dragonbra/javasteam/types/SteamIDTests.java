@@ -23,7 +23,6 @@ public class SteamIDTests extends TestBase {
         assertFalse(sid.isValid());
     }
 
-
     @Test
     public void fullConstructorValid() {
         SteamID sid = new SteamID(1234, SteamID.CONSOLE_INSTANCE, EUniverse.Beta, EAccountType.Chat);

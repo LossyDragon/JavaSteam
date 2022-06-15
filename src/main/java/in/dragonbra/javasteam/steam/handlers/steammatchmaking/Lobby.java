@@ -17,6 +17,9 @@ import java.util.List;
 
 /**
  * Represents a Steam lobby.
+ *
+ * @author lossy
+ * @since 2022-06-12
  */
 public class Lobby {
 
@@ -421,7 +424,7 @@ public class Lobby {
         this.weight = weight;
     }
 
-    static byte[] encodeMetadata(HashMap<String, String> metadata)  {
+    static byte[] encodeMetadata(HashMap<String, String> metadata) {
         var keyValue = new KeyValue("");
 
         if (metadata != null) {

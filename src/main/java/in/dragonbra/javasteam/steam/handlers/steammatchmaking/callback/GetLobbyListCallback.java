@@ -10,6 +10,9 @@ import java.util.List;
 /**
  * This callback is fired in response to
  * {@link in.dragonbra.javasteam.steam.handlers.steammatchmaking.SteamMatchmaking#getLobbyList}.
+ *
+ * @author lossy
+ * @since 2022-06-12
  */
 public class GetLobbyListCallback extends CallbackMsg {
 

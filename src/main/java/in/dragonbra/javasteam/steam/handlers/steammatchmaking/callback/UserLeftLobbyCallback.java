@@ -6,6 +6,9 @@ import in.dragonbra.javasteam.types.SteamID;
 
 /**
  * This callback is fired whenever Steam informs us a user has left a lobby.
+ *
+ * @author lossy
+ * @since 2022-06-12
  */
 public class UserLeftLobbyCallback extends CallbackMsg {
 

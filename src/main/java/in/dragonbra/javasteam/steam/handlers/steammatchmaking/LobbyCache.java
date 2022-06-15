@@ -8,6 +8,10 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.stream.Collectors;
 
+/**
+ * @author lossy
+ * @since 2022-06-12
+ */
 public class LobbyCache {
 
     private ConcurrentMap<Integer, ConcurrentHashMap<SteamID, Lobby>> lobbies = new ConcurrentHashMap<>();

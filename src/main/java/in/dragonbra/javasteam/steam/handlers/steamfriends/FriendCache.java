@@ -6,10 +6,16 @@ import in.dragonbra.javasteam.enums.EPersonaState;
 import in.dragonbra.javasteam.enums.EPersonaStateFlag;
 import in.dragonbra.javasteam.types.GameID;
 import in.dragonbra.javasteam.types.SteamID;
+import org.jetbrains.annotations.NotNull;
 
+import java.lang.reflect.InvocationTargetException;
 import java.util.EnumSet;
 import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * @author lossy
+ * @since 2022-06-12
+ */
 public class FriendCache {
 
     abstract static class Account {
@@ -119,6 +125,9 @@ public class FriendCache {
 
     static class Clan extends Account {
 
+        public Clan() {
+        }
+
         private EClanRelationship relationship;
 
         public EClanRelationship getRelationship() {
@@ -130,55 +139,60 @@ public class FriendCache {
         }
     }
 
-    // TODO: Try and Generify this
-    static class UserAccountList extends ConcurrentHashMap<SteamID, User> {
-        public User getAccount(SteamID steamId) {
-            User tempVar = new User();
-            tempVar.setSteamID(steamId);
-            return this.getOrDefault(steamId, tempVar);
-        }
-    }
+    static class AccountList<T extends Account> extends ConcurrentHashMap<SteamID, T> {
 
-    // TODO: Try and Generify this
-    static class ClanAccountList extends ConcurrentHashMap<SteamID, Clan> {
-        public Clan getAccount(SteamID steamId) {
-            Clan tempVar = new Clan();
-            tempVar.setSteamID(steamId);
-            return this.getOrDefault(steamId, tempVar);
+        public T getAccount(SteamID steamId, @NotNull Class<? extends T> cls) {
+            T account;
+
+            try {
+                account = cls.getConstructor().newInstance();
+
+            } catch (InstantiationException | IllegalAccessException |
+                     InvocationTargetException | NoSuchMethodException e) {
+                throw new RuntimeException(e);
+
+            }
+            account.setSteamID(steamId);
+
+            return this.putIfAbsent(steamId, account);
         }
     }
 
     static class AccountCache {
-        private User localUser;
+        private final User localUser;
 
-        private UserAccountList users;
+        private final AccountList<User> users;
 
-        private ClanAccountList clans;
+        private final AccountList<Clan> clans;
 
         public AccountCache() {
             localUser = new User();
 
-            users = new UserAccountList();
-            clans = new ClanAccountList();
+            users = new AccountList<>();
+            clans = new AccountList<>();
         }
 
         public User getUser(SteamID steamID) {
             if (isLocalUser(steamID)) {
                 return localUser;
             } else {
-                return users.getAccount(steamID);
+                return users.getAccount(steamID, User.class);
             }
+        }
+
+        public Clan getClan(SteamID steamID) {
+            return clans.getAccount(steamID, Clan.class);
         }
 
         public User getLocalUser() {
             return localUser;
         }
 
-        public UserAccountList getUsers() {
+        public AccountList<User> getUsers() {
             return users;
         }
 
-        public ClanAccountList getClans() {
+        public AccountList<Clan> getClans() {
             return clans;
         }
 

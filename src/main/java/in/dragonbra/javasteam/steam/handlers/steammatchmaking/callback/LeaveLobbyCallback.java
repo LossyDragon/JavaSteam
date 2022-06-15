@@ -8,6 +8,9 @@ import in.dragonbra.javasteam.types.SteamID;
 /**
  * This callback is fired in response to
  * {@link in.dragonbra.javasteam.steam.handlers.steammatchmaking.SteamMatchmaking#leaveLobby}
+ *
+ * @author lossy
+ * @since 2022-06-12
  */
 public class LeaveLobbyCallback extends CallbackMsg {
 

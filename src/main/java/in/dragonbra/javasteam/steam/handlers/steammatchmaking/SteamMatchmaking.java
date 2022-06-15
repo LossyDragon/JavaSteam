@@ -21,6 +21,10 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
+/**
+ * @author lossy
+ * @since 2022-06-12
+ */
 public class SteamMatchmaking extends ClientMsgHandler {
 
     private Map<EMsg, Consumer<IPacketMsg>> dispatchMap;
