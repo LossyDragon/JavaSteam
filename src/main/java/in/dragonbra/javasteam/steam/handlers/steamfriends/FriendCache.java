@@ -146,12 +146,11 @@ public class FriendCache {
 
             try {
                 account = cls.getConstructor().newInstance();
-
             } catch (InstantiationException | IllegalAccessException |
                      InvocationTargetException | NoSuchMethodException e) {
                 throw new RuntimeException(e);
-
             }
+
             account.setSteamID(steamId);
 
             return this.putIfAbsent(steamId, account);
