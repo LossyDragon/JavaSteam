@@ -46,6 +46,10 @@ public abstract class CMClient {
 
     private SteamConfiguration configuration;
 
+    private InetAddress publicIP;
+
+    private String ipCountryCode;
+
     private boolean isConnected;
 
     private long sessionToken;
@@ -69,14 +73,9 @@ public abstract class CMClient {
 
     private Map<EServerType, Set<InetSocketAddress>> serverMap;
 
-    private final EventHandler<NetMsgEventArgs> netMsgReceived = new EventHandler<NetMsgEventArgs>() {
-        @Override
-        public void handleEvent(Object sender, NetMsgEventArgs e) {
-            onClientMsgReceived(getPacketMsg(e.getData()));
-        }
-    };
+    private final EventHandler<NetMsgEventArgs> netMsgReceived = (sender, e) -> onClientMsgReceived(getPacketMsg(e.getData()));
 
-    private final EventHandler<EventArgs> connected = new EventHandler<EventArgs>() {
+    private final EventHandler<EventArgs> connected = new EventHandler<>() {
         @Override
         public void handleEvent(Object sender, EventArgs e) {
             getServers().tryMark(connection.getCurrentEndPoint(), connection.getProtocolTypes(), ServerQuality.GOOD);
@@ -86,7 +85,7 @@ public abstract class CMClient {
         }
     };
 
-    private final EventHandler<DisconnectedEventArgs> disconnected = new EventHandler<DisconnectedEventArgs>() {
+    private final EventHandler<DisconnectedEventArgs> disconnected = new EventHandler<>() {
         @Override
         public void handleEvent(Object sender, DisconnectedEventArgs e) {
             isConnected = false;
@@ -117,12 +116,7 @@ public abstract class CMClient {
         this.configuration = configuration;
         this.serverMap = new HashMap<>();
 
-        heartBeatFunc = new ScheduledFunction(new Runnable() {
-            @Override
-            public void run() {
-                send(new ClientMsgProtobuf<CMsgClientHeartBeat.Builder>(CMsgClientHeartBeat.class, EMsg.ClientHeartBeat));
-            }
-        }, 5000);
+        heartBeatFunc = new ScheduledFunction(() -> send(new ClientMsgProtobuf<CMsgClientHeartBeat.Builder>(CMsgClientHeartBeat.class, EMsg.ClientHeartBeat)), 5000);
     }
 
     /**
@@ -411,6 +405,8 @@ public abstract class CMClient {
             steamID = new SteamID(logonResp.getProtoHeader().getSteamid());
 
             cellID = logonResp.getBody().getCellId();
+            publicIP = NetHelpers.getIPAddress(logonResp.getBody().getPublicIp());
+            ipCountryCode = logonResp.getBody().getIpCountryCode();
 
             // restart heartbeat
             heartBeatFunc.stop();
@@ -494,6 +490,26 @@ public abstract class CMClient {
      */
     public InetSocketAddress getCurrentEndpoint() {
         return connection.getCurrentEndPoint();
+    }
+
+    /**
+     * Gets the public IP address of this client. This value is assigned after a logon attempt has succeeded.
+     * This value will be <strong>null</strong> if the client is logged off of Steam.
+     *
+     * @return The public ip.
+     */
+    public InetAddress getPublicIP() {
+        return publicIP;
+    }
+
+    /**
+     * Gets the country code of our public IP address according to Steam. This value is assigned after a logon attempt has succeeded.
+     * This value will be <strong>null</strong> if the client is logged off of Steam.
+     *
+     * @return The ip country code.
+     */
+    public String getIpCountryCode() {
+        return ipCountryCode;
     }
 
     /**

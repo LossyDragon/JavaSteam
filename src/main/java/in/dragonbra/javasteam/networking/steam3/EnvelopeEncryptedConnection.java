@@ -34,14 +34,14 @@ public class EnvelopeEncryptedConnection extends Connection {
     private EncryptionState state;
     private INetFilterEncryption encryption;
 
-    private final EventHandler<EventArgs> onConnected = new EventHandler<EventArgs>() {
+    private final EventHandler<EventArgs> onConnected = new EventHandler<>() {
         @Override
         public void handleEvent(Object sender, EventArgs e) {
             state = EncryptionState.CONNECTED;
         }
     };
 
-    private final EventHandler<DisconnectedEventArgs> onDisconnected = new EventHandler<DisconnectedEventArgs>() {
+    private final EventHandler<DisconnectedEventArgs> onDisconnected = new EventHandler<>() {
         @Override
         public void handleEvent(Object sender, DisconnectedEventArgs e) {
             state = EncryptionState.DISCONNECTED;
@@ -51,7 +51,7 @@ public class EnvelopeEncryptedConnection extends Connection {
         }
     };
 
-    private final EventHandler<NetMsgEventArgs> onNetMsgReceived = new EventHandler<NetMsgEventArgs>() {
+    private final EventHandler<NetMsgEventArgs> onNetMsgReceived = new EventHandler<>() {
         @Override
         public void handleEvent(Object sender, NetMsgEventArgs e) {
             if (state == EncryptionState.ENCRYPTED) {

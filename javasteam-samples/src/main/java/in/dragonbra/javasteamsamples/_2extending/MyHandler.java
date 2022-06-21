@@ -44,6 +44,7 @@ public class MyHandler extends ClientMsgHandler {
     }
 
     // some other useful function
+    @SuppressWarnings("unused")
     public void doSomething() {
         // this function could send some other message or perform some other logic
 
@@ -52,6 +53,7 @@ public class MyHandler extends ClientMsgHandler {
         // ...
     }
 
+    @SuppressWarnings("SwitchStatementWithTooFewBranches")
     @Override
     public void handleMsg(IPacketMsg packetMsg) {
         // this function is called when a message arrives from the Steam network

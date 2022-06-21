@@ -27,7 +27,7 @@ import in.dragonbra.javasteam.util.log.LogManager;
  * @author lngtr
  * @since 2021-10-11
  */
-@SuppressWarnings("Duplicates")
+@SuppressWarnings({"Duplicates", "FieldCanBeLocal"})
 public class SampleExtending implements Runnable {
 
     private SteamClient steamClient;

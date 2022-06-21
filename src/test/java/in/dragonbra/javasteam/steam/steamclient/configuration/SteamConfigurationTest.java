@@ -6,23 +6,20 @@ import in.dragonbra.javasteam.networking.steam3.ProtocolTypes;
 import in.dragonbra.javasteam.steam.discovery.IServerListProvider;
 import in.dragonbra.javasteam.steam.discovery.MemoryServerListProvider;
 import in.dragonbra.javasteam.steam.discovery.ServerRecord;
-import in.dragonbra.javasteam.util.compat.Consumer;
 import okhttp3.OkHttpClient;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import java.util.EnumSet;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class SteamConfigurationTest {
 
     private final SteamConfiguration defaultConfig = SteamConfiguration.createDefault();
 
-    private final SteamConfiguration modifiedConfig = SteamConfiguration.create(new Consumer<ISteamConfigurationBuilder>() {
-        @Override
-        public void accept(ISteamConfigurationBuilder builder) {
+    private final SteamConfiguration modifiedConfig = SteamConfiguration.create(builder ->
             builder.withDirectoryFetch(false)
                     .withCellID(123)
                     .withConnectionTimeout(60000L)
@@ -32,9 +29,7 @@ public class SteamConfigurationTest {
                     .withServerListProvider(new CustomServerListProvider())
                     .withUniverse(EUniverse.Internal)
                     .withWebAPIBaseAddress("http://foo.bar.com/api/")
-                    .withWebAPIKey("T0PS3kR1t");
-        }
-    });
+                    .withWebAPIKey("T0PS3kR1t"));
 
     @Test
     public void allowDirectoryFetch() {
@@ -157,7 +152,7 @@ public class SteamConfigurationTest {
         assertEquals("T0PS3kR1t", modifiedConfig.getWebAPIKey());
     }
 
-    private class CustomServerListProvider implements IServerListProvider {
+    private static class CustomServerListProvider implements IServerListProvider {
 
         @Override
         public List<ServerRecord> fetchServerList() {

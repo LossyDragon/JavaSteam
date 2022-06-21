@@ -30,7 +30,7 @@ import in.dragonbra.javasteam.util.log.LogManager;
  * @author lngtr
  * @since 2018-02-23
  */
-@SuppressWarnings("Duplicates")
+@SuppressWarnings({"Duplicates", "FieldCanBeLocal"})
 public class SampleLogon implements Runnable {
 
     private SteamClient steamClient;

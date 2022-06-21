@@ -30,7 +30,7 @@ import java.util.Scanner;
  * @author lngtr
  * @since 2021-10-11
  */
-@SuppressWarnings("Duplicates")
+@SuppressWarnings({"Duplicates", "FieldCanBeLocal"})
 public class SampleServerList implements Runnable {
 
     private SteamClient steamClient;

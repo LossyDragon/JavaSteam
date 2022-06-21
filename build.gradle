@@ -5,51 +5,65 @@ buildscript {
         mavenCentral()
     }
     dependencies {
-        classpath 'com.google.protobuf:protobuf-gradle-plugin:0.8.17'
+        classpath 'com.google.protobuf:protobuf-gradle-plugin:0.8.18'
     }
 }
 
 group 'in.dragonbra'
-version '1.1.0'
+version '1.2.0'
 
 allprojects {
     group 'in.dragonbra'
-    version '1.1.0'
+    version '1.2.0'
 }
 
-apply plugin: 'maven'
-apply plugin: 'signing'
-apply plugin: 'java'
 apply plugin: 'com.google.protobuf'
 apply plugin: 'jacoco'
+apply plugin: 'java'
+apply plugin: 'maven-publish'
+apply plugin: 'signing'
 apply plugin: SteamLanguageGenPlugin
 
-sourceCompatibility = 1.7
+sourceCompatibility = 11
 
 repositories {
     mavenCentral()
 }
 
 dependencies {
-    implementation 'com.google.code.gson:gson:2.8.9'
-    implementation 'com.google.protobuf:protobuf-java:3.19.3'
-    implementation 'com.squareup.okhttp3:okhttp:3.14.9'
+    implementation 'com.google.code.gson:gson:2.9.0'
+    implementation 'com.google.protobuf:protobuf-java:3.21.1'
+    implementation 'com.squareup.okhttp3:okhttp:4.9.3'
     implementation 'commons-validator:commons-validator:1.7'
     implementation 'org.apache.commons:commons-lang3:3.12.0'
-    implementation 'org.java-websocket:Java-WebSocket:1.5.2'
-    testCompile 'com.squareup.okhttp3:mockwebserver:3.14.9'
-    testCompile 'commons-codec:commons-codec:1.15'
-    testCompile 'commons-io:commons-io:2.11.0'
-    testCompile 'junit:junit:4.13.2'
-    testCompile 'org.bouncycastle:bcprov-jdk15on:1.69'
-    testCompile 'org.mockito:mockito-core:3.12.4'
-    testCompile 'pl.pragmatists:JUnitParams:1.1.1'
+    implementation 'org.java-websocket:Java-WebSocket:1.5.3'
+    testImplementation 'commons-codec:commons-codec:1.15'
+    testImplementation 'commons-io:commons-io:2.11.0'
+    testImplementation 'org.bouncycastle:bcprov-jdk15on:1.70'
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.8.2'
+    testImplementation 'org.junit.jupiter:junit-jupiter-engine:5.8.2'
+    testImplementation 'org.junit.jupiter:junit-jupiter-params:5.8.2'
+    testImplementation 'org.mockito:mockito-core:4.6.1'
+    testImplementation 'org.mockito:mockito-junit-jupiter:4.6.1'
+    testImplementation 'com.squareup.okhttp3:mockwebserver3-junit5:5.0.0-alpha.8' // ugh
 }
 
 protobuf {
     protoc {
         artifact = 'com.google.protobuf:protoc:3.18.0'
     }
+}
+
+// Only allow JUnit 5
+configurations {
+    all {
+        exclude group: 'junit', module: 'junit'
+        exclude group: 'org.junit.vintage', module: 'junit-vintage-engine'
+    }
+}
+
+test {
+    useJUnitPlatform()
 }
 
 jacoco {
@@ -74,12 +88,12 @@ sourceSets {
 }
 
 task sourcesJar(type: Jar, dependsOn: classes) {
-    classifier = 'sources'
+    archiveClassifier = 'sources'
     from sourceSets.main.allSource
 }
 
 task javadocJar(type: Jar, dependsOn: javadoc) {
-    classifier = 'javadoc'
+    archiveClassifier = 'javadoc'
     from javadoc.destinationDir
 }
 
@@ -114,45 +128,46 @@ signing {
     sign configurations.archives
 }
 
-uploadArchives {
-    repositories {
-        mavenDeployer {
-            beforeDeployment { MavenDeployment deployment -> signing.signPom(deployment) }
-
-            repository(url: "https://oss.sonatype.org/service/local/staging/deploy/maven2/") {
-                authentication(userName: ossrhUsername, password: ossrhPassword)
-            }
-            snapshotRepository(url: "https://oss.sonatype.org/content/repositories/snapshots/") {
-                authentication(userName: ossrhUsername, password: ossrhPassword)
-            }
-            pom.project {
-                name 'JavaSteam'
-                packaging 'jar'
-                description 'Java library to interact with Valve\'s Steam network.'
-                url 'https://github.com/Longi94/JavaSteam'
-                inceptionYear '2018'
-
-                scm {
-                    connection 'scm:git:git://github.com/Longi94/JavaSteam.git'
-                    developerConnection 'scm:git:ssh://github.com:Longi94/JavaSteam.git'
-                    url 'http://github.com/Longi94/JavaSteam/tree/master'
-                }
-
-                licenses {
-                    license {
-                        name 'MIT License'
-                        url 'http://www.opensource.org/licenses/mit-license.php'
-                    }
-                }
-
-                developers {
-                    developer {
-                        id 'Longi'
-                        name 'Long Tran'
-                        email 'lngtrn94@gmail.com'
-                    }
-                }
-            }
-        }
-    }
-}
+// TODO fix
+//uploadArchives {
+//    repositories {
+//        mavenDeployer {
+//            beforeDeployment { MavenDeployment deployment -> signing.signPom(deployment) }
+//
+//            repository(url: "https://oss.sonatype.org/service/local/staging/deploy/maven2/") {
+//                authentication(userName: ossrhUsername, password: ossrhPassword)
+//            }
+//            snapshotRepository(url: "https://oss.sonatype.org/content/repositories/snapshots/") {
+//                authentication(userName: ossrhUsername, password: ossrhPassword)
+//            }
+//            pom.project {
+//                name 'JavaSteam'
+//                packaging 'jar'
+//                description 'Java library to interact with Valve\'s Steam network.'
+//                url 'https://github.com/Longi94/JavaSteam'
+//                inceptionYear '2018'
+//
+//                scm {
+//                    connection 'scm:git:git://github.com/Longi94/JavaSteam.git'
+//                    developerConnection 'scm:git:ssh://github.com:Longi94/JavaSteam.git'
+//                    url 'http://github.com/Longi94/JavaSteam/tree/master'
+//                }
+//
+//                licenses {
+//                    license {
+//                        name 'MIT License'
+//                        url 'http://www.opensource.org/licenses/mit-license.php'
+//                    }
+//                }
+//
+//                developers {
+//                    developer {
+//                        id 'Longi'
+//                        name 'Long Tran'
+//                        email 'lngtrn94@gmail.com'
+//                    }
+//                }
+//            }
+//        }
+//    }
+//}
