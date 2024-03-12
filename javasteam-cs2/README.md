@@ -1,0 +1,1 @@
+Protobufs: https://github.com/SteamDatabase/GameTracking-CS2/tree/master/Protobufs

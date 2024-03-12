@@ -1,0 +1,22 @@
+option java_package = "in.dragonbra.javasteam.protobufs.cs2";
+
+option optimize_for = SPEED;
+option java_generic_services = false;
+
+message NetMessageSplitscreenUserChanged {
+	optional uint32 slot = 1;
+}
+
+message NetMessageConnectionClosed {
+	optional uint32 reason = 1;
+}
+
+message NetMessageConnectionCrashed {
+	optional uint32 reason = 1;
+}
+
+message NetMessagePacketStart {
+}
+
+message NetMessagePacketEnd {
+}
