@@ -13,4 +13,13 @@ data class ProxyWrapper(
     val proxyPort: Int,
     val proxyAuthUserName: String? = null,
     val proxyAuthPassword: String? = null,
-)
+) {
+    /**
+     * A data class wrapper to hold information to connect via a proxy
+     *
+     * @param proxyAddress the address the proxy is hosted at.
+     * @param proxyPort the port for the proxy.
+     */
+    constructor(proxyAddress: String, proxyPort: Int) :
+        this(proxyAddress, proxyPort, null, null)
+}
