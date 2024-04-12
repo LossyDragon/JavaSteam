@@ -107,7 +107,6 @@ dependencies {
     implementation(libs.kotlin.stdib)
     implementation(libs.okHttp)
     implementation(libs.protobuf.java)
-    implementation(libs.webSocket)
 
     testImplementation(libs.bundles.testing)
 }

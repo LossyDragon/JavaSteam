@@ -1,65 +1,95 @@
-package in.dragonbra.javasteam.networking.steam3;
+package `in`.dragonbra.javasteam.networking.steam3
 
-import in.dragonbra.javasteam.util.log.LogManager;
-import in.dragonbra.javasteam.util.log.Logger;
-import org.java_websocket.client.WebSocketClient;
-import org.java_websocket.drafts.Draft_6455;
-import org.java_websocket.handshake.ServerHandshake;
+import `in`.dragonbra.javasteam.util.log.LogManager
+import `in`.dragonbra.javasteam.util.log.Logger
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.Response
+import okhttp3.WebSocket
+import okhttp3.WebSocketListener
+import okio.ByteString
+import okio.ByteString.Companion.toByteString
+import java.net.InetSocketAddress
+import java.net.URI
+import java.util.concurrent.TimeUnit
 
-import java.net.URI;
-import java.nio.ByteBuffer;
+internal class WebSocketCMClient(
+    private val serverUri: URI,
+    timeout: Int,
+    private val listener: WSListener,
+) :
+    WebSocketListener() {
 
-class WebSocketCMClient extends WebSocketClient {
+    private lateinit var webSocket: WebSocket
 
-    private static final Logger logger = LogManager.getLogger(WebSocketCMClient.class);
+    val client: OkHttpClient
 
-    private final WSListener listener;
+    val localSocketAddress: InetSocketAddress?
+        get() = null // TODO possible?
 
-    WebSocketCMClient(URI serverUri, int timeout, WSListener listener) {
-        super(serverUri, new Draft_6455(), null, timeout);
-        this.listener = listener;
+    init {
+        val builder = OkHttpClient.Builder()
+            .connectTimeout(timeout.toLong(), TimeUnit.MILLISECONDS)
+            .readTimeout(timeout.toLong(), TimeUnit.MILLISECONDS)
+            .retryOnConnectionFailure(false)
+
+        client = builder.build()
     }
 
-    @Override
-    public void onOpen(ServerHandshake handshakeData) {
-        if (listener != null) {
-            listener.onOpen();
-        }
+    fun send(data: ByteArray) {
+        webSocket.send(data.toByteString())
     }
 
-    @Override
-    public void onMessage(String message) {
+    fun close() {
+        webSocket.close(1000, "Closing WebSocket connection")
+    }
+
+    fun connect() {
+        val request = Request.Builder()
+            .url(serverUri.toString())
+            .build()
+
+        webSocket = client.newWebSocket(request, this)
+    }
+
+    override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+        listener.onClose(false)
+    }
+
+    override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
+        listener.onClose(true)
+    }
+
+    override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+        listener.onError(t)
+    }
+
+    override fun onMessage(webSocket: WebSocket, text: String) {
         // ignore string messages
-        logger.debug("got string message: " + message);
+        logger.debug("got string message: $text")
     }
 
-    @Override
-    public void onMessage(ByteBuffer bytes) {
-        if (listener != null) {
-            byte[] data = new byte[bytes.remaining()];
-            bytes.get(data);
-            listener.onData(data);
-        }
+    override fun onMessage(webSocket: WebSocket, bytes: ByteString) {
+        val data = ByteArray(bytes.asByteBuffer().remaining())
+        bytes.asByteBuffer()[data]
+        listener.onData(data)
     }
 
-    @Override
-    public void onClose(int code, String reason, boolean remote) {
-        if (listener != null) {
-            listener.onClose(remote);
-        }
+    override fun onOpen(webSocket: WebSocket, response: Response) {
+        listener.onOpen()
     }
 
-    @Override
-    public void onError(Exception ex) {
-        if (listener != null) {
-            listener.onError(ex);
-        }
+    internal interface WSListener {
+        fun onData(data: ByteArray?)
+
+        fun onClose(remote: Boolean)
+
+        fun onError(t: Throwable?)
+
+        fun onOpen()
     }
 
-    interface WSListener {
-        void onData(byte[] data);
-        void onClose(boolean remote);
-        void onError(Exception ex);
-        void onOpen();
+    companion object {
+        private val logger: Logger = LogManager.getLogger(WebSocketCMClient::class.java)
     }
 }
