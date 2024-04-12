@@ -3,6 +3,7 @@ package in.dragonbra.javasteam.networking.steam3;
 import in.dragonbra.javasteam.enums.EUdpPacketType;
 import in.dragonbra.javasteam.generated.ChallengeData;
 import in.dragonbra.javasteam.generated.ConnectData;
+import in.dragonbra.javasteam.util.ProxyWrapper;
 import in.dragonbra.javasteam.util.log.LogManager;
 import in.dragonbra.javasteam.util.log.Logger;
 import in.dragonbra.javasteam.util.stream.MemoryStream;
@@ -107,7 +108,11 @@ public class UdpConnection extends Connection {
     }
 
     @Override
-    public void connect(InetSocketAddress endPoint, int timeout) {
+    public void connect(InetSocketAddress endPoint, int timeout, ProxyWrapper proxyWrapper) {
+        if (proxyWrapper != null) {
+            logger.debug("Proxy wrapper not used for UDP connection.");
+        }
+
         outPackets.clear();
         inPackets = new HashMap<>();
 

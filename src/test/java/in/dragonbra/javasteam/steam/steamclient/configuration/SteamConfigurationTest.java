@@ -21,16 +21,21 @@ public class SteamConfigurationTest {
 
     private final SteamConfiguration modifiedConfig = SteamConfiguration.create(builder ->
             builder.withDirectoryFetch(false)
-            .withCellID(123)
-            .withConnectionTimeout(60000L)
-            .withDefaultPersonaStateFlags(EClientPersonaStateFlag.SourceID)
-            .withHttpClient(new OkHttpClient.Builder().connectTimeout(1, TimeUnit.MINUTES).build())
-            .withProtocolTypes(EnumSet.of(ProtocolTypes.WEB_SOCKET, ProtocolTypes.UDP))
-            .withServerListProvider(new CustomServerListProvider())
-            .withUniverse(EUniverse.Internal)
-            .withWebAPIBaseAddress("http://foo.bar.com/api/")
-            .withWebAPIKey("T0PS3kR1t")
+                    .withCellID(123)
+                    .withConnectionTimeout(60000L)
+                    .withDefaultPersonaStateFlags(EClientPersonaStateFlag.SourceID)
+                    .withHttpClient(new OkHttpClient.Builder().connectTimeout(1, TimeUnit.MINUTES).build())
+                    .withProtocolTypes(EnumSet.of(ProtocolTypes.WEB_SOCKET, ProtocolTypes.UDP))
+                    .withServerListProvider(new CustomServerListProvider())
+                    .withUniverse(EUniverse.Internal)
+                    .withWebAPIBaseAddress("http://foo.bar.com/api/")
+                    .withWebAPIKey("T0PS3kR1t")
     );
+
+    @Test
+    public void defaultConfigProxyIsNull() {
+        assertNull(defaultConfig.getWebProxy());
+    }
 
     @Test
     public void allowDirectoryFetch() {

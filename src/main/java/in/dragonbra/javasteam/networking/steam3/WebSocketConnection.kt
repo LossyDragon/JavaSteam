@@ -1,5 +1,6 @@
 package `in`.dragonbra.javasteam.networking.steam3
 
+import `in`.dragonbra.javasteam.util.ProxyWrapper
 import `in`.dragonbra.javasteam.util.log.LogManager
 import `in`.dragonbra.javasteam.util.log.Logger
 import java.net.InetAddress
@@ -17,10 +18,10 @@ class WebSocketConnection : Connection(), WebSocketCMClient.WSListener {
 
     private var socketEndPoint: InetSocketAddress? = null
 
-    override fun connect(endPoint: InetSocketAddress, timeout: Int) {
+    override fun connect(endPoint: InetSocketAddress, timeout: Int, proxyWrapper: ProxyWrapper?) {
         logger.debug("Connecting to $endPoint...")
 
-        val newClient = WebSocketCMClient(getUri(endPoint), timeout, this)
+        val newClient = WebSocketCMClient(timeout, getUri(endPoint), this, proxyWrapper)
         val oldClient = client.getAndSet(newClient)
 
         if (oldClient != null) {

@@ -152,7 +152,12 @@ public abstract class CMClient {
                 connection.getNetMsgReceived().addEventHandler(netMsgReceived);
                 connection.getConnected().addEventHandler(connected);
                 connection.getDisconnected().addEventHandler(disconnected);
-                connection.connect(cmServer.getEndpoint());
+
+                if (configuration.getWebProxy() != null && connection instanceof WebSocketConnection) {
+                    connection.connect(cmServer.getEndpoint(), 5000, configuration.getWebProxy());
+                } else {
+                    connection.connect(cmServer.getEndpoint());
+                }
             } catch (Exception e) {
                 logger.debug("Failed to connect to Steam network", e);
                 onClientDisconnected(false);

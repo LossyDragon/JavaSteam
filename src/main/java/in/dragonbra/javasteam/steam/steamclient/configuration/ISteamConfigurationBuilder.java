@@ -4,6 +4,7 @@ import in.dragonbra.javasteam.enums.EClientPersonaStateFlag;
 import in.dragonbra.javasteam.enums.EUniverse;
 import in.dragonbra.javasteam.networking.steam3.ProtocolTypes;
 import in.dragonbra.javasteam.steam.discovery.IServerListProvider;
+import in.dragonbra.javasteam.util.ProxyWrapper;
 import okhttp3.OkHttpClient;
 
 import java.util.EnumSet;
@@ -110,4 +111,11 @@ public interface ISteamConfigurationBuilder {
      * @return A builder with modified configuration.
      */
     ISteamConfigurationBuilder withWebAPIKey(String webApiKey);
+
+    /**
+     * Configures this {@link  SteamConfiguration} with a wrapper to connect via Proxy.
+     * @param webProxy the {@link ProxyWrapper}
+     * @return A Builder with modified configuration
+     */
+    ISteamConfigurationBuilder withWebProxy(ProxyWrapper webProxy);
 }

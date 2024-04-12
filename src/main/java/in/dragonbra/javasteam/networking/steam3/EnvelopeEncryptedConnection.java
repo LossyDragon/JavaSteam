@@ -10,6 +10,7 @@ import in.dragonbra.javasteam.generated.MsgChannelEncryptResponse;
 import in.dragonbra.javasteam.generated.MsgChannelEncryptResult;
 import in.dragonbra.javasteam.steam.CMClient;
 import in.dragonbra.javasteam.util.KeyDictionary;
+import in.dragonbra.javasteam.util.ProxyWrapper;
 import in.dragonbra.javasteam.util.crypto.CryptoHelper;
 import in.dragonbra.javasteam.util.crypto.RSACrypto;
 import in.dragonbra.javasteam.util.event.EventArgs;
@@ -192,8 +193,8 @@ public class EnvelopeEncryptedConnection extends Connection {
     }
 
     @Override
-    public void connect(InetSocketAddress endPoint, int timeout) {
-        inner.connect(endPoint, timeout);
+    public void connect(InetSocketAddress endPoint, int timeout, ProxyWrapper proxyWrapper) {
+        inner.connect(endPoint, timeout, proxyWrapper);
     }
 
     @Override

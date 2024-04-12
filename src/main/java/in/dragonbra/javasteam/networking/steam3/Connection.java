@@ -1,5 +1,6 @@
 package in.dragonbra.javasteam.networking.steam3;
 
+import in.dragonbra.javasteam.util.ProxyWrapper;
 import in.dragonbra.javasteam.util.event.Event;
 import in.dragonbra.javasteam.util.event.EventArgs;
 
@@ -45,7 +46,7 @@ public abstract class Connection {
      * @param endPoint The end point to connect to.
      * @param timeout  Timeout in milliseconds
      */
-    public abstract void connect(InetSocketAddress endPoint, int timeout);
+    public abstract void connect(InetSocketAddress endPoint, int timeout, ProxyWrapper proxyWrapper);
 
     /**
      * Connects to the specified end point.
@@ -53,7 +54,7 @@ public abstract class Connection {
      * @param endPoint The end point to connect to.
      */
     public final void connect(InetSocketAddress endPoint) {
-        connect(endPoint, 5000);
+        connect(endPoint, 5000, null);
     }
 
     /**

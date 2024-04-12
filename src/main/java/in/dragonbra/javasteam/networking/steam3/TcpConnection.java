@@ -1,5 +1,6 @@
 package in.dragonbra.javasteam.networking.steam3;
 
+import in.dragonbra.javasteam.util.ProxyWrapper;
 import in.dragonbra.javasteam.util.log.LogManager;
 import in.dragonbra.javasteam.util.log.Logger;
 import in.dragonbra.javasteam.util.stream.BinaryReader;
@@ -106,7 +107,11 @@ public class TcpConnection extends Connection {
     }
 
     @Override
-    public void connect(InetSocketAddress endPoint, int timeout) {
+    public void connect(InetSocketAddress endPoint, int timeout, ProxyWrapper proxyWrapper) {
+        if (proxyWrapper != null) {
+            logger.debug("Proxy wrapper not used for TCP connection.");
+        }
+
         synchronized (netLock) {
             currentEndPoint = endPoint;
             try {

@@ -1,7 +1,10 @@
 package `in`.dragonbra.javasteam.networking.steam3
 
+import `in`.dragonbra.javasteam.util.ProxyWrapper
 import `in`.dragonbra.javasteam.util.log.LogManager
 import `in`.dragonbra.javasteam.util.log.Logger
+import okhttp3.Authenticator
+import okhttp3.Credentials
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
@@ -10,13 +13,15 @@ import okhttp3.WebSocketListener
 import okio.ByteString
 import okio.ByteString.Companion.toByteString
 import java.net.InetSocketAddress
+import java.net.Proxy
 import java.net.URI
-import java.util.concurrent.TimeUnit
+import java.util.concurrent.*
 
 internal class WebSocketCMClient(
-    private val serverUri: URI,
     timeout: Int,
+    private val serverUri: URI,
     private val listener: WSListener,
+    private val proxyWrapper: ProxyWrapper? = null,
 ) :
     WebSocketListener() {
 
@@ -32,6 +37,24 @@ internal class WebSocketCMClient(
             .connectTimeout(timeout.toLong(), TimeUnit.MILLISECONDS)
             .readTimeout(timeout.toLong(), TimeUnit.MILLISECONDS)
             .retryOnConnectionFailure(false)
+
+        proxyWrapper?.let {
+            val proxy = Proxy(Proxy.Type.HTTP, InetSocketAddress(it.proxyAddress, it.proxyPort))
+            builder.proxy(proxy)
+
+            if (it.proxyAuthUserName != null && it.proxyAuthPassword != null) {
+                val proxyAuthenticator = Authenticator { _, response ->
+                    val credential = Credentials.basic(it.proxyAuthUserName, it.proxyAuthPassword)
+
+                    response.request
+                        .newBuilder()
+                        .header("Proxy-Authorization", credential)
+                        .build()
+                }
+
+                builder.proxyAuthenticator(proxyAuthenticator)
+            }
+        }
 
         client = builder.build()
     }

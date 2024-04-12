@@ -4,6 +4,7 @@ import in.dragonbra.javasteam.enums.EClientPersonaStateFlag;
 import in.dragonbra.javasteam.enums.EUniverse;
 import in.dragonbra.javasteam.networking.steam3.ProtocolTypes;
 import in.dragonbra.javasteam.steam.discovery.IServerListProvider;
+import in.dragonbra.javasteam.util.ProxyWrapper;
 import okhttp3.OkHttpClient;
 
 import java.util.EnumSet;
@@ -23,6 +24,7 @@ public class SteamConfigurationState {
     private IServerListProvider serverListProvider;
     private EUniverse universe;
     private String webAPIBaseAddress;
+    private ProxyWrapper webProxy;
     private String webAPIKey;
 
     public boolean isAllowDirectoryFetch() {
@@ -111,5 +113,13 @@ public class SteamConfigurationState {
 
     public void setWebAPIKey(String webAPIKey) {
         this.webAPIKey = webAPIKey;
+    }
+
+    public void setWebProxy(ProxyWrapper webProxy) {
+        this.webProxy = webProxy;
+    }
+
+    public ProxyWrapper getWebProxy() {
+        return webProxy;
     }
 }

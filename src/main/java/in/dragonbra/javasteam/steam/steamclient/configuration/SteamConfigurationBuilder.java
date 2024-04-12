@@ -6,6 +6,7 @@ import in.dragonbra.javasteam.networking.steam3.ProtocolTypes;
 import in.dragonbra.javasteam.steam.discovery.IServerListProvider;
 import in.dragonbra.javasteam.steam.discovery.MemoryServerListProvider;
 import in.dragonbra.javasteam.steam.webapi.WebAPI;
+import in.dragonbra.javasteam.util.ProxyWrapper;
 import okhttp3.OkHttpClient;
 
 import java.util.EnumSet;
@@ -33,6 +34,7 @@ public class SteamConfigurationBuilder implements ISteamConfigurationBuilder {
         state.setServerListProvider(new MemoryServerListProvider());
         state.setUniverse(EUniverse.Public);
         state.setWebAPIBaseAddress(WebAPI.DEFAULT_BASE_ADDRESS);
+        state.setWebProxy(null);
         state.setHttpClient(new OkHttpClient());
 
         return state;
@@ -120,6 +122,12 @@ public class SteamConfigurationBuilder implements ISteamConfigurationBuilder {
             throw new IllegalArgumentException("webApiKey is null");
         }
         state.setWebAPIKey(webApiKey);
+        return this;
+    }
+
+    @Override
+    public ISteamConfigurationBuilder withWebProxy(ProxyWrapper webProxy) {
+        state.setWebProxy(webProxy);
         return this;
     }
 }

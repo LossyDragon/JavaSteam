@@ -7,6 +7,7 @@ import in.dragonbra.javasteam.steam.discovery.IServerListProvider;
 import in.dragonbra.javasteam.steam.discovery.SmartCMServerList;
 import in.dragonbra.javasteam.steam.steamclient.SteamClient;
 import in.dragonbra.javasteam.steam.webapi.WebAPI;
+import in.dragonbra.javasteam.util.ProxyWrapper;
 import in.dragonbra.javasteam.util.compat.Consumer;
 import okhttp3.OkHttpClient;
 
@@ -134,5 +135,14 @@ public class SteamConfiguration {
      */
     public WebAPI getWebAPI(String _interface) {
         return new WebAPI(getHttpClient(), getWebAPIBaseAddress(), _interface, getWebAPIKey());
+    }
+
+    /**
+     * Retrieves the {@link ProxyWrapper} if set, otherwise null.
+     *
+     * @return the {@link ProxyWrapper}
+     */
+    public ProxyWrapper getWebProxy() {
+        return state.getWebProxy();
     }
 }
