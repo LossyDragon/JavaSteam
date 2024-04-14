@@ -19,9 +19,11 @@ import `in`.dragonbra.javasteam.types.SteamID
 import java.math.BigInteger
 import java.nio.charset.StandardCharsets
 import java.security.KeyFactory
+import java.security.NoSuchAlgorithmException
 import java.security.spec.RSAPublicKeySpec
 import java.util.*
 import javax.crypto.Cipher
+import javax.crypto.NoSuchPaddingException
 import kotlin.coroutines.cancellation.CancellationException
 
 /**
@@ -134,7 +136,11 @@ class SteamAuthentication(private val steamClient: SteamClient, unifiedMessages:
      * @param authSessionDetails The details to use for logging on.
      * @return CredentialsAuthSession
      */
-    @Throws(AuthenticationException::class)
+    @Throws(
+        AuthenticationException::class,
+        NoSuchAlgorithmException::class,
+        NoSuchPaddingException::class
+    )
     fun beginAuthSessionViaCredentials(authSessionDetails: AuthSessionDetails?): CredentialsAuthSession {
         if (authSessionDetails == null) {
             throw IllegalArgumentException("authSessionDetails is null")
@@ -159,12 +165,18 @@ class SteamAuthentication(private val steamClient: SteamClient, unifiedMessages:
         val rsaPublicKeySpec = RSAPublicKeySpec(publicModulus, publicExponent)
         val publicKey = KeyFactory.getInstance("RSA").generatePublic(rsaPublicKeySpec)
 
-        val cipher = Cipher.getInstance("RSA/None/PKCS1Padding")
-        cipher.init(Cipher.ENCRYPT_MODE, publicKey)
+        val encryptedPassword = try {
+            val cipher = Cipher.getInstance("RSA/None/PKCS1Padding")
+            cipher.init(Cipher.ENCRYPT_MODE, publicKey)
 
-        val encryptedPassword = Base64.getEncoder().encodeToString(
-            cipher.doFinal(authSessionDetails.password?.toByteArray(StandardCharsets.UTF_8))
-        ).dropLast(1) // Drop the "=" symbol
+            Base64.getEncoder().encodeToString(
+                cipher.doFinal(authSessionDetails.password?.toByteArray(StandardCharsets.UTF_8))
+            ).dropLast(1) // Drop the "=" symbol
+        } catch (e: NoSuchAlgorithmException) {
+            throw IllegalStateException(e)
+        } catch (e: NoSuchPaddingException) {
+            throw IllegalStateException(e)
+        }
 
         val persistentSession = if (authSessionDetails.persistentSession) {
             ESessionPersistence.k_ESessionPersistence_Persistent
