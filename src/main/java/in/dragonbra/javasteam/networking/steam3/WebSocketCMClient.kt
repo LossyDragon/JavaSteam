@@ -1,6 +1,7 @@
 package `in`.dragonbra.javasteam.networking.steam3
 
 import `in`.dragonbra.javasteam.util.ProxyWrapper
+import `in`.dragonbra.javasteam.util.crypto.CryptoHelper
 import `in`.dragonbra.javasteam.util.log.LogManager
 import `in`.dragonbra.javasteam.util.log.Logger
 import okhttp3.Authenticator
@@ -33,6 +34,8 @@ internal class WebSocketCMClient(
         get() = null // TODO possible?
 
     init {
+        CryptoHelper() // Init BC/SC early for Web Sockets
+
         val builder = OkHttpClient.Builder()
             .connectTimeout(timeout.toLong(), TimeUnit.MILLISECONDS)
             .readTimeout(timeout.toLong(), TimeUnit.MILLISECONDS)
@@ -73,6 +76,7 @@ internal class WebSocketCMClient(
             .build()
 
         webSocket = client.newWebSocket(request, this)
+        // client.dispatcher.executorService.shutdown() // May stop leak?
     }
 
     override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
