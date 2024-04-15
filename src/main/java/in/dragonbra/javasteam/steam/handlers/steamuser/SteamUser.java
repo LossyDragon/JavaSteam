@@ -128,6 +128,8 @@ public class SteamUser extends ClientMsgHandler {
         logon.getBody().setMachineName(details.getMachineName());
         logon.getBody().setMachineId(ByteString.copyFrom(HardwareUtils.getMachineID()));
 
+        logon.getBody().setChatMode(details.getChatMode().code());
+
         // steam guard
         if (!Strings.isNullOrEmpty(details.getAuthCode())) {
             logon.getBody().setAuthCode(details.getAuthCode());

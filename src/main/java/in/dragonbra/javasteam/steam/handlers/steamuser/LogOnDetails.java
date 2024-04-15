@@ -39,12 +39,16 @@ public class LogOnDetails {
 
     private String machineName;
 
+    private EChatMode chatMode;
+
     public LogOnDetails() {
         accountInstance = SteamID.DESKTOP_INSTANCE;
         accountID = 0L;
 
         clientOSType = Utils.getOSType();
         clientLanguage = "english";
+
+        chatMode = EChatMode.Default;
 
         String envName = System.getenv("COMPUTERNAME");
         if (envName == null) {
@@ -322,5 +326,23 @@ public class LogOnDetails {
      */
     public void setMachineName(String machineName) {
         this.machineName = machineName;
+    }
+
+    /**
+     * Gets the chat mode.
+     *
+     * @return the chat mode.
+     */
+    public EChatMode getChatMode() {
+        return chatMode;
+    }
+
+    /**
+     * Sets the chat mode.
+     *
+     * @param chatMode the chat mode. Setting this field to 2 enables support for new Steam group chat.
+     */
+    public void setChatMode(EChatMode chatMode) {
+        this.chatMode = chatMode;
     }
 }

@@ -229,4 +229,31 @@ public class SteamUserTest extends HandlerTestBase<SteamUser> {
         assertEquals(new Date(1521763200000L), callback.getUpdateTime());
         assertEquals(7, callback.getMessages().size());
     }
+
+    @Test
+    public void testDefaultChatMode() {
+        LogOnDetails details = new LogOnDetails();
+        details.setUsername("testusername");
+        details.setPassword("testpassword");
+
+        handler.logOn(details);
+
+        ClientMsgProtobuf<CMsgClientLogon.Builder> msg = verifySend(EMsg.ClientLogon);
+
+        assertEquals(EChatMode.Default, EChatMode.from(msg.getBody().getChatMode()));
+    }
+
+    @Test
+    public void testNewChatMode() {
+        LogOnDetails details = new LogOnDetails();
+        details.setUsername("testusername");
+        details.setPassword("testpassword");
+        details.setChatMode(EChatMode.NewSteamChat);
+
+        handler.logOn(details);
+
+        ClientMsgProtobuf<CMsgClientLogon.Builder> msg = verifySend(EMsg.ClientLogon);
+
+        assertEquals(EChatMode.NewSteamChat, EChatMode.from(msg.getBody().getChatMode()));
+    }
 }
