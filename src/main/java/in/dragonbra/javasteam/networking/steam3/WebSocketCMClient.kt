@@ -1,7 +1,6 @@
 package `in`.dragonbra.javasteam.networking.steam3
 
 import `in`.dragonbra.javasteam.util.ProxyWrapper
-import `in`.dragonbra.javasteam.util.crypto.CryptoHelper
 import `in`.dragonbra.javasteam.util.log.LogManager
 import `in`.dragonbra.javasteam.util.log.Logger
 import okhttp3.Authenticator
@@ -22,7 +21,7 @@ internal class WebSocketCMClient(
     timeout: Int,
     private val serverUri: URI,
     private val listener: WSListener,
-    private val proxyWrapper: ProxyWrapper? = null,
+    proxyWrapper: ProxyWrapper? = null,
 ) :
     WebSocketListener() {
 
@@ -34,8 +33,6 @@ internal class WebSocketCMClient(
         get() = null // TODO possible?
 
     init {
-        CryptoHelper() // Init BC/SC early for Web Sockets
-
         val builder = OkHttpClient.Builder()
             .connectTimeout(timeout.toLong(), TimeUnit.MILLISECONDS)
             .readTimeout(timeout.toLong(), TimeUnit.MILLISECONDS)

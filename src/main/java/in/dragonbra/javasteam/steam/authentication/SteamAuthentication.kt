@@ -166,7 +166,7 @@ class SteamAuthentication(private val steamClient: SteamClient, unifiedMessages:
         val publicKey = KeyFactory.getInstance("RSA").generatePublic(rsaPublicKeySpec)
 
         val encryptedPassword = try {
-            val cipher = Cipher.getInstance("RSA/None/PKCS1Padding")
+            val cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding")
             cipher.init(Cipher.ENCRYPT_MODE, publicKey)
 
             Base64.getEncoder().encodeToString(
