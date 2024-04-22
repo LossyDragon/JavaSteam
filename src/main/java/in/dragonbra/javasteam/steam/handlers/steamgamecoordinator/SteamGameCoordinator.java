@@ -2,7 +2,7 @@ package in.dragonbra.javasteam.steam.handlers.steamgamecoordinator;
 
 import com.google.protobuf.ByteString;
 import in.dragonbra.javasteam.base.ClientMsgProtobuf;
-import in.dragonbra.javasteam.base.IClientGCMsg;
+import in.dragonbra.javasteam.base.gc.IClientGCMsg;
 import in.dragonbra.javasteam.base.IPacketMsg;
 import in.dragonbra.javasteam.enums.EMsg;
 import in.dragonbra.javasteam.handlers.ClientMsgHandler;

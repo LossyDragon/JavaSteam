@@ -1,25 +1,28 @@
-package `in`.dragonbra.javasteam.base
+package `in`.dragonbra.javasteam.base.gc
 
+import `in`.dragonbra.javasteam.base.AbstractMsgBase
+import `in`.dragonbra.javasteam.base.MsgBase
 import `in`.dragonbra.javasteam.util.log.LogManager
 import `in`.dragonbra.javasteam.util.log.Logger
 import java.lang.reflect.InvocationTargetException
 
 /**
- * This is the abstract base class for all available client messages.
- * It's used to maintain packet payloads and provide a header for all client messages.
+ * This is the abstract base class for all available game coordinator messages.
+ * It's used to maintain packet payloads and provide a header for all gc messages.
  *
- * @constructor Initializes a new instance of the [MsgBase] class.
+ * @param HdrType The header type for this gc message.
+ *
+ * @constructor Initializes a new instance of the [GCMsgBase] class.
  * @param clazz          the type of the header
  * @param payloadReserve The number of bytes to initialize the payload capacity to.
  */
-abstract class MsgBase<HdrType : ISteamSerializable> @JvmOverloads constructor(
+abstract class GCMsgBase<HdrType : IGCSerializableHeader> @JvmOverloads constructor(
     clazz: Class<HdrType>,
     payloadReserve: Int = 0,
-) : AbstractMsgBase(payloadReserve), IClientMsg {
+) : AbstractMsgBase(payloadReserve), IClientGCMsg {
 
     /**
-     * The header for this message type.
-     * @return The header.
+     * @return the header for this message type.
      */
     lateinit var header: HdrType
 

@@ -83,7 +83,7 @@ class JavaGen(
                 }
             } else if (node.name.contains("Hdr")) {
                 if (node.name.contains("MsgGC")) {
-                    imports.add("in.dragonbra.javasteam.base.IGCSerializableHeader")
+                    imports.add("in.dragonbra.javasteam.base.gc.IGCSerializableHeader")
                 } else {
                     imports.add("in.dragonbra.javasteam.base.ISteamSerializableHeader")
                 }

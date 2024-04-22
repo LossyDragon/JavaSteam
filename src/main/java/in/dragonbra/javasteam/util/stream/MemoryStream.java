@@ -1,5 +1,7 @@
 package in.dragonbra.javasteam.util.stream;
 
+import org.jetbrains.annotations.NotNull;
+
 import java.io.Closeable;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -9,6 +11,7 @@ import java.util.Arrays;
  * Creates a stream whose backing store is memory.
  */
 public class MemoryStream extends InputStream implements Closeable {
+
     private byte[] buffer;
     private int capacity;
     private int length;
@@ -72,7 +75,7 @@ public class MemoryStream extends InputStream implements Closeable {
         this.position = 0;
 
         this.writable = writable;
-        this.expandable = true;
+        this.expandable = false;
         this.bufferVisible = false;
     }
 
@@ -154,13 +157,15 @@ public class MemoryStream extends InputStream implements Closeable {
         if (position >= length)
             return -1;
 
-        return buffer[position++] & 0xff;
+        return Byte.toUnsignedInt(buffer[position++]);
     }
 
     @Override
-    public synchronized int read(byte[] b, int off, int len) {
-        if (position >= length || len == 0)
+    public synchronized int read(byte @NotNull [] b, int off, int len) {
+        if (len == 0)
             return 0;
+        if (position >= length)
+            return -1;
 
         if (position > length - len)
             len = length - position;
@@ -206,21 +211,15 @@ public class MemoryStream extends InputStream implements Closeable {
      * @param value The new length of the usable portion of the buffer for the stream.
      */
     public void setCapacity(int value) {
-        if (!expandable)
+        if (!expandable && value != getCapacity())
             throw new UnsupportedOperationException("Cannot expand this MemoryStream");
 
-        if (buffer != null && value == buffer.length)
-            return;
-
-        byte[] newBuffer = null;
-        if (value > 0) {
-            newBuffer = new byte[value];
-            if (buffer != null)
-                System.arraycopy(buffer, 0, newBuffer, 0, length);
+        if (expandable && value != capacity) {
+            byte[] newBuffer = new byte[value];
+            System.arraycopy(buffer, 0, newBuffer, 0, length);
+            buffer = newBuffer;
+            capacity = value;
         }
-
-        buffer = newBuffer;
-        capacity = value;
     }
 
     /**
@@ -244,7 +243,6 @@ public class MemoryStream extends InputStream implements Closeable {
             throw new UnsupportedOperationException("Cannot write to this stream.");
 
         int newLength = (int) value + origin;
-
         boolean newArray = expand(newLength);
         if (!newArray && newLength > length) {
             clearBuffer(length, newLength);
@@ -283,23 +281,21 @@ public class MemoryStream extends InputStream implements Closeable {
      * reference point and the offset.
      */
     public long seek(long offset, SeekOrigin loc) {
-        int reference;
+        position = getReference(loc) + (int) offset;
+        return position;
+    }
+
+    private int getReference(SeekOrigin loc) {
         switch (loc) {
             case BEGIN:
-                reference = origin;
-                break;
+                return origin;
             case CURRENT:
-                reference = position;
-                break;
+                return position;
             case END:
-                reference = length;
-                break;
+                return length;
             default:
                 throw new IllegalArgumentException("loc");
         }
-
-        position = reference + (int) offset;
-        return position;
     }
 
     /**
@@ -383,7 +379,7 @@ public class MemoryStream extends InputStream implements Closeable {
         }
 
         @Override
-        public void write(byte[] b, int off, int len) {
+        public void write(byte @NotNull [] b, int off, int len) {
             memoryStream.write(b, off, len);
         }
 

@@ -1,9 +1,11 @@
-package `in`.dragonbra.javasteam.base
+package `in`.dragonbra.javasteam.base.gc
 
 import com.google.protobuf.AbstractMessage
 import com.google.protobuf.GeneratedMessage
-import `in`.dragonbra.javasteam.enums.EMsg
-import `in`.dragonbra.javasteam.generated.MsgHdrProtoBuf
+import `in`.dragonbra.javasteam.base.ClientMsgProtobuf
+import `in`.dragonbra.javasteam.generated.MsgGCHdrProtoBuf
+import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesBase
+import `in`.dragonbra.javasteam.types.JobID
 import `in`.dragonbra.javasteam.util.log.LogManager
 import `in`.dragonbra.javasteam.util.log.Logger
 import `in`.dragonbra.javasteam.util.stream.BinaryReader
@@ -14,23 +16,50 @@ import java.io.IOException
 import java.lang.reflect.InvocationTargetException
 
 /**
- * Represents a protobuf backed client message.
+ * Represents a protobuf backed game coordinator message.
  *
  * @param BodyType The body type of this message.
  */
-class ClientMsgProtobuf<BodyType : GeneratedMessage.Builder<BodyType>> : AClientMsgProtobuf {
+@Suppress("unused")
+class ClientGCMsgProtobuf<BodyType : GeneratedMessage.Builder<BodyType>> : GCMsgBase<MsgGCHdrProtoBuf> {
+
+    private var clazz: Class<out AbstractMessage>
 
     /**
-     * Gets the body structure of this message.
-     * @return The body structure.
+     * Shorthand accessor for the protobuf header.
+     * @return the protobuf header
+     */
+    @Suppress("MemberVisibilityCanBePrivate")
+    val protoHeader: SteammessagesBase.CMsgProtoBufHeader.Builder
+        get() = header.proto
+
+    /**
+     * Gets the body structure of this message
+     * @return the body structure
      */
     lateinit var body: BodyType
         private set
 
-    private val clazz: Class<out AbstractMessage>
+    override val isProto: Boolean
+        get() = true
+
+    override val msgType: Int
+        get() = header.msg
+
+    override var targetJobID: JobID
+        get() = JobID(protoHeader.jobidTarget)
+        set(jobID) {
+            protoHeader.setJobidTarget(jobID.value)
+        }
+
+    override var sourceJobID: JobID
+        get() = JobID(protoHeader.jobidSource)
+        set(jobID) {
+            protoHeader.setJobidSource(jobID.value)
+        }
 
     /**
-     * Initializes a new instance of the [ClientMsgProtobuf] class.
+     * Initializes a new instance of the [ClientGCMsgProtobuf] class.
      * This is a client send constructor.
      * @param clazz          the type of the body
      * @param eMsg           The network message type this client message represents.
@@ -40,9 +69,9 @@ class ClientMsgProtobuf<BodyType : GeneratedMessage.Builder<BodyType>> : AClient
     @JvmOverloads
     constructor(
         clazz: Class<out AbstractMessage>,
-        eMsg: EMsg,
+        eMsg: Int,
         payloadReserve: Int = 64,
-    ) : super(payloadReserve) {
+    ) : super(MsgGCHdrProtoBuf::class.java, payloadReserve) {
         this.clazz = clazz
 
         try {
@@ -65,28 +94,15 @@ class ClientMsgProtobuf<BodyType : GeneratedMessage.Builder<BodyType>> : AClient
      * @param clazz the type of the body
      * @param msg   The network message type this client message represents.
      */
-    constructor(clazz: Class<out AbstractMessage>, msg: IPacketMsg) : this(clazz, msg, 64) {
+    constructor(clazz: Class<out AbstractMessage>, msg: IPacketGCMsg) : this(clazz, msg.msgType) {
         if (!msg.isProto) {
-            logger.debug("ClientMsgProtobuf<" + clazz.simpleName + "> used for non-proto message!")
+            logger.debug("ClientMsgProtobuf<${clazz.simpleName}> used for non-proto message!")
         }
         deserialize(msg.data)
     }
 
     /**
-     * Initializes a new instance of the [ClientMsgProtobuf] class.
-     * This is a client send constructor.
-     * @param clazz          the type of the body
-     * @param msg            The network message type this client message represents.
-     * @param payloadReserve The number of bytes to initialize the payload capacity to.
-     */
-    constructor(
-        clazz: Class<out AbstractMessage>,
-        msg: IPacketMsg,
-        payloadReserve: Int,
-    ) : this(clazz, msg.msgType, payloadReserve)
-
-    /**
-     * Initializes a new instance of the [ClientMsgProtobuf] class.
+     * Initializes a new instance of the [ClientGCMsgProtobuf] class.
      * This is a reply constructor.
      * @param clazz          the type of the body
      * @param eMsg           The network message type this client message represents.
@@ -96,8 +112,8 @@ class ClientMsgProtobuf<BodyType : GeneratedMessage.Builder<BodyType>> : AClient
     @JvmOverloads
     constructor(
         clazz: Class<out AbstractMessage>,
-        eMsg: EMsg,
-        msg: MsgBase<MsgHdrProtoBuf>,
+        eMsg: Int,
+        msg: GCMsgBase<MsgGCHdrProtoBuf>,
         payloadReserve: Int = 64,
     ) : this(clazz, eMsg, payloadReserve) {
         // our target is where the message came from
@@ -105,15 +121,15 @@ class ClientMsgProtobuf<BodyType : GeneratedMessage.Builder<BodyType>> : AClient
     }
 
     override fun serialize(): ByteArray {
-        val baos = ByteArrayOutputStream(0)
+        val baos = ByteArrayOutputStream()
 
         try {
             header.serialize(baos)
-            baos.write(body.build().toByteArray())
+            body.build().writeTo(baos)
             baos.write(payload.toByteArray())
-        } catch (e: IOException) {
-            logger.debug(e)
+        } catch (ignored: IOException) {
         }
+
         return baos.toByteArray()
     }
 
@@ -140,6 +156,6 @@ class ClientMsgProtobuf<BodyType : GeneratedMessage.Builder<BodyType>> : AClient
     }
 
     companion object {
-        private val logger: Logger = LogManager.getLogger(ClientMsgProtobuf::class.java)
+        private val logger: Logger = LogManager.getLogger(ClientGCMsgProtobuf::class.java)
     }
 }

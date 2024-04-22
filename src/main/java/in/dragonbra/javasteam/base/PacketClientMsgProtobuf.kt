@@ -1,71 +1,53 @@
-package in.dragonbra.javasteam.base;
+package `in`.dragonbra.javasteam.base
 
-import in.dragonbra.javasteam.enums.EMsg;
-import in.dragonbra.javasteam.generated.MsgHdrProtoBuf;
-
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
+import `in`.dragonbra.javasteam.enums.EMsg
+import `in`.dragonbra.javasteam.generated.MsgHdrProtoBuf
+import `in`.dragonbra.javasteam.util.stream.MemoryStream
+import java.io.IOException
 
 /**
  * Represents a protobuf backed packet message.
+ *
+ * @constructor Initializes a new instance of the [PacketClientMsgProtobuf] class.
+ * @param eMsg The network message type for this packet message.
+ * @param data The data.
+ * @throws IOException exception while deserializing the data
  */
-public class PacketClientMsgProtobuf implements IPacketMsg {
-
-    private final EMsg msgType;
-
-    private final byte[] payload;
-
-    private final MsgHdrProtoBuf header;
-
-    /**
-     * Initializes a new instance of the {@link PacketClientMsgProtobuf} class.
-     *
-     * @param eMsg The network message type for this packet message.
-     * @param data The data.
-     * @throws IOException exception while deserializing the data
-     */
-    public PacketClientMsgProtobuf(EMsg eMsg, byte[] data) throws IOException {
-        this.msgType = eMsg;
-        this.payload = data;
-
-        header = new MsgHdrProtoBuf();
-
-        try (ByteArrayInputStream stream = new ByteArrayInputStream(data)) {
-            header.deserialize(stream);
-        }
-    }
+class PacketClientMsgProtobuf
+@Throws(IOException::class)
+constructor(eMsg: EMsg, data: ByteArray) : IPacketMsg {
 
     /**
      * Gets the header for this packet message.
-     *
      * @return The header.
      */
-    public MsgHdrProtoBuf getHeader() {
-        return header;
-    }
+    val header: MsgHdrProtoBuf = MsgHdrProtoBuf()
 
-    @Override
-    public boolean isProto() {
-        return true;
-    }
+    /**
+     * Gets the offset in payload to the body after the header.
+     * @return The offset in payload after the header.
+     */
+    @Suppress("MemberVisibilityCanBePrivate")
+    internal val bodyOffset: Long
 
-    @Override
-    public EMsg getMsgType() {
-        return msgType;
-    }
+    private val payload: ByteArray = data
 
-    @Override
-    public long getTargetJobID() {
-        return header.getProto().getJobidTarget();
-    }
+    override val isProto: Boolean
+        get() = true
 
-    @Override
-    public long getSourceJobID() {
-        return header.getProto().getJobidSource();
-    }
+    override val msgType: EMsg = eMsg
 
-    @Override
-    public byte[] getData() {
-        return payload;
+    override val targetJobID: Long
+        get() = header.proto.jobidTarget
+
+    override val sourceJobID: Long
+        get() = header.proto.jobidSource
+
+    override val data: ByteArray = payload
+
+    init {
+        val ms = MemoryStream(data)
+        header.deserialize(ms)
+        bodyOffset = ms.position
     }
 }

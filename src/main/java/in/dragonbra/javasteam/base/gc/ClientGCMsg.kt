@@ -1,9 +1,7 @@
-package `in`.dragonbra.javasteam.base
+package `in`.dragonbra.javasteam.base.gc
 
-import `in`.dragonbra.javasteam.enums.EMsg
-import `in`.dragonbra.javasteam.generated.MsgHdr
+import `in`.dragonbra.javasteam.generated.MsgGCHdr
 import `in`.dragonbra.javasteam.types.JobID
-import `in`.dragonbra.javasteam.types.SteamID
 import `in`.dragonbra.javasteam.util.log.LogManager
 import `in`.dragonbra.javasteam.util.log.Logger
 import `in`.dragonbra.javasteam.util.stream.MemoryStream
@@ -13,34 +11,19 @@ import java.io.IOException
 import java.lang.reflect.InvocationTargetException
 
 /**
- * Represents a struct backed message without session or client info.
+ * Represents a struct backed game coordinator message.
+ *
  * @param BodyType The body type of this message.
  */
 @Suppress("unused")
-class Msg<BodyType : ISteamSerializableMessage> : MsgBase<MsgHdr> {
+class ClientGCMsg<BodyType : IGCSerializableMessage> : GCMsgBase<MsgGCHdr> {
 
-    /**
-     * Gets the structure body of the message.
-     * @return the structure body of the message.
-     */
-    lateinit var body: BodyType
-        private set
+    private lateinit var body: BodyType
 
     override val isProto: Boolean
         get() = false
 
-    override val msgType: EMsg
-        get() = header.msg
-
-    override var sessionID: Int
-        get() = 0
-        set(_) {
-        }
-
-    override var steamID: SteamID?
-        get() = null
-        set(_) {
-        }
+    override val msgType: Int
 
     override var targetJobID: JobID
         get() = JobID(header.targetJobID)
@@ -55,16 +38,14 @@ class Msg<BodyType : ISteamSerializableMessage> : MsgBase<MsgHdr> {
         }
 
     /**
-     * Initializes a new instance of the [Msg] class.
-     * This is a client send constructor.
+     * Initializes a new instance of the [ClientGCMsg] class.
      * @param bodyType       body type
      * @param payloadReserve The number of bytes to initialize the payload capacity to.
      */
-    @JvmOverloads
     constructor(
         bodyType: Class<out BodyType>,
-        payloadReserve: Int = 0,
-    ) : super(MsgHdr::class.java, payloadReserve) {
+        payloadReserve: Int = 64,
+    ) : super(MsgGCHdr::class.java, payloadReserve) {
         try {
             body = bodyType.getDeclaredConstructor().newInstance()
         } catch (e: NoSuchMethodException) {
@@ -77,11 +58,11 @@ class Msg<BodyType : ISteamSerializableMessage> : MsgBase<MsgHdr> {
             logger.debug(e)
         }
 
-        header.setEMsg(body.eMsg)
+        msgType = body.eMsg
     }
 
     /**
-     * Initializes a new instance of the [Msg] class.
+     * Initializes a new instance of the [ClientGCMsg] class.
      * This a reply constructor.
      * @param bodyType       body type
      * @param msg            The message that this instance is a reply for.
@@ -90,25 +71,30 @@ class Msg<BodyType : ISteamSerializableMessage> : MsgBase<MsgHdr> {
     @JvmOverloads
     constructor(
         bodyType: Class<out BodyType>,
-        msg: MsgBase<MsgHdr>,
-        payloadReserve: Int = 0,
+        msg: GCMsgBase<MsgGCHdr>,
+        payloadReserve: Int = 64,
     ) : this(bodyType, payloadReserve) {
         // our target is where the message came from
         header.targetJobID = msg.header.sourceJobID
     }
 
     /**
-     * Initializes a new instance of the [Msg] class.
+     * Initializes a new instance of the [ClientGCMsg] class.
      * This a receive constructor.
      * @param bodyType body type
      * @param msg      The packet message to build this client message from.
      */
-    constructor(bodyType: Class<out BodyType>, msg: IPacketMsg) : this(bodyType) {
+    constructor(bodyType: Class<out BodyType>, msg: IPacketGCMsg) : this(bodyType) {
+        if (msg.isProto) {
+            logger.debug("ClientMsg<${bodyType.name}> used for proto message!")
+        }
+
         deserialize(msg.data)
     }
 
     override fun serialize(): ByteArray {
         val baos = ByteArrayOutputStream(0)
+
         try {
             header.serialize(baos)
             body.serialize(baos)
@@ -116,6 +102,7 @@ class Msg<BodyType : ISteamSerializableMessage> : MsgBase<MsgHdr> {
         } catch (e: IOException) {
             logger.debug(e)
         }
+
         return baos.toByteArray()
     }
 
@@ -134,6 +121,6 @@ class Msg<BodyType : ISteamSerializableMessage> : MsgBase<MsgHdr> {
     }
 
     companion object {
-        private val logger: Logger = LogManager.getLogger(Msg::class.java)
+        private val logger: Logger = LogManager.getLogger(ClientGCMsg::class.java)
     }
 }

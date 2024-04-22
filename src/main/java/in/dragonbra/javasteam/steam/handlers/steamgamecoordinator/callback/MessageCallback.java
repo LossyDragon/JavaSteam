@@ -1,8 +1,8 @@
 package in.dragonbra.javasteam.steam.handlers.steamgamecoordinator.callback;
 
-import in.dragonbra.javasteam.base.IPacketGCMsg;
-import in.dragonbra.javasteam.base.PacketClientGCMsg;
-import in.dragonbra.javasteam.base.PacketClientGCMsgProtobuf;
+import in.dragonbra.javasteam.base.gc.IPacketGCMsg;
+import in.dragonbra.javasteam.base.gc.PacketClientGCMsg;
+import in.dragonbra.javasteam.base.gc.PacketClientGCMsgProtobuf;
 import in.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserver2.CMsgGCClient;
 import in.dragonbra.javasteam.steam.steamclient.callbackmgr.CallbackMsg;
 import in.dragonbra.javasteam.types.JobID;

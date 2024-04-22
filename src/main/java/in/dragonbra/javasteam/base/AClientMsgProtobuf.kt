@@ -1,132 +1,96 @@
-package in.dragonbra.javasteam.base;
+package `in`.dragonbra.javasteam.base
 
-import in.dragonbra.javasteam.enums.EMsg;
-import in.dragonbra.javasteam.generated.MsgHdrProtoBuf;
-import in.dragonbra.javasteam.protobufs.steamclient.SteammessagesBase.CMsgProtoBufHeader;
-import in.dragonbra.javasteam.types.JobID;
-import in.dragonbra.javasteam.types.SteamID;
-import in.dragonbra.javasteam.util.log.LogManager;
-import in.dragonbra.javasteam.util.log.Logger;
-
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
+import `in`.dragonbra.javasteam.enums.EMsg
+import `in`.dragonbra.javasteam.generated.MsgHdrProtoBuf
+import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesBase
+import `in`.dragonbra.javasteam.types.JobID
+import `in`.dragonbra.javasteam.types.SteamID
+import `in`.dragonbra.javasteam.util.log.LogManager
+import `in`.dragonbra.javasteam.util.log.Logger
+import java.io.ByteArrayInputStream
+import java.io.IOException
 
 /**
  * Represents a protobuf backed client message. Only contains the header information.
  */
-@SuppressWarnings("unused")
-public class AClientMsgProtobuf extends MsgBase<MsgHdrProtoBuf> {
-
-    private static final Logger logger = LogManager.getLogger(AClientMsgProtobuf.class);
+@Suppress("unused")
+open class AClientMsgProtobuf : MsgBase<MsgHdrProtoBuf> {
 
     /**
-     * Initializes a new instance of the{@link AClientMsgProtobuf} class.
-     * This is a recieve constructor.
+     * Shorthand accessor for the protobuf header.
+     * @return the protobuf header.
+     */
+    val protoHeader: SteammessagesBase.CMsgProtoBufHeader.Builder
+        get() = header.proto
+
+    override val isProto: Boolean
+        get() = true
+
+    override val msgType: EMsg
+        get() = header.msg
+
+    override var sessionID: Int
+        get() = protoHeader.clientSessionid
+        set(sessionID) {
+            protoHeader.setClientSessionid(sessionID)
+        }
+
+    override var steamID: SteamID?
+        get() = SteamID(protoHeader.steamid)
+        set(steamID) {
+            protoHeader.setSteamid(steamID!!.convertToUInt64())
+        }
+
+    override var targetJobID: JobID
+        get() = JobID(protoHeader.jobidTarget)
+        set(jobID) {
+            protoHeader.setJobidTarget(jobID.value)
+        }
+
+    override var sourceJobID: JobID
+        get() = JobID(protoHeader.jobidSource)
+        set(jobID) {
+            protoHeader.setJobidSource(jobID.value)
+        }
+
+    /**
      *
+     */
+    internal constructor(payloadReserve: Int) : super(MsgHdrProtoBuf::class.java, payloadReserve)
+
+    private constructor() : this(0)
+
+    private constructor(eMsg: EMsg, payloadReserve: Int = 0) : super(MsgHdrProtoBuf::class.java, payloadReserve) {
+        // set our emsg
+        header.setEMsg(eMsg)
+    }
+
+    /**
+     * Initializes a new instance of the [AClientMsgProtobuf] class.
+     * This is a recieve constructor.
      * @param msg The packet message to build this client message from.
      */
-    public AClientMsgProtobuf(IPacketMsg msg) {
-        this(msg.getMsgType());
-
-        if (!msg.isProto()) {
-            logger.debug("ClientMsgProtobuf used for non-proto message!");
+    constructor(msg: IPacketMsg) : this(msg.msgType) {
+        if (!msg.isProto) {
+            logger.debug("ClientMsgProtobuf used for non-proto message!")
         }
 
-        deserialize(msg.getData());
+        deserialize(msg.data)
     }
 
-    private AClientMsgProtobuf() {
-        this(0);
+    override fun serialize(): ByteArray {
+        throw UnsupportedOperationException("ClientMsgProtobuf is for reading only. Use ClientMsgProtobuf<T> for serializing messages.")
     }
 
-    AClientMsgProtobuf(int payloadReserve) {
-        super(MsgHdrProtoBuf.class, payloadReserve);
-    }
-
-    private AClientMsgProtobuf(EMsg eMsg) {
-        this(eMsg, 0);
-    }
-
-    private AClientMsgProtobuf(EMsg eMsg, int payloadReserve) {
-        super(MsgHdrProtoBuf.class, payloadReserve);
-        // set our emsg
-        getHeader().setEMsg(eMsg);
-    }
-
-    public CMsgProtoBufHeader.Builder getProtoHeader() {
-        return getHeader().getProto();
-    }
-
-    @Override
-    public boolean isProto() {
-        return true;
-    }
-
-    @Override
-    public EMsg getMsgType() {
-        return getHeader().getMsg();
-    }
-
-    @Override
-    public int getSessionID() {
-        return getProtoHeader().getClientSessionid();
-    }
-
-    @Override
-    public void setSessionID(int sessionID) {
-        getProtoHeader().setClientSessionid(sessionID);
-    }
-
-    @Override
-    public SteamID getSteamID() {
-        return new SteamID(getProtoHeader().getSteamid());
-    }
-
-    @Override
-    public void setSteamID(SteamID steamID) {
-        if (steamID == null) {
-            throw new IllegalArgumentException("steamID is null");
-        }
-        getProtoHeader().setSteamid(steamID.convertToUInt64());
-    }
-
-    @Override
-    public JobID getTargetJobID() {
-        return new JobID(getProtoHeader().getJobidTarget());
-    }
-
-    @Override
-    public void setTargetJobID(JobID jobID) {
-        if (jobID == null) {
-            throw new IllegalArgumentException("jobID is null");
-        }
-        getProtoHeader().setJobidTarget(jobID.getValue());
-    }
-
-    @Override
-    public JobID getSourceJobID() {
-        return new JobID(getProtoHeader().getJobidSource());
-    }
-
-    @Override
-    public void setSourceJobID(JobID jobID) {
-        if (jobID == null) {
-            throw new IllegalArgumentException("jobID is null");
-        }
-        getProtoHeader().setJobidSource(jobID.getValue());
-    }
-
-    @Override
-    public byte[] serialize() {
-        throw new UnsupportedOperationException("ClientMsgProtobuf is for reading only. Use ClientMsgProtobuf<T> for serializing messages.");
-    }
-
-    @Override
-    public void deserialize(byte[] data) {
+    override fun deserialize(data: ByteArray) {
         try {
-            getHeader().deserialize(new ByteArrayInputStream(data));
-        } catch (IOException e) {
-            logger.debug(e);
+            header.deserialize(ByteArrayInputStream(data))
+        } catch (e: IOException) {
+            logger.debug(e)
         }
+    }
+
+    companion object {
+        private val logger: Logger = LogManager.getLogger(AClientMsgProtobuf::class.java)
     }
 }
