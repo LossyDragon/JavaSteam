@@ -29,10 +29,10 @@ open class AClientMsgProtobuf : MsgBase<MsgHdrProtoBuf> {
     override val msgType: EMsg
         get() = header.msg
 
-    override var sessionID: Int
+    override var sessionID: Int?
         get() = protoHeader.clientSessionid
         set(sessionID) {
-            protoHeader.setClientSessionid(sessionID)
+            protoHeader.setClientSessionid(sessionID!!)
         }
 
     override var steamID: SteamID?

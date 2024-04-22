@@ -32,7 +32,7 @@ class Msg<BodyType : ISteamSerializableMessage> : MsgBase<MsgHdr> {
     override val msgType: EMsg
         get() = header.msg
 
-    override var sessionID: Int
+    override var sessionID: Int?
         get() = 0
         set(_) {
         }

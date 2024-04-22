@@ -25,7 +25,7 @@ interface IClientMsg {
      * Gets or Sets the session id for this client message.
      * @return The session id.
      */
-    var sessionID: Int
+    var sessionID: Int?
 
     /**
      * Gets or Sets the [SteamID] for this client message.

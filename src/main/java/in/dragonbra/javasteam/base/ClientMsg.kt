@@ -38,10 +38,10 @@ class ClientMsg<BodyType : ISteamSerializableMessage> : MsgBase<ExtendedClientMs
             header.steamID = steamID
         }
 
-    override var sessionID: Int
+    override var sessionID: Int?
         get() = header.sessionID
         set(sessionID) {
-            header.sessionID = sessionID
+            header.sessionID = sessionID!!
         }
 
     override var targetJobID: JobID

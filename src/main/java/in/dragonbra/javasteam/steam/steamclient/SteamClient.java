@@ -66,12 +66,30 @@ public class SteamClient extends CMClient {
     }
 
     /**
+     * Initializes a new instance of the {@link SteamClient} class a specific identifier.
+     *
+     * @param identifier A specific identifier to be used to uniquely identify this instance
+     */
+    public SteamClient(String identifier) {
+        this(SteamConfiguration.createDefault(), identifier);
+    }
+
+    /**
      * Initializes a new instance of the {@link SteamClient} class with a specific configuration.
      *
      * @param configuration The configuration to use for this client.
      */
     public SteamClient(SteamConfiguration configuration) {
-        super(configuration);
+        this(configuration, UUID.randomUUID().toString().replace("-", ""));
+    }
+
+    /**
+     * Initializes a new instance of the {@link SteamClient} class with a specific configuration.
+     *
+     * @param configuration The configuration to use for this client.
+     */
+    public SteamClient(SteamConfiguration configuration, String identifier) {
+        super(configuration, identifier);
 
         // add this library's handlers
         // notice: SteamFriends should be added before SteamUser due to AccountInfoCallback
