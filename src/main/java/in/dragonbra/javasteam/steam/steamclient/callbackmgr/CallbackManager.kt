@@ -64,7 +64,7 @@ class CallbackManager(private val steamClient: SteamClient) : ICallbackMgrIntern
     fun <TCallback : ICallbackMsg> subscribe(
         callbackType: Class<out TCallback>,
         jobID: JobID,
-        callbackFunc: Consumer<TCallback>
+        callbackFunc: Consumer<TCallback>,
     ): Closeable {
         val callback = Callback(callbackType, callbackFunc, this, jobID)
         return Subscription(this, callback)
@@ -79,7 +79,7 @@ class CallbackManager(private val steamClient: SteamClient) : ICallbackMgrIntern
      */
     fun <TCallback : ICallbackMsg> subscribe(
         callbackType: Class<out TCallback>,
-        callbackFunc: Consumer<TCallback>
+        callbackFunc: Consumer<TCallback>,
     ): Closeable {
         return subscribe(callbackType, JobID.INVALID, callbackFunc)
     }

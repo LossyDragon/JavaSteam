@@ -10,7 +10,7 @@ constructor(
     override val callbackType: Class<out TCall>,
     func: Consumer<TCall>,
     private var mgr: ICallbackMgrInternals,
-    private val jobID: JobID = JobID.INVALID
+    private val jobID: JobID = JobID.INVALID,
 ) : CallbackBase(), Closeable {
 
     private val onRun = func

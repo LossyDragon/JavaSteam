@@ -8,7 +8,7 @@ import java.io.Closeable
  */
 class Subscription(
     private var manager: ICallbackMgrInternals?,
-    private var call: CallbackBase?
+    private var call: CallbackBase?,
 ) : Closeable {
     override fun close() {
         if (call != null && manager != null) {
