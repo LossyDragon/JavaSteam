@@ -28,7 +28,7 @@ public class SteamConfigurationTest {
             .withProtocolTypes(EnumSet.of(ProtocolTypes.WEB_SOCKET, ProtocolTypes.UDP))
             .withServerListProvider(new CustomServerListProvider())
             .withUniverse(EUniverse.Internal)
-            .withWebAPIBaseAddress("http://foo.bar.com/api/")
+            .withWebAPIBaseAddress("https://foo.bar.com/api/")
             .withWebAPIKey("T0PS3kR1t")
     );
 
@@ -91,7 +91,7 @@ public class SteamConfigurationTest {
 
     @Test
     public void noWebApiKey() {
-        assertNull(defaultConfig.getWebAPIKey());
+        assertTrue(defaultConfig.getWebAPIKey().isEmpty());
     }
 
     @Test
@@ -145,7 +145,7 @@ public class SteamConfigurationTest {
 
     @Test
     public void webAPIAddressConfigured() {
-        assertEquals("http://foo.bar.com/api/", modifiedConfig.getWebAPIBaseAddress());
+        assertEquals("https://foo.bar.com/api/", modifiedConfig.getWebAPIBaseAddress());
     }
 
     @Test

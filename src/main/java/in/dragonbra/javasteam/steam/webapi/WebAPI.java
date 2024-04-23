@@ -291,7 +291,7 @@ public class WebAPI {
 
         parameters.put("format", "vdf");
 
-        if (webAPIKey != null) {
+        if (!webAPIKey.isEmpty()) {
             parameters.put("key", webAPIKey);
         }
 
