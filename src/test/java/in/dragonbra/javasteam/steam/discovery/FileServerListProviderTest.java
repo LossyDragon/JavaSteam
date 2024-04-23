@@ -37,7 +37,7 @@ public class FileServerListProviderTest extends TestBase {
 
         List<ServerRecord> loadedList = provider.fetchServerList();
 
-        assertEquals(loadedList, serverRecords);
+        assertEquals(serverRecords, loadedList);
     }
 
     @Test

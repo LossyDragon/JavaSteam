@@ -1,88 +1,83 @@
-package in.dragonbra.javasteam.steam.discovery;
+package `in`.dragonbra.javasteam.steam.discovery
 
-import in.dragonbra.javasteam.networking.steam3.ProtocolTypes;
-import in.dragonbra.javasteam.protobufs.steam.discovery.BasicServerListProtos.BasicServer;
-import in.dragonbra.javasteam.protobufs.steam.discovery.BasicServerListProtos.BasicServerList;
-import in.dragonbra.javasteam.util.log.LogManager;
-import in.dragonbra.javasteam.util.log.Logger;
-
-import java.io.*;
-import java.util.ArrayList;
-import java.util.List;
+import `in`.dragonbra.javasteam.networking.steam3.ProtocolTypes
+import `in`.dragonbra.javasteam.protobufs.steam.discovery.BasicServerListProtos.BasicServer
+import `in`.dragonbra.javasteam.protobufs.steam.discovery.BasicServerListProtos.BasicServerList
+import `in`.dragonbra.javasteam.util.log.LogManager
+import `in`.dragonbra.javasteam.util.log.Logger
+import java.io.File
+import java.io.FileInputStream
+import java.io.FileNotFoundException
+import java.io.FileOutputStream
+import java.io.IOException
 
 /**
  * Server provider that stores servers in a file using protobuf.
+ *
+ * @constructor Initialize a new instance of [FileServerListProvider]
+ * @param file the file that will store the servers
  */
-public class FileServerListProvider implements IServerListProvider {
+class FileServerListProvider(private val file: File) : IServerListProvider {
 
-    private static final Logger logger = LogManager.getLogger(FileServerListProvider.class);
-
-    private final File file;
-
-    /**
-     * Instantiates a {@link FileServerListProvider} object.
-     *
-     * @param file the file that will store the servers
-     */
-    public FileServerListProvider(File file) {
-        if (file == null) {
-            throw new IllegalArgumentException("file is null");
-        }
-        this.file = file;
-
+    init {
         try {
             if (!file.exists()) {
-                file.getAbsoluteFile().getParentFile().mkdirs();
-                file.createNewFile();
+                file.absoluteFile.parentFile.mkdirs()
+                file.createNewFile()
             }
-        } catch (IOException e) {
-            e.printStackTrace();
+        } catch (e: IOException) {
+            e.printStackTrace()
         }
     }
 
-    @Override
-    public List<ServerRecord> fetchServerList() {
-        try (FileInputStream fis = new FileInputStream(file)) {
-            List<ServerRecord> records = new ArrayList<>();
-            BasicServerList serverList = BasicServerList.parseFrom(fis);
-            for (int i = 0; i < serverList.getServersCount(); i++) {
-                BasicServer server = serverList.getServers(i);
-                records.add(ServerRecord.createServer(
-                        server.getAddress(),
-                        server.getPort(),
-                        ProtocolTypes.from(server.getProtocol())
-                ));
+    override fun fetchServerList(): List<ServerRecord> {
+        try {
+            FileInputStream(file).use { fis ->
+                val records: MutableList<ServerRecord> = ArrayList()
+                val serverList = BasicServerList.parseFrom(fis)
+                (0 until serverList.serversCount).map { i ->
+                    val server = serverList.getServers(i)
+                    ServerRecord.createServer(
+                        server.address,
+                        server.port,
+                        ProtocolTypes.from(server.protocol)
+                    ).also(records::add)
+                }
+
+                return records
             }
-
-            fis.close();
-
-            return records;
-        } catch (FileNotFoundException e) {
-            logger.debug("servers list file not found");
-        } catch (IOException e) {
-            logger.debug("Failed to read server list file " + file.getAbsolutePath());
+        } catch (e: FileNotFoundException) {
+            logger.debug("servers list file not found")
+        } catch (e: IOException) {
+            logger.debug("Failed to read server list file " + file.absolutePath)
         }
-        return null;
+
+        return listOf()
     }
 
-    @Override
-    public void updateServerList(List<ServerRecord> endpoints) {
-        BasicServerList.Builder builder = BasicServerList.newBuilder();
+    override fun updateServerList(endpoints: List<ServerRecord>) {
+        val builder = BasicServerList.newBuilder()
 
-        for (ServerRecord endpoint : endpoints) {
+        endpoints.map { endpoint ->
             builder.addServers(
-                    BasicServer.newBuilder()
-                            .setAddress(endpoint.getHost())
-                            .setPort(endpoint.getPort())
-                            .setProtocol(ProtocolTypes.code(endpoint.getProtocolTypes()))
-            );
+                BasicServer.newBuilder()
+                    .setAddress(endpoint.host)
+                    .setPort(endpoint.port)
+                    .setProtocol(ProtocolTypes.code(endpoint.protocolTypes))
+            )
         }
 
-        try (FileOutputStream fos = new FileOutputStream(file, false)) {
-            builder.build().writeTo(fos);
-            fos.flush();
-        } catch (IOException e) {
-            logger.debug("Failed to write servers to file " + file.getAbsolutePath(), e);
+        try {
+            FileOutputStream(file, false).use { fos ->
+                builder.build().writeTo(fos)
+                fos.flush()
+            }
+        } catch (e: IOException) {
+            logger.debug("Failed to write servers to file " + file.absolutePath, e)
         }
+    }
+
+    companion object {
+        private val logger: Logger = LogManager.getLogger(FileServerListProvider::class.java)
     }
 }

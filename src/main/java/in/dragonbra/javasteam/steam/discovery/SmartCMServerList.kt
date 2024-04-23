@@ -1,249 +1,193 @@
-package in.dragonbra.javasteam.steam.discovery;
+package `in`.dragonbra.javasteam.steam.discovery
 
-import in.dragonbra.javasteam.networking.steam3.ProtocolTypes;
-import in.dragonbra.javasteam.steam.steamclient.configuration.SteamConfiguration;
-import in.dragonbra.javasteam.steam.webapi.SteamDirectory;
-import in.dragonbra.javasteam.util.log.LogManager;
-import in.dragonbra.javasteam.util.log.Logger;
-
-import java.io.IOException;
-import java.net.InetSocketAddress;
-import java.util.*;
+import `in`.dragonbra.javasteam.networking.steam3.ProtocolTypes
+import `in`.dragonbra.javasteam.steam.steamclient.configuration.SteamConfiguration
+import `in`.dragonbra.javasteam.steam.webapi.SteamDirectory
+import `in`.dragonbra.javasteam.util.log.LogManager
+import `in`.dragonbra.javasteam.util.log.Logger
+import java.io.IOException
+import java.net.InetAddress
+import java.net.InetSocketAddress
+import java.util.*
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.minutes
 
 /**
  * Smart list of CM servers.
+ *
+ * @constructor Initialize SmartCMServerList with a given server list provider.
+ * @param configuration The Steam configuration to use.
  */
-@SuppressWarnings("unused")
-public class SmartCMServerList {
+@Suppress("unused", "MemberVisibilityCanBePrivate")
+class SmartCMServerList(private val configuration: SteamConfiguration) {
 
-    private static final Logger logger = LogManager.getLogger(SmartCMServerList.class);
+    private val servers: MutableList<ServerInfo> = Collections.synchronizedList(ArrayList())
 
-    private final SteamConfiguration configuration;
+    /**
+     * Determines how long a server's bad connection state is remembered for.
+     * @return a [Duration] to remember a bad connection state.
+     */
+    var badConnectionMemoryTimeSpan: Duration = 5.minutes
 
-    private final List<ServerInfo> servers = Collections.synchronizedList(new ArrayList<>());
-
-    private Long badConnectionMemoryTimeSpan;
-
-    public SmartCMServerList(SteamConfiguration configuration) {
-        if (configuration == null) {
-            throw new IllegalArgumentException("configuration is null");
+    /**
+     * Gets the [ServerRecord] of all servers in the server list.
+     * @return An [List] array contains the [ServerRecord] of the servers in the list
+     */
+    val allEndPoints: List<ServerRecord>
+        get() = try {
+            startFetchingServers()
+            servers.map { it.record }.distinct()
+        } catch (e: IOException) {
+            emptyList()
         }
 
-        this.configuration = configuration;
+    @Throws(IOException::class)
+    private fun startFetchingServers() {
+        // if the server list has been populated, no need to perform any additional work
+        if (servers.isNotEmpty()) {
+            return
+        }
+
+        resolveServerList()
     }
 
-    private void startFetchingServers() throws IOException {
-        if (!servers.isEmpty()) {
-            return;
+    @Throws(IOException::class)
+    private fun resolveServerList() {
+        logger.debug("Resolving server list")
+
+        var endPoints = configuration.serverListProvider.fetchServerList()
+
+        if (endPoints.isEmpty() && configuration.isAllowDirectoryFetch) {
+            logger.debug("Server list provider had no entries, will query SteamDirectory")
+            endPoints = SteamDirectory.load(configuration)
         }
 
-        resolveServerList();
-    }
+        // Could not query steam directory, fallback to a random one from
+        // https://api.steampowered.com/ISteamDirectory/GetCMList/v1/?cellid=0
+        if (endPoints.isEmpty() && configuration.isAllowDirectoryFetch) {
+            val ip = InetAddress.getByName("162.254.198.46") // Chosen April 23, 2024 by Azerai
 
-    private void resolveServerList() throws IOException {
-        logger.debug("Resolving server list");
+            logger.debug("Could not query SteamDirectory, falling back to a random CM ${ip.hostAddress}")
 
-        List<ServerRecord> endPoints = configuration.getServerListProvider().fetchServerList();
-        if (endPoints == null) {
-            endPoints = new ArrayList<>();
+            val fallback = InetSocketAddress(ip, 27018)
+            endPoints = listOf(ServerRecord.createSocketServer(fallback))
         }
 
-        if (endPoints.isEmpty() && configuration.isAllowDirectoryFetch()) {
-            logger.debug("Server list provider had no entries, will query SteamDirectory");
-            endPoints = SteamDirectory.load(configuration);
-        }
-
-        if (endPoints.isEmpty() && configuration.isAllowDirectoryFetch()) {
-            logger.debug("Could not query SteamDirectory, falling back to cm2-ord1");
-
-            // Grabbed a random host that is not an IP address from the endpoint list.
-            InetSocketAddress cm0 = new InetSocketAddress("cm2-ord1.cm.steampowered.com", 27017);
-            endPoints.add(ServerRecord.createSocketServer(cm0));
-        }
-
-        logger.debug("Resolved " + endPoints.size() + " servers");
-        replaceList(endPoints);
+        logger.debug("Resolved ${endPoints.size} servers")
+        replaceList(endPoints)
     }
 
     /**
-     * Resets the scores of all servers which has a last bad connection more than {@link SmartCMServerList#badConnectionMemoryTimeSpan} ago.
+     * Resets the scores of all servers which has a last bad connection more than [badConnectionMemoryTimeSpan] ago.
      */
-    public void resetOldScores() {
-        if (badConnectionMemoryTimeSpan == null) {
-            return;
-        }
+    fun resetOldScores() {
+        val cutoff = System.currentTimeMillis() - badConnectionMemoryTimeSpan.inWholeMilliseconds
 
-        final long cutoff = System.currentTimeMillis() - badConnectionMemoryTimeSpan;
-
-        for (ServerInfo serverInfo : servers) {
-            if (serverInfo.getLastBadConnection() != null && serverInfo.getLastBadConnection().getTime() < cutoff) {
-                serverInfo.setLastBadConnection(null);
+        servers.forEach { serverInfo ->
+            serverInfo.lastBadConnection?.let {
+                if (it.time < cutoff) {
+                    serverInfo.lastBadConnection = null
+                }
             }
         }
     }
 
     /**
      * Replace the list with a new list of servers provided to us by the Steam servers.
-     *
-     * @param endPoints The {@link ServerRecord ServerRecords} to use for this {@link SmartCMServerList}.
+     * @param endPoints The [ServerRecord] to use for this [SmartCMServerList].
      */
-    public void replaceList(List<ServerRecord> endPoints) {
-        if (endPoints == null) {
-            throw new IllegalArgumentException("endPoints is null");
-        }
+    fun replaceList(endPoints: List<ServerRecord>) {
+        servers.clear()
 
-        servers.clear();
+        endPoints.distinct().forEach(::addCore)
 
-        for (ServerRecord endPoint : endPoints) {
-            addCore(endPoint);
-        }
-
-        configuration.getServerListProvider().updateServerList(endPoints);
+        configuration.serverListProvider.updateServerList(endPoints)
     }
 
-    private void addCore(ServerRecord endPoint) {
-        for (ProtocolTypes protocol : endPoint.getProtocolTypes()) {
-            servers.add(new ServerInfo(endPoint, protocol));
+    private fun addCore(endPoint: ServerRecord) {
+        endPoint.protocolTypes.forEach {
+            servers.add(ServerInfo(endPoint, it))
         }
     }
 
     /**
      * Explicitly resets the known state of all servers.
      */
-    public void resetBadServers() {
-        for (ServerInfo serverInfo : servers) {
-            serverInfo.setLastBadConnection(null);
+    fun resetBadServers() {
+        servers.forEach { serverInfo ->
+            serverInfo.lastBadConnection = null
         }
     }
 
-    public boolean tryMark(InetSocketAddress endPoint, ProtocolTypes protocolTypes, ServerQuality quality) {
-        return tryMark(endPoint, EnumSet.of(protocolTypes), quality);
+    fun tryMark(endPoint: InetSocketAddress, protocolTypes: ProtocolTypes, quality: ServerQuality): Boolean {
+        return tryMark(endPoint, EnumSet.of(protocolTypes), quality)
     }
 
-    public boolean tryMark(InetSocketAddress endPoint, EnumSet<ProtocolTypes> protocolTypes, ServerQuality quality) {
-        List<ServerInfo> serverInfos = new ArrayList<>();
-        for (ServerInfo x : servers) {
-            if (x.getRecord().getEndpoint().equals(endPoint) && protocolTypes.contains(x.getProtocol())) {
-                serverInfos.add(x);
-            }
+    fun tryMark(endPoint: InetSocketAddress, protocolTypes: EnumSet<ProtocolTypes>, quality: ServerQuality): Boolean {
+        val serverInfos = servers.filter {
+            it.record.endpoint == endPoint && protocolTypes.contains(it.protocol)
+        }.onEach {
+            logger.debug("Marking ${it.record.endpoint} - ${it.protocol} as $quality")
+            markServerCore(it, quality)
         }
 
-        for (ServerInfo serverInfo : serverInfos) {
-            logger.debug("Marking " + serverInfo.getRecord().getEndpoint() + " - " + serverInfo.getProtocol() + " as " + quality);
-            markServerCore(serverInfo, quality);
-        }
-
-        return !serverInfos.isEmpty();
+        return serverInfos.isNotEmpty()
     }
 
-    private void markServerCore(ServerInfo serverInfo, ServerQuality quality) {
-        switch (quality) {
-            case GOOD:
-                serverInfo.setLastBadConnection(null);
-                break;
-            case BAD:
-                serverInfo.setLastBadConnection(new Date());
-                break;
+    private fun markServerCore(serverInfo: ServerInfo, quality: ServerQuality) {
+        when (quality) {
+            ServerQuality.GOOD -> serverInfo.lastBadConnection = null
+            ServerQuality.BAD -> serverInfo.lastBadConnection = Date()
         }
     }
 
     /**
      * Perform the actual score lookup of the server list and return the candidate.
-     *
-     * @param supportedProtocolTypes The minimum supported {@link ProtocolTypes} of the server to return.
-     * @return An {@link ServerRecord}, or null if the list is empty.
+     * @param supportedProtocolTypes The minimum supported [ProtocolTypes] of the server to return.
+     * @return An [ServerRecord], or null if the list is empty.
      */
-    private ServerRecord getNextServerCandidateInternal(EnumSet<ProtocolTypes> supportedProtocolTypes) {
-        resetOldScores();
+    private fun getNextServerCandidateInternal(supportedProtocolTypes: EnumSet<ProtocolTypes>): ServerRecord? {
+        resetOldScores()
 
-        List<ServerInfo> serverInfos = new ArrayList<>();
-        for (ServerInfo serverInfo : servers) {
-            if (supportedProtocolTypes.contains(serverInfo.getProtocol())) {
-                serverInfos.add(serverInfo);
+        val serverInfos = servers.filter { supportedProtocolTypes.contains(it.protocol) }
+        val sortedServerInfos = serverInfos.sortedWith(
+            compareBy<ServerInfo> {
+                it.lastBadConnection != null
+            }.thenBy {
+                it.lastBadConnection
             }
+        )
+
+        return sortedServerInfos.firstOrNull()?.let {
+            ServerRecord(it.record.endpoint, it.protocol)
         }
-
-        //noinspection ComparatorMethodParameterNotUsed
-        serverInfos.sort((o1, o2) -> {
-            if (o1.getLastBadConnection() == null && o2.getLastBadConnection() == null) {
-                return 1;
-            }
-
-            if (o1.getLastBadConnection() == null) {
-                return -1;
-            }
-
-            if (o2.getLastBadConnection() == null) {
-                return 1;
-            }
-
-            return o1.getLastBadConnection().before(o2.getLastBadConnection()) ? -1 : 1;
-        });
-
-        if (serverInfos.isEmpty()) {
-            return null;
-        }
-
-        ServerInfo result = serverInfos.get(0);
-
-        return new ServerRecord(result.getRecord().getEndpoint(), result.getProtocol());
     }
 
     /**
      * Get the next server in the list.
-     *
-     * @param supportedProtocolTypes The minimum supported {@link ProtocolTypes} of the server to return.
-     * @return An {@link ServerRecord}, or null if the list is empty.
+     * @param supportedProtocolTypes The minimum supported [ProtocolTypes] of the server to return.
+     * @return An [ServerRecord], or null if the list is empty.
      */
-    public ServerRecord getNextServerCandidate(EnumSet<ProtocolTypes> supportedProtocolTypes) {
+    fun getNextServerCandidate(supportedProtocolTypes: EnumSet<ProtocolTypes>): ServerRecord? {
         try {
-            startFetchingServers();
-        } catch (IOException e) {
-            return null;
+            startFetchingServers()
+        } catch (e: IOException) {
+            return null
         }
 
-        return getNextServerCandidateInternal(supportedProtocolTypes);
+        return getNextServerCandidateInternal(supportedProtocolTypes)
     }
 
     /**
      * Get the next server in the list.
-     *
-     * @param supportedProtocolTypes The minimum supported {@link ProtocolTypes} of the server to return.
-     * @return An {@link ServerRecord}, or null if the list is empty.
+     * @param supportedProtocolTypes The minimum supported [ProtocolTypes] of the server to return.
+     * @return An [ServerRecord], or null if the list is empty.
      */
-    public ServerRecord getNextServerCandidate(ProtocolTypes supportedProtocolTypes) {
-        return getNextServerCandidate(EnumSet.of(supportedProtocolTypes));
+    fun getNextServerCandidate(supportedProtocolTypes: ProtocolTypes): ServerRecord? {
+        return getNextServerCandidate(EnumSet.of(supportedProtocolTypes))
     }
 
-    /**
-     * Gets the {@link ServerRecord ServerRecords} of all servers in the server list.
-     *
-     * @return An {@link List} array contains the {@link ServerRecord ServerRecords} of the servers in the list
-     */
-    public List<ServerRecord> getAllEndPoints() {
-        try {
-            startFetchingServers();
-        } catch (IOException e) {
-            return new ArrayList<>();
-        }
-
-        List<ServerRecord> serverRecords = new ArrayList<>();
-
-        for (ServerInfo server : servers) {
-            ServerRecord record = server.getRecord();
-            if (!serverRecords.contains(record)) {
-                serverRecords.add(record);
-            }
-        }
-
-        return serverRecords;
-    }
-
-    public long getBadConnectionMemoryTimeSpan() {
-        return badConnectionMemoryTimeSpan;
-    }
-
-    public void setBadConnectionMemoryTimeSpan(long badConnectionMemoryTimeSpan) {
-        this.badConnectionMemoryTimeSpan = badConnectionMemoryTimeSpan;
+    companion object {
+        private val logger: Logger = LogManager.getLogger(SmartCMServerList::class.java)
     }
 }
