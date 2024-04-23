@@ -183,7 +183,7 @@ abstract class CMClient(val configuration: SteamConfiguration, identifier: Strin
 
     private val connected: EventHandler<EventArgs> =
         EventHandler<EventArgs> { _: Any, _: EventArgs ->
-            servers.tryMark(connection!!.currentEndPoint, connection!!.protocolTypes, ServerQuality.GOOD)
+            servers.tryMark(connection!!.currentEndPoint!!, connection!!.protocolTypes, ServerQuality.GOOD)
 
             isConnected = true
             onClientConnected()
@@ -195,7 +195,7 @@ abstract class CMClient(val configuration: SteamConfiguration, identifier: Strin
                 isConnected = false
 
                 if (!e.isUserInitiated && !isExpectDisconnection) {
-                    servers.tryMark(connection!!.currentEndPoint, connection!!.protocolTypes, ServerQuality.BAD)
+                    servers.tryMark(connection!!.currentEndPoint!!, connection!!.protocolTypes, ServerQuality.BAD)
                 }
 
                 sessionID = null
@@ -267,7 +267,7 @@ abstract class CMClient(val configuration: SteamConfiguration, identifier: Strin
     fun disconnect(userInitiated: Boolean = true) {
         synchronized(connectionLock) {
             heartBeatFunc.stop()
-            connection?.disconnect() // TODO boolean
+            connection?.disconnect(userInitiated)
         }
     }
 
@@ -426,7 +426,7 @@ abstract class CMClient(val configuration: SteamConfiguration, identifier: Strin
             heartBeatFunc.start()
         } else if (logonResponse == EResult.TryAnotherCM || logonResponse == EResult.ServiceUnavailable) {
             if (connection?.currentEndPoint != null) {
-                servers.tryMark(connection!!.currentEndPoint, connection!!.protocolTypes, ServerQuality.BAD)
+                servers.tryMark(connection!!.currentEndPoint!!, connection!!.protocolTypes, ServerQuality.BAD)
             }
         }
     }
@@ -449,7 +449,7 @@ abstract class CMClient(val configuration: SteamConfiguration, identifier: Strin
             val logoffResult = EResult.from(logoffMsg.body.eresult)
 
             if (logoffResult == EResult.TryAnotherCM || logoffResult == EResult.ServiceUnavailable) {
-                servers.tryMark(connection!!.currentEndPoint, connection!!.protocolTypes, ServerQuality.BAD)
+                servers.tryMark(connection!!.currentEndPoint!!, connection!!.protocolTypes, ServerQuality.BAD)
             }
         }
     }

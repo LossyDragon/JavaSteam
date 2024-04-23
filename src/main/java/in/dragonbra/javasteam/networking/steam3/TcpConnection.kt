@@ -1,252 +1,238 @@
-package in.dragonbra.javasteam.networking.steam3;
+package `in`.dragonbra.javasteam.networking.steam3
 
-import in.dragonbra.javasteam.util.log.LogManager;
-import in.dragonbra.javasteam.util.log.Logger;
-import in.dragonbra.javasteam.util.stream.BinaryReader;
-import in.dragonbra.javasteam.util.stream.BinaryWriter;
-
-import java.io.IOException;
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
-import java.net.Socket;
+import `in`.dragonbra.javasteam.util.log.LogManager
+import `in`.dragonbra.javasteam.util.log.Logger
+import `in`.dragonbra.javasteam.util.stream.BinaryReader
+import `in`.dragonbra.javasteam.util.stream.BinaryWriter
+import java.io.IOException
+import java.net.InetAddress
+import java.net.InetSocketAddress
+import java.net.Socket
+import kotlin.concurrent.Volatile
 
 /**
  * @author lngtr
  * @since 2018-02-21
  */
-public class TcpConnection extends Connection {
+class TcpConnection : Connection() {
 
-    private static final Logger logger = LogManager.getLogger(TcpConnection.class);
+    private var socket: Socket? = null
 
-    private static final int MAGIC = 0x31305456; // "VT01"
+    private var netWriter: BinaryWriter? = null
 
-    private Socket socket;
+    private var netReader: BinaryReader? = null
 
-    private InetSocketAddress currentEndPoint;
+    private var netThread: Thread? = null
 
-    private BinaryWriter netWriter;
+    private var netLoop: NetLoop? = null
 
-    private BinaryReader netReader;
+    private val netLock = Any()
 
-    @SuppressWarnings("FieldCanBeLocal")
-    private Thread netThread;
-
-    private NetLoop netLoop;
-
-    private final Object netLock = new Object();
-
-    private void shutdown() {
-        try {
-            if (socket.isConnected()) {
-                socket.shutdownInput();
-                socket.shutdownOutput();
+    override val localIP: InetAddress?
+        get() {
+            synchronized(netLock) {
+                if (socket == null) {
+                    return null
+                }
+                return socket!!.localAddress
             }
-        } catch (IOException e) {
-            logger.debug(e);
+        }
+
+    override var currentEndPoint: InetSocketAddress? = null
+
+    override val protocolTypes: ProtocolTypes
+        get() = ProtocolTypes.TCP
+
+    private fun shutdown() {
+        try {
+            if (socket!!.isConnected) {
+                socket!!.shutdownInput()
+                socket!!.shutdownOutput()
+            }
+        } catch (e: IOException) {
+            logger.debug(e)
         }
     }
 
-    private void connectionCompleted(boolean success) {
+    private fun connectionCompleted(success: Boolean) {
         if (!success) {
-            logger.debug("Timed out while connecting to " + currentEndPoint);
-            release(false);
-            return;
+            logger.debug("Timed out while connecting to $currentEndPoint")
+            release(false)
+            return
         }
 
-        logger.debug("Connected to " + currentEndPoint);
+        logger.debug("Connected to $currentEndPoint")
 
         try {
-            synchronized (netLock) {
-                netReader = new BinaryReader(socket.getInputStream());
-                netWriter = new BinaryWriter(socket.getOutputStream());
+            synchronized(netLock) {
+                netReader = BinaryReader(socket!!.getInputStream())
+                netWriter = BinaryWriter(socket!!.getOutputStream())
 
-                netLoop = new NetLoop();
-                netThread = new Thread(netLoop, "TcpConnection Thread");
-
-                currentEndPoint = new InetSocketAddress(socket.getInetAddress(), socket.getPort());
+                netLoop = NetLoop()
+                netThread = Thread(netLoop, "TcpConnection Thread")
+                currentEndPoint = InetSocketAddress(socket!!.inetAddress, socket!!.port)
             }
 
-            netThread.start();
+            netThread!!.start()
 
-            onConnected();
-        } catch (IOException e) {
-            logger.debug("Exception while setting up connection to " + currentEndPoint, e);
-            release(false);
+            onConnected()
+        } catch (e: IOException) {
+            logger.debug("Exception while setting up connection to $currentEndPoint", e)
+            release(false)
         }
     }
 
-    private void release(boolean userRequestedDisconnect) {
-        synchronized (netLock) {
+    private fun release(userRequestedDisconnect: Boolean) {
+        synchronized(netLock) {
             if (netWriter != null) {
                 try {
-                    netWriter.close();
-                } catch (IOException ignored) {
+                    netWriter!!.close()
+                } catch (ignored: IOException) {
                 }
-                netWriter = null;
+                netWriter = null
             }
 
             if (netReader != null) {
                 try {
-                    netReader.close();
-                } catch (IOException ignored) {
+                    netReader!!.close()
+                } catch (ignored: IOException) {
                 }
-                netReader = null;
+                netReader = null
             }
 
             if (socket != null) {
                 try {
-                    socket.close();
-                } catch (IOException ignored) {
+                    socket!!.close()
+                } catch (ignored: IOException) {
                 }
-                socket = null;
+                socket = null
             }
         }
 
-        onDisconnected(userRequestedDisconnect);
+        onDisconnected(userRequestedDisconnect)
     }
 
-    @Override
-    public void connect(InetSocketAddress endPoint, int timeout) {
-        synchronized (netLock) {
-            currentEndPoint = endPoint;
+    override fun connect(endPoint: InetSocketAddress, timeout: Int) {
+        synchronized(netLock) {
+            currentEndPoint = endPoint
             try {
-                logger.debug("Connecting to " + currentEndPoint + "...");
-                socket = new Socket();
-                socket.connect(endPoint, timeout);
+                logger.debug("Connecting to $currentEndPoint...")
+                socket = Socket()
+                socket!!.connect(endPoint, timeout)
 
-                connectionCompleted(true);
-            } catch (IOException e) {
-                logger.debug("Socket exception while completing connection request to " + currentEndPoint, e);
-                connectionCompleted(false);
+                connectionCompleted(true)
+            } catch (e: IOException) {
+                logger.debug("Socket exception while completing connection request to $currentEndPoint", e)
+                connectionCompleted(false)
             }
         }
     }
 
-    @Override
-    public void disconnect() {
-        synchronized (netLock) {
-            if (netLoop != null) {
-                netLoop.stop(true);
-            }
+    override fun disconnect(userInitiated: Boolean) {
+        synchronized(netLock) {
+            netLoop?.stop(userInitiated)
         }
     }
 
-    private byte[] readPacket() throws IOException {
-        int packetLen = netReader.readInt();
-        int packetMagic = netReader.readInt();
+    @Throws(IOException::class)
+    private fun readPacket(): ByteArray {
+        val packetLen = netReader!!.readInt()
+        val packetMagic = netReader!!.readInt()
 
         if (packetMagic != MAGIC) {
-            throw new IOException("Got a packet with invalid magic!");
+            throw IOException("Got a packet with invalid magic!")
         }
 
-        return netReader.readBytes(packetLen);
+        return netReader!!.readBytes(packetLen)
     }
 
-    @Override
-    public void send(byte[] data) {
-        synchronized (netLock) {
+    override fun send(data: ByteArray) {
+        synchronized(netLock) {
             if (socket == null) {
-                logger.debug("Attempting to send client data when not connected.");
-                return;
+                logger.debug("Attempting to send client data when not connected.")
+                return
             }
-
             try {
-                netWriter.writeInt(data.length);
-                netWriter.writeInt(MAGIC);
-                netWriter.write(data);
-            } catch (IOException e) {
-                logger.debug("Socket exception while writing data.", e);
+                netWriter!!.writeInt(data.size)
+                netWriter!!.writeInt(MAGIC)
+                netWriter!!.write(data)
+            } catch (e: IOException) {
+                logger.debug("Socket exception while writing data.", e)
 
                 // looks like the only way to detect a closed connection is to try and write to it
                 // afaik read also throws an exception if the connection is open but there is nothing to read
-                if (netLoop != null) {
-                    netLoop.stop(false);
-                }
+                netLoop?.stop(false)
             }
         }
-    }
-
-    @Override
-    public InetAddress getLocalIP() {
-        synchronized (netLock) {
-            if (socket == null) {
-                return null;
-            }
-
-            return socket.getLocalAddress();
-        }
-    }
-
-    @Override
-    public InetSocketAddress getCurrentEndPoint() {
-        return currentEndPoint;
-    }
-
-    @Override
-    public ProtocolTypes getProtocolTypes() {
-        return ProtocolTypes.TCP;
     }
 
     // this is now a steamkit meme
-
     /**
      * Nets the loop.
      */
-    private class NetLoop implements Runnable {
-        private static final int POLL_MS = 100;
+    private inner class NetLoop : Runnable {
+        @Volatile
+        private var cancelRequested = false
 
-        private volatile boolean cancelRequested = false;
+        @Volatile
+        private var userRequested = false
 
-        private volatile boolean userRequested = false;
-
-        void stop(boolean userRequested) {
-            this.userRequested = userRequested;
-            cancelRequested = true;
+        fun stop(userRequested: Boolean) {
+            this.userRequested = userRequested
+            cancelRequested = true
         }
 
-        @Override
-        public void run() {
+        override fun run() {
             while (!cancelRequested) {
                 try {
-                    Thread.sleep(POLL_MS);
-                } catch (InterruptedException e) {
-                    logger.debug("Thread interrupted", e);
+                    Thread.sleep(POLL_MS.toLong())
+                } catch (e: InterruptedException) {
+                    logger.debug("Thread interrupted", e)
                 }
 
                 if (cancelRequested) {
-                    break;
+                    break
                 }
 
-                boolean canRead;
+                var canRead: Boolean
 
                 try {
-                    canRead = netReader.available() > 0;
-                } catch (IOException e) {
-                    logger.debug("Socket exception while polling", e);
-                    break;
+                    canRead = netReader!!.available() > 0
+                } catch (e: IOException) {
+                    logger.debug("Socket exception while polling", e)
+                    break
                 }
 
                 if (!canRead) {
                     // nothing to read yet
-                    continue;
+                    continue
                 }
 
-                byte[] packData;
+                var packData: ByteArray
 
                 try {
-                    packData = readPacket();
+                    packData = readPacket()
 
-                    onNetMsgReceived(new NetMsgEventArgs(packData, currentEndPoint));
-                } catch (IOException e) {
-                    logger.debug("Socket exception occurred while reading packet", e);
-                    break;
+                    onNetMsgReceived(NetMsgEventArgs(packData, currentEndPoint!!))
+                } catch (e: IOException) {
+                    logger.debug("Socket exception occurred while reading packet", e)
+                    break
                 }
             }
 
             if (cancelRequested) {
-                shutdown();
+                shutdown()
             }
-            release(cancelRequested && userRequested);
+
+            release(cancelRequested && userRequested)
         }
+    }
+
+    companion object {
+        private val logger: Logger = LogManager.getLogger(TcpConnection::class.java)
+
+        private const val MAGIC = 0x31305456 // "VT01"
+
+        private const val POLL_MS = 100
     }
 }

@@ -1,96 +1,93 @@
-package in.dragonbra.javasteam.networking.steam3;
+package `in`.dragonbra.javasteam.networking.steam3
 
-import in.dragonbra.javasteam.util.event.Event;
-import in.dragonbra.javasteam.util.event.EventArgs;
+import `in`.dragonbra.javasteam.util.event.Event
+import `in`.dragonbra.javasteam.util.event.EventArgs
+import java.net.InetAddress
+import java.net.InetSocketAddress
 
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
+// TODO audit 'networking.steam3' with SK
 
 /**
  * @author lngtr
  * @since 2018-02-20
  */
-public abstract class Connection {
-
+abstract class Connection {
     /**
      * Occurs when a net message is received over the network.
      */
-    final Event<NetMsgEventArgs> netMsgReceived = new Event<>();
+    val netMsgReceived: Event<NetMsgEventArgs> = Event()
 
     /**
      * Occurs when the physical connection is established.
      */
-    final Event<EventArgs> connected = new Event<>();
+    val connected: Event<EventArgs> = Event<EventArgs>()
 
     /**
      * Occurs when the physical connection is broken.
      */
-    final Event<DisconnectedEventArgs> disconnected = new Event<>();
+    val disconnected: Event<DisconnectedEventArgs> = Event()
 
-    void onNetMsgReceived(NetMsgEventArgs e) {
-        netMsgReceived.handleEvent(this, e);
+    /**
+     * TODO kDoc
+     */
+    fun onNetMsgReceived(e: NetMsgEventArgs) {
+        netMsgReceived.handleEvent(this, e)
     }
 
-    void onConnected() {
-        connected.handleEvent(this, null);
+    /**
+     * TODO kDoc
+     */
+    fun onConnected() {
+        connected.handleEvent(this, null)
     }
 
-    void onDisconnected(boolean e) {
-        disconnected.handleEvent(this, new DisconnectedEventArgs(e));
+    /**
+     * TODO kDoc
+     */
+    fun onDisconnected(e: Boolean) {
+        disconnected.handleEvent(this, DisconnectedEventArgs(e))
     }
 
     /**
      * Connects to the specified end point.
-     *
      * @param endPoint The end point to connect to.
      * @param timeout  Timeout in milliseconds
      */
-    public abstract void connect(InetSocketAddress endPoint, int timeout);
+    abstract fun connect(endPoint: InetSocketAddress, timeout: Int)
 
     /**
      * Connects to the specified end point.
-     *
-     * @param endPoint The end point to connect to.
+     * @param endPoint The end point to connect to. Defaults to 5000 millisecond timeout.
      */
-    public final void connect(InetSocketAddress endPoint) {
-        connect(endPoint, 5000);
+    fun connect(endPoint: InetSocketAddress) {
+        connect(endPoint, 5000)
     }
 
     /**
      * Disconnects this instance.
+     * @param userInitiated If true, this disconnection attempt was initated by a consumer.
      */
-    public abstract void disconnect();
+    abstract fun disconnect(userInitiated: Boolean)
 
     /**
      * Sends the specified data packet.
-     *
      * @param data The data packet to send.
      */
-    public abstract void send(byte[] data);
+    abstract fun send(data: ByteArray)
 
     /**
      * Gets the local IP.
-     *
      * @return The local IP.
      */
-    public abstract InetAddress getLocalIP();
+    abstract val localIP: InetAddress?
 
-    public abstract InetSocketAddress getCurrentEndPoint();
+    /**
+     * TODO kDoc
+     */
+    abstract val currentEndPoint: InetSocketAddress?
 
     /**
      * @return The type of communication protocol that this connection uses.
      */
-    public abstract ProtocolTypes getProtocolTypes();
-
-    public Event<NetMsgEventArgs> getNetMsgReceived() {
-        return netMsgReceived;
-    }
-
-    public Event<EventArgs> getConnected() {
-        return connected;
-    }
-
-    public Event<DisconnectedEventArgs> getDisconnected() {
-        return disconnected;
-    }
+    abstract val protocolTypes: ProtocolTypes
 }

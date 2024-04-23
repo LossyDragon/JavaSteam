@@ -1,46 +1,30 @@
-package in.dragonbra.javasteam.networking.steam3;
+package `in`.dragonbra.javasteam.networking.steam3
 
-import java.util.EnumSet;
+import java.util.*
 
 /**
  * @author lngtr
  * @since 2018-02-20
  */
-public enum ProtocolTypes {
-
+enum class ProtocolTypes(val code: Int) {
     TCP(1),
 
-    UDP(1 << 1),
+    UDP(1 shl 1),
 
-    WEB_SOCKET(1 << 2);
+    WEB_SOCKET(1 shl 2),
 
-    public static final EnumSet<ProtocolTypes> ALL = EnumSet.of(TCP, UDP, WEB_SOCKET);
+    ;
 
-    private final int code;
+    companion object {
+        @JvmField
+        val ALL: EnumSet<ProtocolTypes> = EnumSet.of(TCP, UDP, WEB_SOCKET)
 
-    ProtocolTypes(int code) {
-        this.code = code;
-    }
+        @JvmStatic
+        fun from(code: Int): EnumSet<ProtocolTypes> = entries
+            .filter { e -> (e.code and code) == e.code }
+            .toCollection(EnumSet.noneOf(ProtocolTypes::class.java))
 
-    public int code() {
-        return this.code;
-    }
-
-    public static EnumSet<ProtocolTypes> from(int code) {
-        EnumSet<ProtocolTypes> set = EnumSet.noneOf(ProtocolTypes.class);
-        for (ProtocolTypes e : ProtocolTypes.values()) {
-            if ((e.code & code) == e.code) {
-                set.add(e);
-            }
-        }
-        return set;
-    }
-
-    public static int code(EnumSet<ProtocolTypes> flags) {
-        int code = 0;
-        for (ProtocolTypes flag : flags) {
-            code |= flag.code;
-        }
-        return code;
+        @JvmStatic
+        fun code(flags: EnumSet<ProtocolTypes>): Int = flags.fold(0) { acc, flag -> acc or flag.code }
     }
 }

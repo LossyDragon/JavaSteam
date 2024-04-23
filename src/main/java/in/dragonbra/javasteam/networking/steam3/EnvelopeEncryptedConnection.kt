@@ -1,234 +1,211 @@
-package in.dragonbra.javasteam.networking.steam3;
+package `in`.dragonbra.javasteam.networking.steam3
 
-import in.dragonbra.javasteam.base.IPacketMsg;
-import in.dragonbra.javasteam.base.Msg;
-import in.dragonbra.javasteam.enums.EMsg;
-import in.dragonbra.javasteam.enums.EResult;
-import in.dragonbra.javasteam.enums.EUniverse;
-import in.dragonbra.javasteam.generated.MsgChannelEncryptRequest;
-import in.dragonbra.javasteam.generated.MsgChannelEncryptResponse;
-import in.dragonbra.javasteam.generated.MsgChannelEncryptResult;
-import in.dragonbra.javasteam.steam.CMClient;
-import in.dragonbra.javasteam.util.KeyDictionary;
-import in.dragonbra.javasteam.util.crypto.CryptoHelper;
-import in.dragonbra.javasteam.util.crypto.RSACrypto;
-import in.dragonbra.javasteam.util.event.EventArgs;
-import in.dragonbra.javasteam.util.event.EventHandler;
-import in.dragonbra.javasteam.util.log.LogManager;
-import in.dragonbra.javasteam.util.log.Logger;
-
-import java.io.IOException;
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
+import `in`.dragonbra.javasteam.base.IPacketMsg
+import `in`.dragonbra.javasteam.base.Msg
+import `in`.dragonbra.javasteam.enums.EMsg
+import `in`.dragonbra.javasteam.enums.EResult
+import `in`.dragonbra.javasteam.enums.EUniverse
+import `in`.dragonbra.javasteam.generated.MsgChannelEncryptRequest
+import `in`.dragonbra.javasteam.generated.MsgChannelEncryptResponse
+import `in`.dragonbra.javasteam.generated.MsgChannelEncryptResult
+import `in`.dragonbra.javasteam.steam.CMClient
+import `in`.dragonbra.javasteam.util.KeyDictionary
+import `in`.dragonbra.javasteam.util.crypto.CryptoHelper
+import `in`.dragonbra.javasteam.util.crypto.RSACrypto
+import `in`.dragonbra.javasteam.util.event.EventArgs
+import `in`.dragonbra.javasteam.util.event.EventHandler
+import `in`.dragonbra.javasteam.util.log.LogManager
+import `in`.dragonbra.javasteam.util.log.Logger
+import java.io.IOException
+import java.net.InetAddress
+import java.net.InetSocketAddress
 
 /**
  * @author lngtr
  * @since 2018-02-24
  */
-public class EnvelopeEncryptedConnection extends Connection {
+class EnvelopeEncryptedConnection(
+    private val inner: Connection,
+    private val universe: EUniverse,
+) : Connection() {
 
-    private static final Logger logger = LogManager.getLogger(EnvelopeEncryptedConnection.class);
+    private var state: EncryptionState? = null
 
-    private final Connection inner;
-    private final EUniverse universe;
-    private EncryptionState state;
-    private INetFilterEncryption encryption;
+    private var encryption: INetFilterEncryption? = null
 
-    @SuppressWarnings("FieldCanBeLocal")
-    private final EventHandler<EventArgs> onConnected = new EventHandler<>() {
-        @Override
-        public void handleEvent(Object sender, EventArgs e) {
-            state = EncryptionState.CONNECTED;
+    private val onConnected: EventHandler<EventArgs> =
+        EventHandler { _, _ -> state = EncryptionState.CONNECTED }
+
+    private val onDisconnected: EventHandler<DisconnectedEventArgs> =
+        EventHandler<DisconnectedEventArgs> { _, e ->
+            state = EncryptionState.DISCONNECTED
+            encryption = null
+
+            disconnected.handleEvent(this@EnvelopeEncryptedConnection, e)
         }
-    };
 
-    @SuppressWarnings("FieldCanBeLocal")
-    private final EventHandler<DisconnectedEventArgs> onDisconnected = new EventHandler<>() {
-        @Override
-        public void handleEvent(Object sender, DisconnectedEventArgs e) {
-            state = EncryptionState.DISCONNECTED;
-            encryption = null;
+    private val onNetMsgReceived: EventHandler<NetMsgEventArgs> =
+        object : EventHandler<NetMsgEventArgs> {
+            override fun handleEvent(sender: Any, e: NetMsgEventArgs) {
+                if (state == EncryptionState.ENCRYPTED) {
+                    val plaintextData = encryption!!.processIncoming(e.data)
+                    netMsgReceived.handleEvent(this@EnvelopeEncryptedConnection, e.withData(plaintextData))
+                    return
+                }
 
-            disconnected.handleEvent(EnvelopeEncryptedConnection.this, e);
-        }
-    };
+                val packetMsg: IPacketMsg? = CMClient.getPacketMsg(e.data)
 
-    @SuppressWarnings("FieldCanBeLocal")
-    private final EventHandler<NetMsgEventArgs> onNetMsgReceived = new EventHandler<>() {
-        @Override
-        public void handleEvent(Object sender, NetMsgEventArgs e) {
-            if (state == EncryptionState.ENCRYPTED) {
-                byte[] plaintextData = encryption.processIncoming(e.getData());
-                netMsgReceived.handleEvent(EnvelopeEncryptedConnection.this, e.withData(plaintextData));
-                return;
-            }
+                if (packetMsg == null) {
+                    logger.debug("Failed to parse message during channel setup, shutting down connection")
+                    disconnect(true)
+                    return
+                }
 
-            IPacketMsg packetMsg = CMClient.getPacketMsg(e.getData());
+                if (!isExpectedEMsg(packetMsg.msgType)) {
+                    logger.debug("Rejected EMsg: " + packetMsg.msgType + " during channel setup")
+                    return
+                }
 
-            if (!isExpectedEMsg(packetMsg.getMsgType())) {
-                logger.debug("Rejected EMsg: " + packetMsg.getMsgType() + " during channel setup");
-                return;
-            }
-
-            switch (packetMsg.getMsgType()) {
-                case ChannelEncryptRequest:
-                    handleEncryptRequest(packetMsg);
-                    break;
-                case ChannelEncryptResult:
-                    handleEncryptResult(packetMsg);
-                    break;
+                when (packetMsg.msgType) {
+                    EMsg.ChannelEncryptRequest -> handleEncryptRequest(packetMsg)
+                    EMsg.ChannelEncryptResult -> handleEncryptResult(packetMsg)
+                    else -> Unit
+                }
             }
         }
-    };
 
-    public EnvelopeEncryptedConnection(Connection inner, EUniverse universe) {
-        if (inner == null) {
-            throw new IllegalArgumentException("inner connection is null");
-        }
-        this.inner = inner;
-        this.universe = universe;
+    override val localIP: InetAddress?
+        get() = inner.localIP
 
-        inner.getNetMsgReceived().addEventHandler(onNetMsgReceived);
-        inner.getConnected().addEventHandler(onConnected);
-        inner.getDisconnected().addEventHandler(onDisconnected);
+    override val currentEndPoint: InetSocketAddress?
+        get() = inner.currentEndPoint
+
+    override val protocolTypes: ProtocolTypes
+        get() = inner.protocolTypes
+
+    init {
+        inner.netMsgReceived.addEventHandler(onNetMsgReceived)
+        inner.connected.addEventHandler(onConnected)
+        inner.disconnected.addEventHandler(onDisconnected)
     }
 
-    private void handleEncryptRequest(IPacketMsg packetMsg) {
-        Msg<MsgChannelEncryptRequest> request = new Msg<>(MsgChannelEncryptRequest.class, packetMsg);
+    private fun handleEncryptRequest(packetMsg: IPacketMsg) {
+        val request: Msg<MsgChannelEncryptRequest> = Msg(MsgChannelEncryptRequest::class.java, packetMsg)
 
-        EUniverse connectedUniverse = request.getBody().getUniverse();
-        long protoVersion = request.getBody().getProtocolVersion();
+        val connectedUniverse: EUniverse = request.body.universe
+        val protoVersion: Long = request.body.protocolVersion.toLong()
 
-        logger.debug("Got encryption request. Universe: " + connectedUniverse + " Protocol ver: " + protoVersion);
+        logger.debug("Got encryption request. Universe: $connectedUniverse Protocol ver: $protoVersion")
 
-        if (protoVersion != MsgChannelEncryptRequest.PROTOCOL_VERSION) {
-            logger.debug("Encryption handshake protocol version mismatch!");
+        if (protoVersion != MsgChannelEncryptRequest.PROTOCOL_VERSION.toLong()) {
+            logger.debug("Encryption handshake protocol version mismatch!")
         }
 
         if (connectedUniverse != universe) {
-            logger.debug("Expected universe " + universe + " but server reported universe " + connectedUniverse);
+            logger.debug("Expected universe $universe but server reported universe $connectedUniverse")
         }
 
-        byte[] randomChallenge = null;
-        if (request.getPayload().getLength() >= 16) {
-            randomChallenge = request.getPayload().toByteArray();
+        var randomChallenge: ByteArray? = null
+        if (request.payload.length >= 16) {
+            randomChallenge = request.payload.toByteArray()
         }
 
-        byte[] publicKey = KeyDictionary.getPublicKey(connectedUniverse);
-
+        val publicKey: ByteArray? = KeyDictionary.getPublicKey(connectedUniverse)
         if (publicKey == null) {
-            logger.debug("HandleEncryptRequest got request for invalid universe! Universe: " + connectedUniverse + " Protocol ver: " + protoVersion);
-            disconnect();
+            logger.debug("HandleEncryptRequest got request for invalid universe! Universe: $connectedUniverse Protocol ver: $protoVersion")
+            disconnect(false)
         }
 
-        Msg<MsgChannelEncryptResponse> response = new Msg<>(MsgChannelEncryptResponse.class);
+        val response: Msg<MsgChannelEncryptResponse> = Msg(MsgChannelEncryptResponse::class.java)
 
-        byte[] tempSessionKey = CryptoHelper.generateRandomBlock(32);
-        byte[] encryptedHandshakeBlob;
+        val tempSessionKey: ByteArray = CryptoHelper.generateRandomBlock(32)
+        val encryptedHandshakeBlob: ByteArray
 
-        RSACrypto rsa = new RSACrypto(publicKey);
+        val rsa = RSACrypto(publicKey)
 
         if (randomChallenge != null) {
-            byte[] blobToEncrypt = new byte[tempSessionKey.length + randomChallenge.length];
+            val blobToEncrypt = ByteArray(tempSessionKey.size + randomChallenge.size)
 
-            System.arraycopy(tempSessionKey, 0, blobToEncrypt, 0, tempSessionKey.length);
-            System.arraycopy(randomChallenge, 0, blobToEncrypt, tempSessionKey.length, randomChallenge.length);
+            System.arraycopy(tempSessionKey, 0, blobToEncrypt, 0, tempSessionKey.size)
+            System.arraycopy(randomChallenge, 0, blobToEncrypt, tempSessionKey.size, randomChallenge.size)
 
-            encryptedHandshakeBlob = rsa.encrypt(blobToEncrypt);
+            encryptedHandshakeBlob = rsa.encrypt(blobToEncrypt)
         } else {
-            encryptedHandshakeBlob = rsa.encrypt(tempSessionKey);
+            encryptedHandshakeBlob = rsa.encrypt(tempSessionKey)
         }
 
-        byte[] keyCrc = CryptoHelper.crcHash(encryptedHandshakeBlob);
+        val keyCrc: ByteArray = CryptoHelper.crcHash(encryptedHandshakeBlob)
 
         try {
-            response.write(encryptedHandshakeBlob);
-            response.write(keyCrc);
-            response.write(0);
-        } catch (IOException e) {
-            logger.debug(e);
+            response.write(encryptedHandshakeBlob)
+            response.write(keyCrc)
+            response.write(0)
+        } catch (e: IOException) {
+            logger.debug(e)
         }
 
-        if (randomChallenge != null) {
-            encryption = new NetFilterEncryptionWithHMAC(tempSessionKey);
+        encryption = if (randomChallenge != null) {
+            NetFilterEncryptionWithHMAC(tempSessionKey)
         } else {
-            encryption = new NetFilterEncryption(tempSessionKey);
+            NetFilterEncryption(tempSessionKey)
         }
 
-        state = EncryptionState.CHALLENGED;
+        state = EncryptionState.CHALLENGED
 
-        send(response.serialize());
+        send(response.serialize())
     }
 
-    private void handleEncryptResult(IPacketMsg packetMsg) {
-        Msg<MsgChannelEncryptResult> result = new Msg<>(MsgChannelEncryptResult.class, packetMsg);
+    private fun handleEncryptResult(packetMsg: IPacketMsg) {
+        val result: Msg<MsgChannelEncryptResult> = Msg(MsgChannelEncryptResult::class.java, packetMsg)
 
-        logger.debug("Encryption result: " + result.getBody().getResult());
+        logger.debug("Encryption result: ${result.body.result}")
 
-        assert encryption != null;
+        checkNotNull(encryption)
 
-        if (result.getBody().getResult() == EResult.OK && encryption != null) {
-            state = EncryptionState.ENCRYPTED;
-            connected.handleEvent(this, EventArgs.EMPTY);
+        if (result.body.result == EResult.OK && encryption != null) {
+            state = EncryptionState.ENCRYPTED
+            connected.handleEvent(this, EventArgs.EMPTY)
         } else {
-            logger.debug("Encryption channel setup failed");
-            disconnect();
+            logger.debug("Encryption channel setup failed")
+            disconnect(false)
         }
     }
 
-    private boolean isExpectedEMsg(EMsg msg) {
-        switch (state) {
-            case DISCONNECTED:
-                return false;
-            case CONNECTED:
-                return msg == EMsg.ChannelEncryptRequest;
-            case CHALLENGED:
-                return msg == EMsg.ChannelEncryptResult;
-            case ENCRYPTED:
-                return true;
-            default:
-                throw new IllegalStateException("Unreachable - landed up in undefined state.");
+    private fun isExpectedEMsg(msg: EMsg): Boolean {
+        return when (state) {
+            EncryptionState.DISCONNECTED -> false
+            EncryptionState.CONNECTED -> msg == EMsg.ChannelEncryptRequest
+            EncryptionState.CHALLENGED -> msg == EMsg.ChannelEncryptResult
+            EncryptionState.ENCRYPTED -> true
+            else -> throw IllegalStateException("Unreachable - landed up in undefined state.")
         }
     }
 
-    @Override
-    public void connect(InetSocketAddress endPoint, int timeout) {
-        inner.connect(endPoint, timeout);
+    override fun connect(endPoint: InetSocketAddress, timeout: Int) {
+        inner.connect(endPoint, timeout)
     }
 
-    @Override
-    public void disconnect() {
-        inner.disconnect();
+    override fun disconnect(userInitiated: Boolean) {
+        inner.disconnect(userInitiated)
     }
 
-    @Override
-    public void send(byte[] data) {
+    override fun send(data: ByteArray) {
+        var sendData: ByteArray = data
         if (state == EncryptionState.ENCRYPTED) {
-            data = encryption.processOutgoing(data);
+            sendData = encryption!!.processOutgoing(sendData)
         }
 
-        inner.send(data);
+        inner.send(sendData)
     }
 
-    @Override
-    public InetAddress getLocalIP() {
-        return inner.getLocalIP();
-    }
-
-    @Override
-    public InetSocketAddress getCurrentEndPoint() {
-        return inner.getCurrentEndPoint();
-    }
-
-    @Override
-    public ProtocolTypes getProtocolTypes() {
-        return inner.getProtocolTypes();
-    }
-
-    private enum EncryptionState {
+    private enum class EncryptionState {
         DISCONNECTED,
         CONNECTED,
         CHALLENGED,
-        ENCRYPTED
+        ENCRYPTED,
+    }
+
+    companion object {
+        private val logger: Logger = LogManager.getLogger(EnvelopeEncryptedConnection::class.java)
     }
 }

@@ -1,141 +1,131 @@
-package in.dragonbra.javasteam.networking.steam3;
+package `in`.dragonbra.javasteam.networking.steam3
 
-import in.dragonbra.javasteam.enums.EUdpPacketType;
-import in.dragonbra.javasteam.generated.UdpHeader;
-import in.dragonbra.javasteam.util.stream.MemoryStream;
-import in.dragonbra.javasteam.util.stream.SeekOrigin;
-
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
+import `in`.dragonbra.javasteam.enums.EUdpPacketType
+import `in`.dragonbra.javasteam.generated.UdpHeader
+import `in`.dragonbra.javasteam.util.stream.MemoryStream
+import `in`.dragonbra.javasteam.util.stream.SeekOrigin
+import java.io.ByteArrayOutputStream
+import java.io.IOException
 
 /**
  * @author lngtr
  * @since 2018-03-01
  */
-class UdpPacket {
-    public static final int MAX_PAYLOAD = 0x4DC;
-
-    private final UdpHeader header;
-
-    private MemoryStream payload;
+internal class UdpPacket {
 
     /**
-     * Initializes a new instance of the {@link UdpPacket} class with
-     * Header is populated from the MemoryStream
-     *
-     * @param ms The stream containing the packet and it's payload data.
+     * TODO kDoc
      */
-    UdpPacket(MemoryStream ms) {
-        header = new UdpHeader();
+    val header: UdpHeader
+
+    /**
+     * Serializes the UdpPacket.
+     * @return The serialized packet.
+     */
+    val data: ByteArray
+        get() {
+            val baos = ByteArrayOutputStream()
+
+            try {
+                header.serialize(baos)
+                payload.seek(0, SeekOrigin.BEGIN)
+                baos.write(payload.toByteArray())
+            } catch (ignored: IOException) {
+            }
+
+            return baos.toByteArray()
+        }
+
+    /**
+     * TODO kDoc
+     */
+    lateinit var payload: MemoryStream
+        private set
+
+    /**
+     * Gets a value indicating whether this instance is valid.
+     * @return **true** if this instance is valid; otherwise, **false**.
+     */
+    val isValid: Boolean
+        get() = header.magic == UdpHeader.MAGIC && header.payloadSize <= MAX_PAYLOAD
+
+    /**
+     * Initializes a new instance of the [UdpPacket] class with Header is populated from the MemoryStream
+     * @param ms The stream containing the packet, and it's payload data.
+     */
+    constructor(ms: MemoryStream) {
+        header = UdpHeader()
 
         try {
-            header.deserialize(ms);
-        } catch (IOException e) {
-            return;
+            header.deserialize(ms)
+        } catch (e: IOException) {
+            return
         }
 
-        if (header.getMagic() != UdpHeader.MAGIC) {
-            return;
+        if (header.magic != UdpHeader.MAGIC) {
+            return
         }
 
-        setPayload(ms, header.getPayloadSize());
+        setPayload(ms, header.payloadSize.toLong())
     }
 
     /**
-     * Initializes a new instance of the {@link UdpPacket} class, with no payload.
+     * Initializes a new instance of the [UdpPacket] class, with no payload.
      * Header must be populated manually.
-     *
      * @param type The type.
      */
-    UdpPacket(EUdpPacketType type) {
-        header = new UdpHeader();
-        payload = new MemoryStream();
-
-        header.setPacketType(type);
+    constructor(type: EUdpPacketType) {
+        header = UdpHeader().apply {
+            packetType = type
+        }
+        payload = MemoryStream()
     }
 
     /**
-     * Initializes a new instance of the {@link UdpPacket} class, of the specified type containing the specified payload.
-     * Header must be populated manually.
-     *
+     * Initializes a new instance of the [UdpPacket] class, of the specified type containing the specified payload.
+     *  Header must be populated manually.
      * @param type    The type.
      * @param payload The payload.
      */
-    UdpPacket(EUdpPacketType type, MemoryStream payload) {
-        this(type);
-        setPayload(payload);
+    constructor(type: EUdpPacketType, payload: MemoryStream) : this(type) {
+        setPayload(payload)
     }
 
     /**
-     * Initializes a new instance of the {@link UdpPacket} class, of the specified type containing the first 'length' bytes of specified payload.
-     * Header must be populated manually.
-     *
+     * Initializes a new instance of the [UdpPacket] class,
+     *  of the specified type containing the first 'length' bytes of specified payload.
+     *  Header must be populated manually.
      * @param type    The type.
      * @param payload The payload.
      * @param length  The length.
      */
-    UdpPacket(EUdpPacketType type, MemoryStream payload, long length) {
-        this(type);
-        setPayload(payload, length);
+    constructor(type: EUdpPacketType, payload: MemoryStream, length: Long) : this(type) {
+        setPayload(payload, length)
     }
 
     /**
      * Sets the payload
-     *
      * @param ms The payload to copy.
      */
-    public void setPayload(MemoryStream ms) {
-        setPayload(ms, ms.getLength() - ms.getPosition());
-    }
-
-    public void setPayload(MemoryStream ms, long length) {
-        if (length > MAX_PAYLOAD) {
-            throw new IllegalArgumentException("Payload length exceeds 0x4DC maximum");
-        }
-
-        byte[] buf = new byte[(int) length];
-        ms.read(buf, 0, buf.length);
-
-        payload = new MemoryStream(buf);
-        header.setPayloadSize((short) payload.getLength());
-        header.setMsgSize((int) payload.getLength());
-
+    fun setPayload(ms: MemoryStream) {
+        setPayload(ms, ms.length - ms.position)
     }
 
     /**
-     * Serializes the UdpPacket.
-     *
-     * @return The serialized packet.
+     * TODO kDoc
      */
-    public byte[] getData() {
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    fun setPayload(ms: MemoryStream, length: Long) {
+        require(length <= MAX_PAYLOAD) { "Payload length exceeds 0x4DC maximum" }
 
-        try {
-            header.serialize(baos);
-            payload.seek(0, SeekOrigin.BEGIN);
-            baos.write(payload.toByteArray());
-        } catch (IOException ignored) {
-        }
+        val buf = ByteArray(length.toInt())
+        ms.read(buf, 0, buf.size)
 
-        return baos.toByteArray();
+        payload = MemoryStream(buf)
+        header.payloadSize = payload.length.toShort()
+        header.msgSize = payload.length.toInt()
     }
 
-    /**
-     * Gets a value indicating whether this instance is valid.
-     *
-     * @return <b>true</b> if this instance is valid; otherwise, <b>false</b>.
-     */
-    public boolean isValid() {
-        return header.getMagic() == UdpHeader.MAGIC &&
-                header.getPayloadSize() <= MAX_PAYLOAD &&
-                payload != null;
-    }
-
-    public UdpHeader getHeader() {
-        return header;
-    }
-
-    public MemoryStream getPayload() {
-        return payload;
+    companion object {
+        const val MAX_PAYLOAD: Int = 0x4DC
     }
 }
