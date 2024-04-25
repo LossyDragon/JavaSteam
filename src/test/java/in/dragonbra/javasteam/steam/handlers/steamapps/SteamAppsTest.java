@@ -106,15 +106,17 @@ public class SteamAppsTest extends HandlerTestBase<SteamApps> {
         assertEquals(420, msg.getBody().getPackages(0).getPackageid());
     }
 
-    @Test
-    public void picsGetProductInfoNull() {
-        assertThrows(IllegalArgumentException.class, () -> handler.picsGetProductInfo(null, new LinkedList<>(), false));
-    }
-
-    @Test
-    public void picsGetProductInfoNull2() {
-        assertThrows(IllegalArgumentException.class, () -> handler.picsGetProductInfo(new LinkedList<>(), null, false));
-    }
+    // // We deny null apps
+    // @Test
+    // public void picsGetProductInfoNull() {
+    //     assertThrows(IllegalArgumentException.class, () -> handler.picsGetProductInfo(null, new LinkedList<>(), false));
+    // }
+    //
+    // // We deny null packages
+    // @Test
+    // public void picsGetProductInfoNull2() {
+    //     assertThrows(IllegalArgumentException.class, () -> handler.picsGetProductInfo(new LinkedList<>(), null, false));
+    // }
 
     @Test
     public void getCDNAuthToken() {
@@ -142,10 +144,11 @@ public class SteamAppsTest extends HandlerTestBase<SteamApps> {
         assertEquals(440, msg.getBody().getAppids(0));
     }
 
-    @Test
-    public void requestFreeLicenseNull() {
-        assertThrows(IllegalArgumentException.class, () -> handler.requestFreeLicense(null));
-    }
+    // // We deny null apps
+    // @Test
+    // public void requestFreeLicenseNull() {
+    //     assertThrows(IllegalArgumentException.class, () -> handler.requestFreeLicense(null));
+    // }
 
     @Test
     public void checkAppBetaPassword() {

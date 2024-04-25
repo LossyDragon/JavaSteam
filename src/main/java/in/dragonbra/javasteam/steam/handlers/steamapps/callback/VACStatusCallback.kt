@@ -1,40 +1,41 @@
-package in.dragonbra.javasteam.steam.handlers.steamapps.callback;
+package `in`.dragonbra.javasteam.steam.handlers.steamapps.callback
 
-import in.dragonbra.javasteam.generated.MsgClientVACBanStatus;
-import in.dragonbra.javasteam.steam.steamclient.callbackmgr.CallbackMsg;
-import in.dragonbra.javasteam.util.stream.BinaryReader;
-
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
+import `in`.dragonbra.javasteam.generated.MsgClientVACBanStatus
+import `in`.dragonbra.javasteam.steam.steamclient.callbackmgr.CallbackMsg
+import `in`.dragonbra.javasteam.util.log.LogManager
+import `in`.dragonbra.javasteam.util.stream.BinaryReader
+import java.io.ByteArrayInputStream
+import java.io.IOException
+import java.util.*
+import kotlin.collections.ArrayList
 
 /**
- * This callback is fired when the client receives it's VAC banned status.
+ * This callback is fired when the client receives its VAC banned status.
  */
-public class VACStatusCallback extends CallbackMsg {
+class VACStatusCallback(msg: MsgClientVACBanStatus, payload: ByteArray) : CallbackMsg() {
 
-    private final List<Integer> bannedApps;
-
-    public VACStatusCallback(MsgClientVACBanStatus msg, byte[] payload) {
-        List<Integer> tempList = new ArrayList<>();
-
-        try (BinaryReader br = new BinaryReader(new ByteArrayInputStream(payload))) {
-            for (int i = 0; i < msg.getNumBans(); i++) {
-                tempList.add(br.readInt());
-            }
-        } catch (IOException e) {
-            throw new IllegalArgumentException("failed to read bans", e);
-        }
-
-        bannedApps = Collections.unmodifiableList(tempList);
+    companion object {
+        private val logger = LogManager.getLogger(VACStatusCallback::class.java)
     }
 
     /**
-     * @return a list of VAC banned apps the client is banned from.
+     * Gets a list of VAC banned apps the client is banned from.
+     * @return a list of VAC banned apps.
      */
-    public List<Integer> getBannedApps() {
-        return bannedApps;
+    var bannedApps: List<Int> = listOf()
+        private set
+
+    init {
+        val tempList: MutableList<Int> = ArrayList()
+        try {
+            BinaryReader(ByteArrayInputStream(payload)).use { br ->
+                for (i in 0 until msg.numBans) {
+                    tempList.add(br.readInt())
+                }
+            }
+            bannedApps = tempList.toList()
+        } catch (e: IOException) {
+            logger.error("Failed to read bans. Returning empty list", e)
+        }
     }
 }

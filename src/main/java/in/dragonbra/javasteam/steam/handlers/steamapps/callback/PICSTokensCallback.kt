@@ -1,70 +1,44 @@
-package in.dragonbra.javasteam.steam.handlers.steamapps.callback;
+package `in`.dragonbra.javasteam.steam.handlers.steamapps.callback
 
-import in.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserverAppinfo.CMsgClientPICSAccessTokenResponse;
-import in.dragonbra.javasteam.steam.steamclient.callbackmgr.CallbackMsg;
-import in.dragonbra.javasteam.types.JobID;
-
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserverAppinfo.CMsgClientPICSAccessTokenResponse
+import `in`.dragonbra.javasteam.steam.steamclient.callbackmgr.CallbackMsg
+import `in`.dragonbra.javasteam.types.JobID
+import java.util.*
 
 /**
  * This callback is fired when the PICS returns access tokens for a list of appids and packageids
  */
-public class PICSTokensCallback extends CallbackMsg {
-
-    private final List<Integer> packageTokensDenied;
-
-    private final List<Integer> appTokensDenied;
-
-    private final Map<Integer, Long> packageTokens;
-
-    private final Map<Integer, Long> appTokens;
-
-    public PICSTokensCallback(JobID jobID, CMsgClientPICSAccessTokenResponse.Builder msg) {
-        setJobID(jobID);
-
-        packageTokensDenied = Collections.unmodifiableList(msg.getPackageDeniedTokensList());
-        appTokensDenied = Collections.unmodifiableList(msg.getAppDeniedTokensList());
-
-        packageTokens = new HashMap<>();
-        appTokens = new HashMap<>();
-
-        for (CMsgClientPICSAccessTokenResponse.PackageToken packageToken : msg.getPackageAccessTokensList()) {
-            packageTokens.put(packageToken.getPackageid(), packageToken.getAccessToken());
-        }
-
-        for (CMsgClientPICSAccessTokenResponse.AppToken appToken : msg.getAppAccessTokensList()) {
-            appTokens.put(appToken.getAppid(), appToken.getAccessToken());
-        }
-    }
+class PICSTokensCallback(jobID: JobID, msg: CMsgClientPICSAccessTokenResponse.Builder) : CallbackMsg() {
 
     /**
+     * Gets a list of denied package tokens
      * @return a list of denied package tokens.
      */
-    public List<Integer> getPackageTokensDenied() {
-        return packageTokensDenied;
-    }
+    val packageTokensDenied: List<Int> = msg.packageDeniedTokensList
 
     /**
+     * Gets a list of denied app tokens
      * @return a list of denied app tokens.
      */
-    public List<Integer> getAppTokensDenied() {
-        return appTokensDenied;
+    val appTokensDenied: List<Int> = msg.appDeniedTokensList
+
+    /**
+     * Map containing requested package tokens
+     * @return a map containing requested package tokens.
+     */
+    val packageTokens: Map<Int, Long> = msg.packageAccessTokensList.associateTo(mutableMapOf()) {
+        it.packageid to it.accessToken
     }
 
     /**
-     * @return a map containing requested package tokens.
+     * Map containing requested app tokens
+     * @return a map containing requested app tokens.
      */
-    public Map<Integer, Long> getPackageTokens() {
-        return packageTokens;
+    val appTokens: Map<Int, Long> = msg.appAccessTokensList.associateTo(mutableMapOf()) {
+        it.appid to it.accessToken
     }
 
-    /**
-     * @return a map containing requested package tokens.
-     */
-    public Map<Integer, Long> getAppTokens() {
-        return appTokens;
+    init {
+        this.jobID = jobID
     }
 }

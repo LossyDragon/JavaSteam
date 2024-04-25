@@ -1,48 +1,46 @@
-package in.dragonbra.javasteam.steam.handlers.steamapps;
+package `in`.dragonbra.javasteam.steam.handlers.steamapps
 
-import in.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserverAppinfo.CMsgClientPICSChangesSinceResponse;
+import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserverAppinfo
 
 /**
  * Holds the change data for a single app or package
  */
-public class PICSChangeData {
+@Suppress("MemberVisibilityCanBePrivate")
+class PICSChangeData {
 
-    private final int id;
+    /**
+     * App or package ID this change data represents
+     * @return the app or package ID.
+     */
+    val id: Int
 
-    private final int changeNumber;
+    /**
+     * Current change number of this app
+     * @return the current change number.
+     */
+    val changeNumber: Int
 
-    private final boolean needsToken;
+    /**
+     * Signals if an access token is needed for this request
+     * @return if an access token is needed.
+     */
+    val isNeedsToken: Boolean
 
-    public PICSChangeData(CMsgClientPICSChangesSinceResponse.AppChange change) {
-        id = change.getAppid();
-        changeNumber = change.getChangeNumber();
-        needsToken = change.getNeedsToken();
-    }
-
-    public PICSChangeData(CMsgClientPICSChangesSinceResponse.PackageChange change) {
-        id = change.getPackageid();
-        changeNumber = change.getChangeNumber();
-        needsToken = change.getNeedsToken();
+    /**
+     * TODO kDoc
+     */
+    constructor(change: SteammessagesClientserverAppinfo.CMsgClientPICSChangesSinceResponse.AppChange) {
+        id = change.appid
+        changeNumber = change.changeNumber
+        isNeedsToken = change.needsToken
     }
 
     /**
-     * @return the app or package ID this change data represents
+     * TODO kDoc
      */
-    public int getId() {
-        return id;
-    }
-
-    /**
-     * @return the current change number of this app
-     */
-    public int getChangeNumber() {
-        return changeNumber;
-    }
-
-    /**
-     * @return signals if an access token is needed for this request
-     */
-    public boolean isNeedsToken() {
-        return needsToken;
+    constructor(change: SteammessagesClientserverAppinfo.CMsgClientPICSChangesSinceResponse.PackageChange) {
+        id = change.packageid
+        changeNumber = change.changeNumber
+        isNeedsToken = change.needsToken
     }
 }

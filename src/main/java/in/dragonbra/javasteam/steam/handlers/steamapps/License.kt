@@ -1,158 +1,98 @@
-package in.dragonbra.javasteam.steam.handlers.steamapps;
+package `in`.dragonbra.javasteam.steam.handlers.steamapps
 
-import in.dragonbra.javasteam.enums.ELicenseFlags;
-import in.dragonbra.javasteam.enums.ELicenseType;
-import in.dragonbra.javasteam.enums.EPaymentMethod;
-import in.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserver.CMsgClientLicenseList;
-
-import java.util.Date;
-import java.util.EnumSet;
+import `in`.dragonbra.javasteam.enums.ELicenseFlags
+import `in`.dragonbra.javasteam.enums.ELicenseType
+import `in`.dragonbra.javasteam.enums.EPaymentMethod
+import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserver.CMsgClientLicenseList
+import java.util.*
 
 /**
  * Represents a granted license (steam3 subscription) for one or more games.
  */
-public class License {
-
-    private final int packageID;
-
-    private final int lastChangeNumber;
-
-    private final Date timeCreated;
-
-    private final Date timeNextProcess;
-
-    private final int minuteLimit;
-
-    private final int minutesUsed;
-
-    private final EPaymentMethod paymentMethod;
-
-    private final EnumSet<ELicenseFlags> licenseFlags;
-
-    private final String purchaseCode;
-
-    private final ELicenseType licenseType;
-
-    private final int territoryCode;
-
-    private final long accessToken;
-
-    private final int ownerAccountID;
-
-    private final int masterPackageID;
-
-    public License(CMsgClientLicenseList.License license) {
-        packageID = license.getPackageId();
-        lastChangeNumber = license.getChangeNumber();
-        timeCreated = new Date(license.getTimeCreated() * 1000L);
-        timeNextProcess = new Date(license.getTimeNextProcess() * 1000L);
-        minuteLimit = license.getMinuteLimit();
-        minutesUsed = license.getMinutesUsed();
-        paymentMethod = EPaymentMethod.from(license.getPaymentMethod());
-        licenseFlags = ELicenseFlags.from(license.getFlags());
-        purchaseCode = license.getPurchaseCountryCode();
-        licenseType = ELicenseType.from(license.getLicenseType());
-        territoryCode = license.getTerritoryCode();
-        accessToken = license.getAccessToken();
-        ownerAccountID = license.getOwnerId();
-        masterPackageID = license.getMasterPackageId();
-    }
+@Suppress("unused")
+class License(license: CMsgClientLicenseList.License) {
 
     /**
-     * @return the package ID used to identify the license.
+     * Gets the package ID used to identify the license.
+     * @return the package ID.
      */
-    public int getPackageID() {
-        return packageID;
-    }
+    val packageID: Int = license.packageId
 
     /**
-     * @return the last change number for this license.
+     * Gets the last change number for this license.
+     * @return the last change number.
      */
-    public int getLastChangeNumber() {
-        return lastChangeNumber;
-    }
+    val lastChangeNumber: Int = license.changeNumber
 
     /**
-     * @return the time the license was created.
+     * Gets the time the license was created.
+     * @return the time created.
      */
-    public Date getTimeCreated() {
-        return timeCreated;
-    }
+    val timeCreated: Date = Date(license.timeCreated * 1000L)
 
     /**
-     * @return the next process time for the license.
+     * Gets the next process time for the license.
+     * @return the next process time.
      */
-    public Date getTimeNextProcess() {
-        return timeNextProcess;
-    }
+    val timeNextProcess: Date = Date(license.timeNextProcess * 1000L)
 
     /**
-     * @return the minute limit of the license.
+     * Gets the minute limit of the license.
+     * @return the minute limit.
      */
-    public int getMinuteLimit() {
-        return minuteLimit;
-    }
+    val minuteLimit: Int = license.minuteLimit
 
     /**
-     * @return the minutes used of the license.
+     * Gets the minutes used of the license.
+     * @return the minutes used.
      */
-    public int getMinutesUsed() {
-        return minutesUsed;
-    }
+    val minutesUsed: Int = license.minutesUsed
 
     /**
-     * @return the payment method used when the license was created.
+     * Gets the payment method used when the license was created.
+     * @return the payment method.
      */
-    public EPaymentMethod getPaymentMethod() {
-        return paymentMethod;
-    }
+    val paymentMethod: EPaymentMethod = EPaymentMethod.from(license.paymentMethod)
 
     /**
+     * Gets the license flags.
      * @return the license flags.
      */
-    public EnumSet<ELicenseFlags> getLicenseFlags() {
-        return licenseFlags;
-    }
+    val licenseFlags: EnumSet<ELicenseFlags> = ELicenseFlags.from(license.flags)
 
     /**
-     * @return the two-letter country code where the license was purchased.
+     * Gets the two-letter country code where the license was purchased.
+     * @return the purchase country code.
      */
-    public String getPurchaseCode() {
-        return purchaseCode;
-    }
+    val purchaseCode: String = license.purchaseCountryCode
 
     /**
+     * Gets the type of the license.
      * @return the type of the license.
      */
-    public ELicenseType getLicenseType() {
-        return licenseType;
-    }
+    val licenseType: ELicenseType = ELicenseType.from(license.licenseType)
 
     /**
-     * @return the territory code of the license.
+     * Gets the territory code of the license.
+     * @return the territory code.
      */
-    public int getTerritoryCode() {
-        return territoryCode;
-    }
+    val territoryCode: Int = license.territoryCode
 
     /**
-     * @return the PICS access token for this package.
+     * Gets the owner account id of the license.
+     * @return the owned account id.
      */
-    public long getAccessToken() {
-        return accessToken;
-    }
+    val ownerAccountID: Int = license.ownerId
 
     /**
-     * @return the owner account id of the license.
+     * Gets the PICS access token for this package.
+     * @return the access token.
      */
-    public int getOwnerAccountID() {
-        return ownerAccountID;
-    }
+    val accessToken: Long = license.accessToken
 
     /**
+     * Gets the master package id.
      * @return the master package id.
      */
-    public int getMasterPackageID() {
-        return masterPackageID;
-    }
+    val masterPackageID: Int = license.masterPackageId
 }

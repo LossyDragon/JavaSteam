@@ -1,98 +1,63 @@
-package in.dragonbra.javasteam.steam.handlers.steamapps.callback;
+package `in`.dragonbra.javasteam.steam.handlers.steamapps.callback
 
-import in.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserverAppinfo.CMsgClientPICSChangesSinceResponse;
-import in.dragonbra.javasteam.steam.handlers.steamapps.PICSChangeData;
-import in.dragonbra.javasteam.steam.steamclient.callbackmgr.CallbackMsg;
-import in.dragonbra.javasteam.types.JobID;
-
-import java.util.HashMap;
-import java.util.Map;
+import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserverAppinfo.CMsgClientPICSChangesSinceResponse
+import `in`.dragonbra.javasteam.steam.handlers.steamapps.PICSChangeData
+import `in`.dragonbra.javasteam.steam.steamclient.callbackmgr.CallbackMsg
+import `in`.dragonbra.javasteam.types.JobID
 
 /**
  * This callback is fired when the PICS returns the changes since the last change number
  */
-public class PICSChangesCallback extends CallbackMsg {
-
-    private final int lastChangeNumber;
-
-    private final int currentChangeNumber;
-
-    private final boolean requiresFullUpdate;
-
-    private final boolean requiresFullAppUpdate;
-
-    private final boolean requiresFullPackageUpdate;
-
-    private final Map<Integer, PICSChangeData> packageChanges;
-
-    private final Map<Integer, PICSChangeData> appChanges;
-
-    public PICSChangesCallback(JobID jobID, CMsgClientPICSChangesSinceResponse.Builder msg) {
-        setJobID(jobID);
-
-        lastChangeNumber = msg.getSinceChangeNumber();
-        currentChangeNumber = msg.getCurrentChangeNumber();
-        requiresFullAppUpdate = msg.getForceFullAppUpdate();
-        requiresFullPackageUpdate = msg.getForceFullPackageUpdate();
-        requiresFullUpdate = msg.getForceFullUpdate();
-        packageChanges = new HashMap<>();
-        appChanges = new HashMap<>();
-
-        for (CMsgClientPICSChangesSinceResponse.PackageChange packageChange : msg.getPackageChangesList()) {
-            packageChanges.put(packageChange.getPackageid(), new PICSChangeData(packageChange));
-        }
-
-        for (CMsgClientPICSChangesSinceResponse.AppChange appChange : msg.getAppChangesList()) {
-            appChanges.put(appChange.getAppid(), new PICSChangeData(appChange));
-        }
-    }
+@Suppress("unused")
+class PICSChangesCallback(jobID: JobID, msg: CMsgClientPICSChangesSinceResponse.Builder) : CallbackMsg() {
 
     /**
-     * @return the supplied change number for the request.
+     * Supplied change number for the request
+     * @return the supplied change number.
      */
-    public int getLastChangeNumber() {
-        return lastChangeNumber;
-    }
+    val lastChangeNumber: Int = msg.sinceChangeNumber
 
     /**
+     * Gets the current change number
      * @return the current change number.
      */
-    public int getCurrentChangeNumber() {
-        return currentChangeNumber;
-    }
+    val currentChangeNumber: Int = msg.currentChangeNumber
 
     /**
-     * @return if this update requires a full update of the information.
+     * If this update requires a full update of the information
+     * @return if this update requires a full update.
      */
-    public boolean isRequiresFullUpdate() {
-        return requiresFullUpdate;
-    }
+    val isRequiresFullUpdate: Boolean = msg.forceFullUpdate
 
     /**
-     * @return if this update requires a full update of the app information.
+     * If this update requires a full update of the app information
+     * @return if this update requires a full update.
      */
-    public boolean isRequiresFullPackageUpdate() {
-        return requiresFullPackageUpdate;
-    }
+    val isRequiresFullAppUpdate: Boolean = msg.forceFullAppUpdate
 
     /**
-     * @return if this update requires a full update of the package information.
+     * If this update requires a full update of the package information
+     * @return if this update requires a full update.
      */
-    public boolean isRequiresFullAppUpdate() {
-        return requiresFullAppUpdate;
-    }
+    val isRequiresFullPackageUpdate: Boolean = msg.forceFullPackageUpdate
 
     /**
+     * Map containing requested package tokens
      * @return a map containing requested package tokens.
      */
-    public Map<Integer, PICSChangeData> getPackageChanges() {
-        return packageChanges;
+    val packageChanges: Map<Int, PICSChangeData> = msg.packageChangesList.associateTo(mutableMapOf()) {
+        it.packageid to PICSChangeData(it)
     }
 
     /**
+     * Map containing requested package tokens
      * @return a map containing requested package tokens.
      */
-    public Map<Integer, PICSChangeData> getAppChanges() {
-        return appChanges;
+    val appChanges: Map<Int, PICSChangeData> = msg.appChangesList.associateTo(mutableMapOf()) {
+        it.appid to PICSChangeData(it)
+    }
+
+    init {
+        this.jobID = jobID
     }
 }

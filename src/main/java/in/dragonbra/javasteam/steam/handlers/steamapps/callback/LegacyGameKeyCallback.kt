@@ -1,51 +1,45 @@
-package in.dragonbra.javasteam.steam.handlers.steamapps.callback;
+package `in`.dragonbra.javasteam.steam.handlers.steamapps.callback
 
-import in.dragonbra.javasteam.enums.EResult;
-import in.dragonbra.javasteam.generated.MsgClientGetLegacyGameKeyResponse;
-import in.dragonbra.javasteam.steam.handlers.steamapps.SteamApps;
-import in.dragonbra.javasteam.steam.steamclient.callbackmgr.CallbackMsg;
-import in.dragonbra.javasteam.types.JobID;
+import `in`.dragonbra.javasteam.enums.EResult
+import `in`.dragonbra.javasteam.generated.MsgClientGetLegacyGameKeyResponse
+import `in`.dragonbra.javasteam.steam.handlers.steamapps.SteamApps
+import `in`.dragonbra.javasteam.steam.steamclient.callbackmgr.CallbackMsg
+import `in`.dragonbra.javasteam.types.JobID
 
 /**
- * This callback is received in response to calling {@link SteamApps#getLegacyGameKey}.
+ * This callback is received in response to calling [SteamApps.getLegacyGameKey].
  */
-public class LegacyGameKeyCallback extends CallbackMsg {
-
-    private final EResult result;
-
-    private final int appID;
-
-    private String key;
-
-    public LegacyGameKeyCallback(JobID jobID, MsgClientGetLegacyGameKeyResponse msg, byte[] payload) {
-        setJobID(jobID);
-        this.appID = msg.getAppId();
-        this.result = msg.getResult();
-
-        if (msg.getLength() > 0) {
-            int length = msg.getLength() - 1;
-            key = new String(payload, 0, length);
-        }
-    }
+@Suppress("unused")
+class LegacyGameKeyCallback(
+    jobID: JobID,
+    msg: MsgClientGetLegacyGameKeyResponse,
+    payload: ByteArray,
+) : CallbackMsg() {
 
     /**
-     * @return the result of requesting this game key.
+     * Gets the result of requesting this game key.
+     * @return the result.
      */
-    public EResult getResult() {
-        return result;
-    }
+    val result: EResult = msg.result
 
     /**
-     * @return the appid that this game key is for.
+     * Gets the appid that this game key is for.
+     * @return the appid.
      */
-    public int getAppID() {
-        return appID;
-    }
+    val appID: Int = msg.appId
 
     /**
+     * Gets the game key.
      * @return the game key.
      */
-    public String getKey() {
-        return key;
+    var key: String? = null
+
+    init {
+        this.jobID = jobID
+
+        if (msg.length > 0) {
+            val length: Int = msg.length - 1
+            key = String(payload, 0, length)
+        }
     }
 }

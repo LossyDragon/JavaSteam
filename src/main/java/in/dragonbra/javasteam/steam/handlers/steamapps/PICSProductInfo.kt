@@ -1,148 +1,139 @@
-package in.dragonbra.javasteam.steam.handlers.steamapps;
+package `in`.dragonbra.javasteam.steam.handlers.steamapps
 
-import in.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserverAppinfo.CMsgClientPICSProductInfoResponse;
-import in.dragonbra.javasteam.steam.steamclient.callbackmgr.CallbackMsg;
-import in.dragonbra.javasteam.types.KeyValue;
-import in.dragonbra.javasteam.util.Strings;
-import in.dragonbra.javasteam.util.stream.BinaryReader;
-import in.dragonbra.javasteam.util.stream.MemoryStream;
-
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
-import java.net.URI;
-import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
+import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserverAppinfo.CMsgClientPICSProductInfoResponse
+import `in`.dragonbra.javasteam.steam.steamclient.callbackmgr.CallbackMsg
+import `in`.dragonbra.javasteam.types.KeyValue
+import `in`.dragonbra.javasteam.util.Strings
+import `in`.dragonbra.javasteam.util.stream.BinaryReader
+import `in`.dragonbra.javasteam.util.stream.MemoryStream
+import java.io.ByteArrayInputStream
+import java.io.IOException
+import java.net.URI
+import java.nio.charset.Charset
+import java.nio.charset.StandardCharsets
+import java.util.*
 
 /**
  * Represents the information for a single app or package
  */
-public class PICSProductInfo extends CallbackMsg {
-
-    private final int id;
-
-    private final int changeNumber;
-
-    private final boolean missingToken;
-
-    private final byte[] shaHash;
-
-    private final KeyValue keyValues;
-
-    private boolean onlyPublic;
-
-    private boolean useHttp;
-
-    private URI httpUri;
-
-    public PICSProductInfo(CMsgClientPICSProductInfoResponse.Builder parentResponse, CMsgClientPICSProductInfoResponse.AppInfo appInfo) {
-        id = appInfo.getAppid();
-        changeNumber = appInfo.getChangeNumber();
-        missingToken = appInfo.getMissingToken();
-        shaHash = appInfo.getSha().toByteArray();
-
-        keyValues = new KeyValue();
-        if (appInfo.hasBuffer() && !appInfo.getBuffer().isEmpty()) {
-            try {
-                // get the buffer as a string using the jvm's default charset.
-                // note: IDK why, but we have to encode this using the default charset
-                String bufferString = appInfo.getBuffer().toString(Charset.defaultCharset());
-                // get the buffer as a byte array using utf-8 as a supported charset
-                byte[] byteBuffer = bufferString.getBytes(StandardCharsets.UTF_8);
-                // we don't want to read the trailing null byte
-                MemoryStream ms = new MemoryStream(byteBuffer, 0, byteBuffer.length - 1);
-                keyValues.readAsText(ms);
-            } catch (IOException e) {
-                throw new IllegalArgumentException("failed to read buffer", e);
-            }
-        }
-
-        onlyPublic = appInfo.getOnlyPublic();
-
-        // We should have all these fields set for the response to a metadata-only request, but guard here just in case.
-        if (shaHash != null && shaHash.length > 0 && !Strings.isNullOrEmpty(parentResponse.getHttpHost())) {
-            String shaString = Strings.toHex(shaHash).replace("-", "").toLowerCase();
-            String uriString = String.format("http://%s/appinfo/%d/sha/%s.txt.gz", parentResponse.getHttpHost(), id, shaString);
-            httpUri = URI.create(uriString);
-        }
-
-        useHttp = httpUri != null && appInfo.getSize() >= parentResponse.getHttpMinSize();
-    }
-
-    public PICSProductInfo(CMsgClientPICSProductInfoResponse.PackageInfo packageInfo) {
-        id = packageInfo.getPackageid();
-        changeNumber = packageInfo.getChangeNumber();
-        missingToken = packageInfo.getMissingToken();
-        shaHash = packageInfo.getSha().toByteArray();
-
-        keyValues = new KeyValue();
-        if (packageInfo.hasBuffer()) {
-            // we don't want to read the trailing null byte
-            try (BinaryReader br = new BinaryReader(new ByteArrayInputStream(packageInfo.getBuffer().toByteArray()))) {
-                // steamclient checks this value == 1 before it attempts to read the KV from the buffer
-                // see: CPackageInfo::UpdateFromBuffer(CSHA const&,uint,CUtlBuffer &)
-                // todo: we've apparently ignored this with zero ill effects, but perhaps we want to respect it?
-                br.readInt();
-
-                keyValues.tryReadAsBinary(br);
-            } catch (IOException e) {
-                throw new IllegalArgumentException("failed to read buffer", e);
-            }
-        }
-    }
+class PICSProductInfo : CallbackMsg {
 
     /**
-     * @return the ID of the app or package.
+     * Gets the ID of the app or package
+     * @return the ID.
      */
-    public int getId() {
-        return id;
-    }
+    val id: Int
 
     /**
-     * @return the current change number for the app or package.
+     * Gets the current change number for the app or package
+     * @return the current change number.
      */
-    public int getChangeNumber() {
-        return changeNumber;
-    }
+    val changeNumber: Int
 
     /**
-     * @return if an access token was required for the request.
+     * Gets if an access token was required for the request
+     * @return if an access token was required.
      */
-    public boolean isMissingToken() {
-        return missingToken;
-    }
+    val isMissingToken: Boolean
 
     /**
-     * @return the hash of the content.
+     * Gets the hash of the content
+     * @return the hash.
      */
-    public byte[] getShaHash() {
-        return shaHash;
-    }
+    val shaHash: ByteArray?
 
     /**
+     * Gets the KeyValue info
      * @return the KeyValue info.
      */
-    public KeyValue getKeyValues() {
-        return keyValues;
-    }
+    val keyValues: KeyValue
 
     /**
+     * For an app request, returns if only the public information was requested
      * @return for an app request, returns if only the public information was requested.
      */
-    public boolean isOnlyPublic() {
-        return onlyPublic;
-    }
+    var isOnlyPublic: Boolean = false
+        private set
 
     /**
-     * @return whether or not to use HTTP to load the KeyValues data.
+     * Whether to use HTTP to load the KeyValues data.
+     * @return whether to use HTTP to load the KeyValues data.
      */
-    public boolean isUseHttp() {
-        return useHttp;
-    }
+    var isUseHttp: Boolean = false
+        private set
 
     /**
+     * For an app metadata-only request, returns the Uri for HTTP appinfo requests.
      * @return for an app metadata-only request, returns the Uri for HTTP appinfo requests.
      */
-    public URI getHttpUri() {
-        return httpUri;
+    var httpUri: URI? = null
+        private set
+
+    /**
+     * TODO kDoc
+     */
+    constructor(
+        parentResponse: CMsgClientPICSProductInfoResponse.Builder,
+        appInfo: CMsgClientPICSProductInfoResponse.AppInfo,
+    ) {
+        id = appInfo.appid
+        changeNumber = appInfo.changeNumber
+        isMissingToken = appInfo.missingToken
+        shaHash = appInfo.sha.toByteArray()
+
+        keyValues = KeyValue()
+        if (appInfo.hasBuffer() && !appInfo.buffer.isEmpty) {
+            try {
+                // TODO this should be looked over again.
+                // get the buffer as a string using the jvm's default charset.
+                // note: IDK why, but we have to encode this using the default charset
+                val bufferString = appInfo.buffer.toString(Charset.defaultCharset())
+                // get the buffer as a byte array using utf-8 as a supported charset
+                val byteBuffer = bufferString.toByteArray(StandardCharsets.UTF_8)
+                // we don't want to read the trailing null byte
+                val ms = MemoryStream(byteBuffer, 0, byteBuffer.size - 1)
+                keyValues.readAsText(ms)
+            } catch (e: IOException) {
+                throw IllegalArgumentException("failed to read buffer", e)
+            }
+        }
+
+        isOnlyPublic = appInfo.onlyPublic
+
+        // We should have all these fields set for the response to a metadata-only request, but guard here just in case.
+        if (shaHash != null && shaHash.isNotEmpty() && !Strings.isNullOrEmpty(parentResponse.httpHost)) {
+            val shaString = Strings.toHex(shaHash).replace("-", "").lowercase(Locale.getDefault())
+            val uriString = String.format("https://%s/appinfo/%d/sha/%s.txt.gz", parentResponse.httpHost, id, shaString)
+            httpUri = URI.create(uriString)
+        }
+
+        isUseHttp = httpUri != null && appInfo.size >= parentResponse.httpMinSize
+    }
+
+    /**
+     * TODO kDoc
+     */
+    constructor(packageInfo: CMsgClientPICSProductInfoResponse.PackageInfo) {
+        id = packageInfo.packageid
+        changeNumber = packageInfo.changeNumber
+        isMissingToken = packageInfo.missingToken
+        shaHash = packageInfo.sha.toByteArray()
+
+        keyValues = KeyValue()
+        if (packageInfo.hasBuffer()) {
+            // TODO why not MemoryStream?
+            // we don't want to read the trailing null byte
+            try {
+                BinaryReader(ByteArrayInputStream(packageInfo.buffer.toByteArray())).use { br ->
+                    // steamclient checks this value == 1 before it attempts to read the KV from the buffer
+                    // see: CPackageInfo::UpdateFromBuffer(CSHA const&,uint,CUtlBuffer &)
+                    // todo: we've apparently ignored this with zero ill effects, but perhaps we want to respect it?
+                    br.readInt()
+                    keyValues.tryReadAsBinary(br)
+                }
+            } catch (e: IOException) {
+                throw IllegalArgumentException("failed to read buffer", e)
+            }
+        }
     }
 }

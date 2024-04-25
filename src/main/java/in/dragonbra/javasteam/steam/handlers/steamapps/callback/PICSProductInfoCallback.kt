@@ -1,90 +1,58 @@
-package in.dragonbra.javasteam.steam.handlers.steamapps.callback;
+package `in`.dragonbra.javasteam.steam.handlers.steamapps.callback
 
-import in.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserverAppinfo.CMsgClientPICSProductInfoResponse;
-import in.dragonbra.javasteam.steam.handlers.steamapps.PICSProductInfo;
-import in.dragonbra.javasteam.steam.steamclient.callbackmgr.CallbackMsg;
-import in.dragonbra.javasteam.types.JobID;
-
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserverAppinfo.CMsgClientPICSProductInfoResponse
+import `in`.dragonbra.javasteam.steam.handlers.steamapps.PICSProductInfo
+import `in`.dragonbra.javasteam.steam.steamclient.callbackmgr.CallbackMsg
+import `in`.dragonbra.javasteam.types.JobID
+import java.util.*
 
 /**
  * This callback is fired when the PICS returns the product information requested
  */
-public class PICSProductInfoCallback extends CallbackMsg {
-
-    private final boolean metaDataOnly;
-
-    private final boolean responsePending;
-
-    private final List<Integer> unknownPackages;
-
-    private final List<Integer> unknownApps;
-
-    private final Map<Integer, PICSProductInfo> apps;
-
-    private final Map<Integer, PICSProductInfo> packages;
-
-    public PICSProductInfoCallback(JobID jobID, CMsgClientPICSProductInfoResponse.Builder msg) {
-        setJobID(jobID);
-
-        metaDataOnly = msg.getMetaDataOnly();
-        responsePending = msg.getResponsePending();
-        unknownPackages = Collections.unmodifiableList(msg.getUnknownPackageidsList());
-        unknownApps = Collections.unmodifiableList(msg.getUnknownAppidsList());
-        apps = new HashMap<>();
-        packages = new HashMap<>();
-
-        for (CMsgClientPICSProductInfoResponse.PackageInfo packageInfo : msg.getPackagesList()) {
-            packages.put(packageInfo.getPackageid(), new PICSProductInfo(packageInfo));
-        }
-
-        for (CMsgClientPICSProductInfoResponse.AppInfo appInfo : msg.getAppsList()) {
-            apps.put(appInfo.getAppid(), new PICSProductInfo(msg, appInfo));
-        }
-    }
+@Suppress("unused")
+class PICSProductInfoCallback(jobID: JobID, msg: CMsgClientPICSProductInfoResponse.Builder) : CallbackMsg() {
 
     /**
+     * Gets if this response contains only product metadata
      * @return if this response contains only product metadata.
      */
-    public boolean isMetaDataOnly() {
-        return metaDataOnly;
-    }
+    val isMetaDataOnly: Boolean = msg.metaDataOnly
 
     /**
+     * Gets if there are more product information responses pending
      * @return if there are more product information responses pending.
      */
-    public boolean isResponsePending() {
-        return responsePending;
-    }
+    val isResponsePending: Boolean = msg.responsePending
 
     /**
+     * Gets a list of unknown package ids
      * @return a list of unknown package ids.
      */
-    public List<Integer> getUnknownPackages() {
-        return unknownPackages;
-    }
+    val unknownPackages: List<Int> = msg.unknownPackageidsList
 
     /**
+     * Gets a list of unknown app ids
      * @return a list of unknown app ids.
      */
-    public List<Integer> getUnknownApps() {
-        return unknownApps;
-    }
+    val unknownApps: List<Int> = msg.unknownAppidsList
 
     /**
+     * Map containing requested app info
      * @return a map containing requested app info.
      */
-    public Map<Integer, PICSProductInfo> getApps() {
-        return apps;
+    val apps: Map<Int, PICSProductInfo> = msg.appsList.associateTo(mutableMapOf()) {
+        it.appid to PICSProductInfo(msg, it)
     }
 
     /**
+     * Map containing requested package info
      * @return a map containing requested package info.
      */
-    public Map<Integer, PICSProductInfo> getPackages() {
-        return packages;
+    val packages: Map<Int, PICSProductInfo> = msg.packagesList.associateTo(mutableMapOf()) {
+        it.packageid to PICSProductInfo(it)
+    }
+
+    init {
+        this.jobID = jobID
     }
 }

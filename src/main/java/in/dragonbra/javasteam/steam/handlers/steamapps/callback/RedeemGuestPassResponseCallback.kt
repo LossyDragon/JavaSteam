@@ -1,44 +1,35 @@
-package in.dragonbra.javasteam.steam.handlers.steamapps.callback;
+package `in`.dragonbra.javasteam.steam.handlers.steamapps.callback
 
-import in.dragonbra.javasteam.enums.EResult;
-import in.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserver2.CMsgClientRedeemGuestPassResponse;
-import in.dragonbra.javasteam.steam.steamclient.callbackmgr.CallbackMsg;
-import in.dragonbra.javasteam.types.JobID;
+import `in`.dragonbra.javasteam.enums.EResult
+import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserver2.CMsgClientRedeemGuestPassResponse
+import `in`.dragonbra.javasteam.steam.steamclient.callbackmgr.CallbackMsg
+import `in`.dragonbra.javasteam.types.JobID
 
-public class RedeemGuestPassResponseCallback extends CallbackMsg {
-
-    private final EResult result;
-
-    private final Integer packageID;
-
-    private final Integer mustOwnAppID;
-
-    public RedeemGuestPassResponseCallback(JobID jobID, CMsgClientRedeemGuestPassResponse.Builder msg) {
-        setJobID(jobID);
-
-        this.result = EResult.from(msg.getEresult());
-        this.packageID = msg.getPackageId();
-        this.mustOwnAppID = msg.getMustOwnAppid();
-    }
+/**
+ * This callback is received in response to activating a guest pass or a gift.
+ */
+@Suppress("unused")
+class RedeemGuestPassResponseCallback(jobID: JobID, msg: CMsgClientRedeemGuestPassResponse.Builder) : CallbackMsg() {
 
     /**
-     * @return Result of the operation
+     * Result of the operation
+     * @return the result.
      */
-    public EResult getResult() {
-        return result;
-    }
+    val result: EResult = EResult.from(msg.eresult)
 
     /**
-     * @return Result of the operation
+     * Package ID which was activated.
+     * @return the package ID.
      */
-    public Integer getPackageID() {
-        return packageID;
-    }
+    val packageID: Int = msg.packageId
 
     /**
+     * App ID which must be owned to activate this guest pass.
      * @return App ID which must be owned to activate this guest pass.
      */
-    public Integer getMustOwnAppID() {
-        return mustOwnAppID;
+    val mustOwnAppID: Int = msg.mustOwnAppid
+
+    init {
+        this.jobID = jobID
     }
 }

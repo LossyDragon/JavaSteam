@@ -1,60 +1,53 @@
-package in.dragonbra.javasteam.steam.handlers.steamapps.callback;
+package `in`.dragonbra.javasteam.steam.handlers.steamapps.callback
 
-import in.dragonbra.javasteam.enums.EPurchaseResultDetail;
-import in.dragonbra.javasteam.enums.EResult;
-import in.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserver2.CMsgClientPurchaseResponse;
-import in.dragonbra.javasteam.steam.steamclient.callbackmgr.CallbackMsg;
-import in.dragonbra.javasteam.types.JobID;
-import in.dragonbra.javasteam.types.KeyValue;
-import in.dragonbra.javasteam.util.stream.MemoryStream;
+import `in`.dragonbra.javasteam.enums.EPurchaseResultDetail
+import `in`.dragonbra.javasteam.enums.EResult
+import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserver2.CMsgClientPurchaseResponse
+import `in`.dragonbra.javasteam.steam.steamclient.callbackmgr.CallbackMsg
+import `in`.dragonbra.javasteam.types.JobID
+import `in`.dragonbra.javasteam.types.KeyValue
+import `in`.dragonbra.javasteam.util.log.LogManager
+import `in`.dragonbra.javasteam.util.stream.MemoryStream
+import java.io.IOException
 
-import java.io.IOException;
+/**
+ * This callback is received in a response to activating a Steam key.
+ */
+@Suppress("unused")
+class PurchaseResponseCallback(jobID: JobID, msg: CMsgClientPurchaseResponse.Builder) : CallbackMsg() {
 
-public class PurchaseResponseCallback extends CallbackMsg {
+    companion object {
+        private val logger = LogManager.getLogger(PurchaseResponseCallback::class.java)
+    }
 
-    private final EResult result;
+    /**
+     * Result of the operation.
+     * @return the result.
+     */
+    val result: EResult = EResult.from(msg.eresult)
 
-    private final EPurchaseResultDetail purchaseResultDetail;
+    /**
+     * Purchase result of the operation
+     * @return the purchase result of the operation
+     */
+    val purchaseResultDetail: EPurchaseResultDetail = EPurchaseResultDetail.from(msg.purchaseResultDetails)
 
-    private final KeyValue purchaseReceiptInfo;
+    /**
+     * Purchase receipt of the operation
+     * @return the purchase receipt of the operation
+     */
+    val purchaseReceiptInfo: KeyValue = KeyValue()
 
-    public PurchaseResponseCallback(JobID jobID, CMsgClientPurchaseResponse.Builder msg) {
-        setJobID(jobID);
+    init {
+        this.jobID = jobID
 
-        this.result = EResult.from(msg.getEresult());
-        this.purchaseResultDetail = EPurchaseResultDetail.from(msg.getPurchaseResultDetails());
-        this.purchaseReceiptInfo = new KeyValue();
-
-        if (msg.getPurchaseReceiptInfo() == null) {
-            return;
+        msg.purchaseReceiptInfo?.let {
+            try {
+                val ms = MemoryStream(msg.purchaseReceiptInfo.toByteArray())
+                purchaseReceiptInfo.tryReadAsBinary(ms)
+            } catch (exception: IOException) {
+                logger.error("input stream is null", exception)
+            }
         }
-
-        try {
-            MemoryStream ms = new MemoryStream(msg.getPurchaseReceiptInfo().toByteArray());
-            this.purchaseReceiptInfo.tryReadAsBinary(ms);
-        } catch (IOException exception) {
-            throw new IllegalArgumentException("input stream is null");
-        }
-    }
-
-    /**
-     * @return Result of the operation
-     */
-    public EResult getResult() {
-        return result;
-    }
-
-    /**
-     * @return Purchase result of the operation
-     */
-    public EPurchaseResultDetail getPurchaseResultDetail() {
-        return purchaseResultDetail;
-    }
-
-    /**
-     * @return Purchase receipt of the operation
-     */
-    public KeyValue getPurchaseReceiptInfo() {
-        return purchaseReceiptInfo;
     }
 }

@@ -1,71 +1,58 @@
-package in.dragonbra.javasteam.steam.handlers.steamapps.callback;
+package `in`.dragonbra.javasteam.steam.handlers.steamapps.callback
 
-import in.dragonbra.javasteam.enums.EResult;
-import in.dragonbra.javasteam.generated.MsgClientUpdateGuestPassesList;
-import in.dragonbra.javasteam.steam.steamclient.callbackmgr.CallbackMsg;
-import in.dragonbra.javasteam.types.KeyValue;
-
-import java.io.IOException;
-import java.io.InputStream;
-import java.util.ArrayList;
-import java.util.List;
+import `in`.dragonbra.javasteam.enums.EResult
+import `in`.dragonbra.javasteam.generated.MsgClientUpdateGuestPassesList
+import `in`.dragonbra.javasteam.steam.steamclient.callbackmgr.CallbackMsg
+import `in`.dragonbra.javasteam.types.KeyValue
+import `in`.dragonbra.javasteam.util.log.LogManager
+import java.io.IOException
+import java.io.InputStream
 
 /**
  * This callback is received when the list of guest passes is updated.
  */
-public class GuestPassListCallback extends CallbackMsg {
+class GuestPassListCallback(msg: MsgClientUpdateGuestPassesList, payload: InputStream) : CallbackMsg() {
 
-    private final EResult result;
-
-    private final int countGuestPassesToGive;
-
-    private final int countGuestPassesToRedeem;
-
-    private final List<KeyValue> guestPasses;
-
-    public GuestPassListCallback(MsgClientUpdateGuestPassesList msg, InputStream payload) {
-        result = msg.getResult();
-        countGuestPassesToGive = msg.getCountGuestPassesToGive();
-        countGuestPassesToRedeem = msg.getCountGuestPassesToRedeem();
-
-        guestPasses = new ArrayList<>();
-        try {
-            for (int i = 0; i < countGuestPassesToGive + countGuestPassesToRedeem; i++) {
-                KeyValue kv = new KeyValue();
-                kv.tryReadAsBinary(payload);
-                guestPasses.add(kv);
-            }
-        } catch (IOException e) {
-            throw new IllegalArgumentException("failed to read guest passes", e);
-        }
+    companion object {
+        private val logger = LogManager.getLogger(GuestPassListCallback::class.java)
     }
 
     /**
-     * @return the result of the operation.
+     * Result of the operation.
+     * @return the result.
      */
-    public EResult getResult() {
-        return result;
-    }
+    val result: EResult = msg.result
 
     /**
+     * Number of guest passes to be given out.
      * @return the number of guest passes to be given out.
      */
-    public int getCountGuestPassesToGive() {
-        return countGuestPassesToGive;
-    }
+    val countGuestPassesToGive: Int = msg.countGuestPassesToGive
 
     /**
+     * Number of guest passes to be redeemed
      * @return the number of guest passes to be redeemed.
      */
-    public int getCountGuestPassesToRedeem() {
-        return countGuestPassesToRedeem;
-    }
+    val countGuestPassesToRedeem: Int = msg.countGuestPassesToRedeem
 
     /**
-     *
+     * Guest pass list
      * @return the guest pass list.
      */
-    public List<KeyValue> getGuestPasses() {
-        return guestPasses;
+    var guestPasses: List<KeyValue> = listOf()
+        private set
+
+    init {
+        val tempList = mutableListOf<KeyValue>()
+        try {
+            for (i in 0 until countGuestPassesToGive + countGuestPassesToRedeem) {
+                val kv = KeyValue()
+                kv.tryReadAsBinary(payload)
+                tempList.add(kv)
+            }
+            guestPasses = tempList
+        } catch (e: IOException) {
+            logger.error("failed to read guest passes", e)
+        }
     }
 }

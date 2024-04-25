@@ -1,48 +1,35 @@
-package in.dragonbra.javasteam.steam.handlers.steamapps.callback;
+package `in`.dragonbra.javasteam.steam.handlers.steamapps.callback
 
-import in.dragonbra.javasteam.enums.EResult;
-import in.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserver.CMsgClientGetAppOwnershipTicketResponse;
-import in.dragonbra.javasteam.steam.handlers.steamapps.SteamApps;
-import in.dragonbra.javasteam.steam.steamclient.callbackmgr.CallbackMsg;
-import in.dragonbra.javasteam.types.JobID;
+import `in`.dragonbra.javasteam.enums.EResult
+import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserver.CMsgClientGetAppOwnershipTicketResponse
+import `in`.dragonbra.javasteam.steam.handlers.steamapps.SteamApps
+import `in`.dragonbra.javasteam.steam.steamclient.callbackmgr.CallbackMsg
+import `in`.dragonbra.javasteam.types.JobID
 
 /**
- * This callback is received in response to calling {@link SteamApps#getAppOwnershipTicket(int)}
+ * This callback is received in response to calling [SteamApps.getAppOwnershipTicket]
  */
-public class AppOwnershipTicketCallback extends CallbackMsg {
-
-    private final EResult result;
-
-    private final int appID;
-
-    private final byte[] ticket;
-
-    public AppOwnershipTicketCallback(JobID jobID, CMsgClientGetAppOwnershipTicketResponse.Builder msg) {
-        setJobID(jobID);
-
-        result = EResult.from(msg.getEresult());
-        appID = msg.getAppId();
-        ticket = msg.getTicket().toByteArray();
-    }
+class AppOwnershipTicketCallback(jobID: JobID, msg: CMsgClientGetAppOwnershipTicketResponse.Builder) : CallbackMsg() {
 
     /**
-     * @return the result of requesting the ticket.
+     * Gets the result of requesting the ticket.
+     * @return the result.
      */
-    public EResult getResult() {
-        return result;
-    }
+    val result: EResult = EResult.from(msg.eresult)
 
     /**
-     * @return the AppID this ticket is for.
+     * Gets the AppID this ticket is for.
+     * @return the AppID.
      */
-    public int getAppID() {
-        return appID;
-    }
+    val appID: Int = msg.appId
 
     /**
+     * Gets the ticket data.
      * @return the ticket data.
      */
-    public byte[] getTicket() {
-        return ticket;
+    val ticket: ByteArray = msg.ticket.toByteArray()
+
+    init {
+        this.jobID = jobID
     }
 }

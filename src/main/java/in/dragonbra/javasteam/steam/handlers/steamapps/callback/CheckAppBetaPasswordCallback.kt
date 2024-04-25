@@ -1,45 +1,31 @@
-package in.dragonbra.javasteam.steam.handlers.steamapps.callback;
+package `in`.dragonbra.javasteam.steam.handlers.steamapps.callback
 
-import in.dragonbra.javasteam.enums.EResult;
-import in.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserver2.CMsgClientCheckAppBetaPasswordResponse;
-import in.dragonbra.javasteam.steam.steamclient.callbackmgr.CallbackMsg;
-import in.dragonbra.javasteam.types.JobID;
-import in.dragonbra.javasteam.util.Strings;
-
-import java.util.HashMap;
-import java.util.Map;
+import `in`.dragonbra.javasteam.enums.EResult
+import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserver2.CMsgClientCheckAppBetaPasswordResponse
+import `in`.dragonbra.javasteam.steam.steamclient.callbackmgr.CallbackMsg
+import `in`.dragonbra.javasteam.types.JobID
+import `in`.dragonbra.javasteam.util.Strings
 
 /**
  * This callback is received when a beta password check has been completed
  */
-public class CheckAppBetaPasswordCallback extends CallbackMsg {
-
-    private final EResult result;
-
-    private final Map<String, byte[]> betaPasswords;
-
-    public CheckAppBetaPasswordCallback(JobID jobID, CMsgClientCheckAppBetaPasswordResponse.Builder msg) {
-        setJobID(jobID);
-
-        result = EResult.from(msg.getEresult());
-        betaPasswords = new HashMap<>();
-
-        for (CMsgClientCheckAppBetaPasswordResponse.BetaPassword password : msg.getBetapasswordsList()) {
-            betaPasswords.put(password.getBetaname(), Strings.decodeHex(password.getBetapassword()));
-        }
-    }
+class CheckAppBetaPasswordCallback(jobID: JobID, msg: CMsgClientCheckAppBetaPasswordResponse.Builder) : CallbackMsg() {
 
     /**
-     * @return the result of the operation.
+     * Result of the operation.
+     * @return the result.
      */
-    public EResult getResult() {
-        return result;
-    }
+    val result: EResult = EResult.from(msg.eresult)
 
     /**
+     * Map of beta names to their encryption keys
      * @return a map of beta names to their encryption keys.
      */
-    public Map<String, byte[]> getBetaPasswords() {
-        return betaPasswords;
+    val betaPasswords: Map<String, ByteArray> = msg.betapasswordsList.associateTo(mutableMapOf()) {
+        it.betaname to Strings.decodeHex(it.betapassword)
+    }
+
+    init {
+        this.jobID = jobID
     }
 }
