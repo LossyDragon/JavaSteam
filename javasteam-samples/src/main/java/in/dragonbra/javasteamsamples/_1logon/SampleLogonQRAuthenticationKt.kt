@@ -28,7 +28,7 @@ import java.util.concurrent.CancellationException
  * @author lossy
  * @since 2023-03-19
  */
-class SampleLogonQRAuthenticationKt : Runnable, OnChallengeUrlChanged {
+class SampleLogonQRAuthenticationKt : Runnable, IChallengeUrlChanged {
 
     private lateinit var manager: CallbackManager
 
