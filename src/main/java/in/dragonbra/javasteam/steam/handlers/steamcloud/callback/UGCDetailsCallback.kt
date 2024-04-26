@@ -1,83 +1,54 @@
-package in.dragonbra.javasteam.steam.handlers.steamcloud.callback;
+package `in`.dragonbra.javasteam.steam.handlers.steamcloud.callback
 
-import in.dragonbra.javasteam.enums.EResult;
-import in.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserverUfs.CMsgClientUFSGetUGCDetailsResponse;
-import in.dragonbra.javasteam.steam.handlers.steamcloud.SteamCloud;
-import in.dragonbra.javasteam.steam.steamclient.callbackmgr.CallbackMsg;
-import in.dragonbra.javasteam.types.JobID;
-import in.dragonbra.javasteam.types.SteamID;
-import in.dragonbra.javasteam.types.UGCHandle;
+import `in`.dragonbra.javasteam.enums.EResult
+import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserverUfs.CMsgClientUFSGetUGCDetailsResponse
+import `in`.dragonbra.javasteam.steam.handlers.steamcloud.SteamCloud
+import `in`.dragonbra.javasteam.steam.steamclient.callbackmgr.CallbackMsg
+import `in`.dragonbra.javasteam.types.JobID
+import `in`.dragonbra.javasteam.types.SteamID
 
 /**
- * This callback is received in response to calling {@link SteamCloud#requestUGCDetails(UGCHandle)}.
+ * This callback is received in response to calling [SteamCloud.requestUGCDetails].
  */
-public class UGCDetailsCallback extends CallbackMsg {
-
-    private final EResult result;
-
-    private final int appID;
-
-    private final SteamID creator;
-
-    private final String url;
-
-    private final String fileName;
-
-    private final int fileSize;
-
-    public UGCDetailsCallback(JobID jobID, CMsgClientUFSGetUGCDetailsResponse.Builder msg) {
-        setJobID(jobID);
-
-        result = EResult.from(msg.getEresult());
-
-        appID = msg.getAppId();
-        creator = new SteamID(msg.getSteamidCreator());
-
-        url = msg.getUrl();
-
-        fileName = msg.getFilename();
-        fileSize = msg.getFileSize();
-    }
+class UGCDetailsCallback(jobID: JobID, msg: CMsgClientUFSGetUGCDetailsResponse.Builder) : CallbackMsg() {
 
     /**
-     * @return the result of the request.
+     * Gets the result of the request.
+     * @return the result.
      */
-    public EResult getResult() {
-        return result;
-    }
+    val result: EResult = EResult.from(msg.eresult)
 
     /**
-     * @return the App ID the UGC is for.
+     * Gets the App ID the UGC is for.
+     * @return the App ID.
      */
-    public int getAppID() {
-        return appID;
-    }
+    val appID: Int = msg.appId
 
     /**
-     * @return the SteamID of the UGC's creator.
+     * Gets the SteamID of the UGC's creator.
+     * @return the SteamID.
      */
-    public SteamID getCreator() {
-        return creator;
-    }
+    val creator: SteamID = SteamID(msg.steamidCreator)
 
     /**
+     * Gets the URL that the content is located at.
      * @return the URL that the content is located at.
      */
-    public String getUrl() {
-        return url;
-    }
+    val url: String = msg.url
 
     /**
+     * Gets the name of the file.
      * @return the name of the file.
      */
-    public String getFileName() {
-        return fileName;
-    }
+    val fileName: String = msg.filename
 
     /**
+     * Gets the size of the file.
      * @return the size of the file.
      */
-    public int getFileSize() {
-        return fileSize;
+    val fileSize: Int = msg.fileSize
+
+    init {
+        this.jobID = jobID
     }
 }

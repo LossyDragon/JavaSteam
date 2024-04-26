@@ -1,91 +1,60 @@
-package in.dragonbra.javasteam.steam.handlers.steamcloud.callback;
+package `in`.dragonbra.javasteam.steam.handlers.steamcloud.callback
 
-import in.dragonbra.javasteam.enums.EResult;
-import in.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserverUfs.CMsgClientUFSGetSingleFileInfoResponse;
-import in.dragonbra.javasteam.steam.handlers.steamcloud.SteamCloud;
-import in.dragonbra.javasteam.steam.steamclient.callbackmgr.CallbackMsg;
-import in.dragonbra.javasteam.types.JobID;
-
-import java.util.Date;
+import `in`.dragonbra.javasteam.enums.EResult
+import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserverUfs.CMsgClientUFSGetSingleFileInfoResponse
+import `in`.dragonbra.javasteam.steam.handlers.steamcloud.SteamCloud
+import `in`.dragonbra.javasteam.steam.steamclient.callbackmgr.CallbackMsg
+import `in`.dragonbra.javasteam.types.JobID
+import java.util.*
 
 /**
- * This callback is received in response to calling {@link SteamCloud#getSingleFileInfo(int, String)}.
+ * This callback is received in response to calling [SteamCloud.getSingleFileInfo].
  */
-public class SingleFileInfoCallback extends CallbackMsg {
-
-    private final EResult result;
-
-    private final int appID;
-
-    private final String fileName;
-
-    private final byte[] shaHash;
-
-    private final Date timestamp;
-
-    private final int fileSize;
-
-    private final boolean isExplicitDelete;
-
-    public SingleFileInfoCallback(JobID jobID, CMsgClientUFSGetSingleFileInfoResponse.Builder msg) {
-        setJobID(jobID);
-
-        result = EResult.from(msg.getEresult());
-
-        appID = msg.getAppId();
-        fileName = msg.getFileName();
-        shaHash = msg.getShaFile().toByteArray();
-        timestamp = new Date(msg.getTimeStamp() * 1000L);
-        fileSize = msg.getRawFileSize();
-        isExplicitDelete = msg.getIsExplicitDelete();
-    }
+class SingleFileInfoCallback(jobID: JobID, msg: CMsgClientUFSGetSingleFileInfoResponse.Builder) : CallbackMsg() {
 
     /**
-     * @return the result of the request.
+     * Gets the result of the request.
+     * @return the result.
      */
-    public EResult getResult() {
-        return result;
-    }
+    val result: EResult = EResult.from(msg.eresult)
 
     /**
+     * Gets the App ID the file is for.
      * @return the App ID the file is for.
      */
-    public int getAppID() {
-        return appID;
-    }
+    val appID: Int = msg.appId
 
     /**
+     * Gets the file name request.
      * @return the file name request.
      */
-    public String getFileName() {
-        return fileName;
-    }
+    val fileName: String = msg.fileName
 
     /**
+     * Gets the SHA hash of the file.
      * @return the SHA hash of the file.
      */
-    public byte[] getShaHash() {
-        return shaHash;
-    }
+    val shaHash: ByteArray = msg.shaFile.toByteArray()
 
     /**
+     * Gets the timestamp of the file.
      * @return the timestamp of the file.
      */
-    public Date getTimestamp() {
-        return timestamp;
-    }
+    val timestamp: Date = Date(msg.timeStamp * 1000L)
 
     /**
+     * Gets the size of the file.
      * @return the size of the file.
      */
-    public int getFileSize() {
-        return fileSize;
-    }
+    val fileSize: Int = msg.rawFileSize
 
     /**
+     * Gets if the file was explicity deleted by the user.
      * @return if the file was explicitly deleted by the user.
      */
-    public boolean isExplicitDelete() {
-        return isExplicitDelete;
+    val isExplicitDelete: Boolean = msg.isExplicitDelete
+
+    init {
+        this.jobID = jobID
     }
 }
