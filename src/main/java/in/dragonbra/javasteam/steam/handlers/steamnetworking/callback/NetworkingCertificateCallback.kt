@@ -1,49 +1,36 @@
-package in.dragonbra.javasteam.steam.handlers.steamnetworking.callback;
+package `in`.dragonbra.javasteam.steam.handlers.steamnetworking.callback
 
-import in.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserver.*;
-import in.dragonbra.javasteam.steam.steamclient.callbackmgr.CallbackMsg;
-import in.dragonbra.javasteam.types.JobID;
+import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserver.CMsgClientNetworkingCertReply
+import `in`.dragonbra.javasteam.steam.handlers.steamnetworking.SteamNetworking
+import `in`.dragonbra.javasteam.steam.steamclient.callbackmgr.CallbackMsg
+import `in`.dragonbra.javasteam.types.JobID
 
 /**
- * This callback is received in response to calling
- * {@link in.dragonbra.javasteam.steam.handlers.steamnetworking.SteamNetworking#requestNetworkingCertificate(int, byte[])}.
- * <p>
+ * This callback is received in response to calling [SteamNetworking.requestNetworkingCertificate].
  * This can be used to populate a CMsgSteamDatagramCertificateSigned for socket communication.
  */
-public class NetworkingCertificateCallback extends CallbackMsg {
-
-    private final byte[] certificate;
-
-    private final long caKeyID;
-
-    private final byte[] caSignature;
-
-    public NetworkingCertificateCallback(JobID jobID, CMsgClientNetworkingCertReply.Builder msg) {
-        setJobID(jobID);
-
-        this.certificate = msg.getCert().toByteArray();
-        this.caKeyID = msg.getCaKeyId();
-        this.caSignature = msg.getCaSignature().toByteArray();
-    }
+@Suppress("unused", "MemberVisibilityCanBePrivate")
+class NetworkingCertificateCallback(jobID: JobID, msg: CMsgClientNetworkingCertReply.Builder) : CallbackMsg() {
 
     /**
-     * @return The certificate signed by the Steam CA. This contains a CMsgSteamDatagramCertificate with the supplied public key.
+     * The certificate signed by the Steam CA. This contains a CMsgSteamDatagramCertificate with the supplied public key.
+     * @return The certificate signed by the Steam CA.
      */
-    public byte[] getCertificate() {
-        return certificate;
-    }
+    val certificate: ByteArray = msg.cert.toByteArray()
 
     /**
+     * The ID of the CA used to sign this certificate.
      * @return The ID of the CA used to sign this certificate.
      */
-    public long getCaKeyID() {
-        return caKeyID;
-    }
+    val caKeyID: Long = msg.caKeyId
 
     /**
-     * @return The signature used to verify {@link NetworkingCertificateCallback#getCertificate()}
+     * The signature used to verify [certificate].
+     * @return The signature used to verify [certificate].
      */
-    public byte[] getCaSignature() {
-        return caSignature;
+    val caSignature: ByteArray = msg.caSignature.toByteArray()
+
+    init {
+        this.jobID = jobID
     }
 }

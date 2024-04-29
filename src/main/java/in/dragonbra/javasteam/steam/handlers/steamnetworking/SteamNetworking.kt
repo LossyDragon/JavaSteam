@@ -1,84 +1,65 @@
-package in.dragonbra.javasteam.steam.handlers.steamnetworking;
+package `in`.dragonbra.javasteam.steam.handlers.steamnetworking
 
-import com.google.protobuf.ByteString;
-import in.dragonbra.javasteam.base.ClientMsgProtobuf;
-import in.dragonbra.javasteam.base.IPacketMsg;
-import in.dragonbra.javasteam.enums.EMsg;
-import in.dragonbra.javasteam.handlers.ClientMsgHandler;
-import in.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserver.*;
-import in.dragonbra.javasteam.steam.handlers.steamnetworking.callback.NetworkingCertificateCallback;
-import in.dragonbra.javasteam.types.AsyncJobSingle;
-import in.dragonbra.javasteam.util.compat.Consumer;
-
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
+import com.google.protobuf.ByteString
+import `in`.dragonbra.javasteam.base.ClientMsgProtobuf
+import `in`.dragonbra.javasteam.base.IPacketMsg
+import `in`.dragonbra.javasteam.enums.EMsg
+import `in`.dragonbra.javasteam.handlers.ClientMsgHandler
+import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserver
+import `in`.dragonbra.javasteam.steam.handlers.steamnetworking.callback.NetworkingCertificateCallback
+import `in`.dragonbra.javasteam.types.AsyncJobSingle
+import `in`.dragonbra.javasteam.util.compat.Consumer
+import java.util.*
 
 /**
  * This handler is used for Steam networking sockets
  */
-public class SteamNetworking extends ClientMsgHandler {
+class SteamNetworking : ClientMsgHandler() {
 
-    private Map<EMsg, Consumer<IPacketMsg>> dispatchMap;
+    private var dispatchMap: EnumMap<EMsg, Consumer<IPacketMsg>> = EnumMap(EMsg::class.java)
 
-    public SteamNetworking() {
-        dispatchMap = new HashMap<>();
-
-        dispatchMap.put(EMsg.ClientNetworkingCertRequestResponse, this::handleNetworkingCertRequestResponse);
-
-        dispatchMap = Collections.unmodifiableMap(dispatchMap);
+    init {
+        dispatchMap[EMsg.ClientNetworkingCertRequestResponse] =
+            Consumer<IPacketMsg>(::handleNetworkingCertRequestResponse)
     }
 
     /**
      * Request a signed networking certificate from Steam for your Ed25519 public key for the given app id.
-     * Results are returned in a {@link NetworkingCertificateCallback}.
-     * The returned {@link AsyncJobSingle} can also be awaited to retrieve the callback result.
-     *
+     * Results are returned in a [NetworkingCertificateCallback].
+     * The returned [AsyncJobSingle] can also be awaited to retrieve the callback result.
      * @param appId     The App ID the certificate will be generated for.
      * @param publicKey Your Ed25519 public key.
-     * @return The Job ID of the request. This can be used to find the appropriate {@link NetworkingCertificateCallback}.
+     * @return The Job ID of the request. This can be used to find the appropriate [NetworkingCertificateCallback].
      */
-    public AsyncJobSingle<NetworkingCertificateCallback> requestNetworkingCertificate(int appId, byte[] publicKey) {
-        if (publicKey == null) {
-            throw new IllegalArgumentException("publicKey is null");
-        }
+    fun requestNetworkingCertificate(appId: Int, publicKey: ByteArray): AsyncJobSingle<NetworkingCertificateCallback> {
+        val msg: ClientMsgProtobuf<SteammessagesClientserver.CMsgClientNetworkingCertRequest.Builder> =
+            ClientMsgProtobuf<SteammessagesClientserver.CMsgClientNetworkingCertRequest.Builder>(
+                SteammessagesClientserver.CMsgClientNetworkingCertRequest::class.java,
+                EMsg.ClientNetworkingCertRequest
+            ).apply {
+                sourceJobID = client.getNextJobID()
 
-        ClientMsgProtobuf<CMsgClientNetworkingCertRequest.Builder> msg =
-                new ClientMsgProtobuf<>(CMsgClientNetworkingCertRequest.class, EMsg.ClientNetworkingCertRequest);
+                body.setAppId(appId)
+                body.setKeyData(ByteString.copyFrom(publicKey))
+            }.also(client::send)
 
-        msg.setSourceJobID(client.getNextJobID());
-
-        msg.getBody().setAppId(appId);
-        msg.getBody().setKeyData(ByteString.copyFrom(publicKey));
-
-        client.send(msg);
-
-        return new AsyncJobSingle<>(this.client, msg.getSourceJobID());
+        return AsyncJobSingle(client, msg.sourceJobID)
     }
 
     /**
      * Handles a client message. This should not be called directly.
-     *
      * @param packetMsg The packet message that contains the data.
      */
-    @Override
-    public void handleMsg(IPacketMsg packetMsg) {
-        if (packetMsg == null) {
-            throw new IllegalArgumentException("packetMsg is null");
-        }
-
-        // ignore messages that we don't have a handler function for
-        Consumer<IPacketMsg> dispatcher = dispatchMap.get(packetMsg.getMsgType());
-        if (dispatcher != null) {
-            dispatcher.accept(packetMsg);
-        }
+    override fun handleMsg(packetMsg: IPacketMsg) {
+        dispatchMap[packetMsg.msgType]?.accept(packetMsg)
     }
 
-    void handleNetworkingCertRequestResponse(IPacketMsg packetMsg) {
-        ClientMsgProtobuf<CMsgClientNetworkingCertReply.Builder> resp =
-                new ClientMsgProtobuf<>(CMsgClientNetworkingCertReply.class, packetMsg);
-
-        NetworkingCertificateCallback callback = new NetworkingCertificateCallback(resp.getTargetJobID(), resp.getBody());
-        client.postCallback(callback);
+    private fun handleNetworkingCertRequestResponse(packetMsg: IPacketMsg) {
+        ClientMsgProtobuf<SteammessagesClientserver.CMsgClientNetworkingCertReply.Builder>(
+            SteammessagesClientserver.CMsgClientNetworkingCertReply::class.java,
+            packetMsg
+        ).also { resp ->
+            NetworkingCertificateCallback(resp.targetJobID, resp.body).also(client::postCallback)
+        }
     }
 }
