@@ -225,7 +225,7 @@ class SteamFriends : ClientMsgHandler() {
     /**
      * Gets a friend by index.
      * @param index the index.
-     * @return A valid steamid of a friend if the index is in range; otherwise a steamid representing 0.
+     * @return A valid [SteamID] of a friend if the index is in range; otherwise a [SteamID] representing 0.
      */
     fun getFriendByIndex(index: Int): SteamID {
         // lock it?
@@ -789,7 +789,7 @@ class SteamFriends : ClientMsgHandler() {
 
                 if (clanList.contains(friendId)) {
                     // mark clans we were removed/kicked from
-                    // note: not actually sure about the kicked relationship, but i'm using it for good measure
+                    // note: not actually sure about the kicked relationship, but I'm using it for good measure
                     if (clan.relationship == EClanRelationship.None || clan.relationship == EClanRelationship.Kicked) {
                         clansToRemove.add(friendId)
                     }

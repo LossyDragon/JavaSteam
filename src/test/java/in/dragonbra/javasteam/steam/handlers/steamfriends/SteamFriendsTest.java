@@ -12,6 +12,7 @@ import in.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserver2.C
 import in.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserverFriends.*;
 import in.dragonbra.javasteam.steam.handlers.HandlerTestBase;
 import in.dragonbra.javasteam.steam.handlers.steamfriends.callback.*;
+import in.dragonbra.javasteam.types.GameID;
 import in.dragonbra.javasteam.types.SteamID;
 import in.dragonbra.javasteam.util.stream.SeekOrigin;
 import org.junit.jupiter.api.Test;
@@ -519,19 +520,206 @@ public class SteamFriendsTest extends HandlerTestBase<SteamFriends> {
     }
 
     @Test
-    public void verifyResetPersonaState() {
-        handler.setPersonaState(EPersonaState.Online);
+    public void verifyResetPersonaStateFlag() {
+        handler.setPersonaStateFlag(EPersonaStateFlag.ClientTypeTenfoot);
 
         ClientMsgProtobuf<CMsgClientChangeStatus.Builder> msg = verifySend(EMsg.ClientChangeStatus);
 
-        assertEquals(EPersonaState.Online.code(), msg.getBody().getPersonaState());
+        assertEquals(EPersonaStateFlag.ClientTypeTenfoot.code(), msg.getBody().getPersonaStateFlags());
 
         handler.resetPersonaStateFlag();
 
         msg = verifySend(EMsg.ClientChangeStatus);
 
-        assertEquals(EPersonaState.Offline, handler.getPersonaState());
+        assertEquals(0, msg.getBody().getPersonaStateFlags());
     }
 
-    // TODO add more testing
+    @Test
+    public void verifyInvalidPersonaStateFlag() {
+        assertThrows(IllegalArgumentException.class, () -> {
+            handler.setPersonaStateFlag(EPersonaStateFlag.Golden);
+        });
+
+        assertThrows(IllegalArgumentException.class, () -> {
+            handler.setPersonaStateFlag(EPersonaStateFlag.LaunchTypeCompatTool);
+        });
+    }
+
+    @Test
+    public void verifyFriendsListSize() {
+        IPacketMsg msg = getPacket(EMsg.ClientFriendsList, true);
+
+        handler.handleMsg(msg);
+
+        assertEquals(2, handler.getFriendCount());
+    }
+
+    @Test
+    public void verifyInvalidFriendByIndex() {
+        IPacketMsg msg = getPacket(EMsg.ClientFriendsList, true);
+
+        handler.handleMsg(msg);
+
+        SteamID id = new SteamID();
+
+        assertEquals(id, handler.getFriendByIndex(-1));
+        assertEquals(id, handler.getFriendByIndex(3));
+    }
+
+    @Test
+    public void verifyFriendByIndex() {
+        IPacketMsg msg = getPacket(EMsg.ClientFriendsList, true);
+
+        handler.handleMsg(msg);
+
+        assertEquals(76561198324777381L, handler.getFriendByIndex(1).convertToUInt64());
+    }
+
+    @Test
+    public void verifyNullFriendPersonaName() {
+        IPacketMsg msg = getPacket(EMsg.ClientFriendsList, true);
+
+        handler.handleMsg(msg);
+
+        SteamID id = new SteamID();
+
+        assertNull(handler.getFriendPersonaName(id));
+    }
+
+    @Test
+    public void verifyFriendPersonaName() {
+        IPacketMsg msg = getPacket(EMsg.ClientPersonaState, true);
+
+        handler.handleMsg(msg);
+
+        SteamID id = new SteamID(76561197996689015L);
+
+        assertEquals("klay", handler.getFriendPersonaName(id));
+    }
+
+    @Test
+    public void verifyNullFriendPersonaState() {
+        IPacketMsg msg = getPacket(EMsg.ClientPersonaState, true);
+
+        handler.handleMsg(msg);
+
+        SteamID id = new SteamID();
+
+        assertNull(handler.getFriendPersonaState(id));
+    }
+
+    @Test
+    public void verifyFriendPersonaState() {
+        IPacketMsg msg = getPacket(EMsg.ClientPersonaState, true);
+
+        handler.handleMsg(msg);
+
+        SteamID id = new SteamID(76561197996689015L);
+
+        assertEquals(EPersonaState.Offline, handler.getFriendPersonaState(id));
+    }
+
+    @Test
+    public void verifyNullFriendRelationship() {
+        IPacketMsg msg = getPacket(EMsg.ClientFriendsList, true);
+
+        handler.handleMsg(msg);
+
+        SteamID id = new SteamID();
+
+        assertNull(handler.getFriendRelationship(id));
+    }
+
+    @Test
+    public void verifyFriendRelationship() {
+        IPacketMsg msg = getPacket(EMsg.ClientFriendsList, true);
+
+        handler.handleMsg(msg);
+
+        SteamID id = new SteamID(76561197996689015L);
+
+        assertEquals(EFriendRelationship.Friend, handler.getFriendRelationship(id));
+    }
+
+    @Test
+    public void verifyNullFriendGamePlayedName() {
+        IPacketMsg msg = getPacket(EMsg.ClientFriendsList, true);
+
+        handler.handleMsg(msg);
+
+        msg = getPacket(EMsg.ClientPersonaState, true);
+        handler.handleMsg(msg);
+
+        SteamID id = new SteamID();
+
+        assertNull(handler.getFriendGamePlayedName(id));
+
+    }
+
+    @Test
+    public void verifyFriendGamePlayedName() {
+        IPacketMsg msg = getPacket(EMsg.ClientFriendsList, true);
+        handler.handleMsg(msg);
+
+        msg = getPacket(EMsg.ClientPersonaState, true);
+        handler.handleMsg(msg);
+
+        // TODO: Update test packet bin to include a 3rd user playing a game (ie: TF2 or something)
+        // handler.getFriendGamePlayed(id)
+    }
+
+    @Test
+    public void verifyEmptyFriendGamePlayed() {
+        IPacketMsg msg = getPacket(EMsg.ClientFriendsList, true);
+        handler.handleMsg(msg);
+
+        msg = getPacket(EMsg.ClientPersonaState, true);
+        handler.handleMsg(msg);
+
+        SteamID id = new SteamID();
+
+        assertEquals(new GameID(), handler.getFriendGamePlayed(id));
+    }
+
+    @Test
+    public void verifyFriendGamePlayed() {
+        IPacketMsg msg = getPacket(EMsg.ClientFriendsList, true);
+        handler.handleMsg(msg);
+
+        msg = getPacket(EMsg.ClientPersonaState, true);
+        handler.handleMsg(msg);
+
+        // TODO: Update test packet bin to include a 3rd user playing a game (ie: TF2 or something)
+        // handler.getFriendGamePlayed(id)
+    }
+
+    @Test
+    public void verifyNullFriendAvatar() {
+        IPacketMsg msg = getPacket(EMsg.ClientFriendsList, true);
+        handler.handleMsg(msg);
+
+        msg = getPacket(EMsg.ClientPersonaState, true);
+        handler.handleMsg(msg);
+
+        SteamID id = new SteamID();
+
+        assertNull(handler.getFriendAvatar(id));
+    }
+
+    @Test
+    public void verifyFriendAvatar() {
+        IPacketMsg msg = getPacket(EMsg.ClientFriendsList, true);
+        handler.handleMsg(msg);
+
+        msg = getPacket(EMsg.ClientPersonaState, true);
+        handler.handleMsg(msg);
+
+        SteamID id = new SteamID(76561197996689015L);
+
+        byte[] byteArray = {68, -63, 56, -12, -51, -15, -43, -10, 7, 71, 50, -12, -128, -101, -68, -125, 63, -36, -90, -84};
+
+        assertArrayEquals(byteArray, handler.getFriendAvatar(id));
+    }
+
+    // TODO test clan methods
 }
