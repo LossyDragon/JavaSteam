@@ -32,7 +32,6 @@ abstract class ClientMsgHandler {
 
     /**
      * Handles a client message. This should not be called directly.
-     *
      * @param packetMsg The packet message that contains the data.
      */
     abstract fun handleMsg(packetMsg: IPacketMsg)
