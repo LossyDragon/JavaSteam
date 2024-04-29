@@ -1,30 +1,18 @@
-package in.dragonbra.javasteam.steam.handlers.steamnotifications.callback;
+package `in`.dragonbra.javasteam.steam.handlers.steamnotifications.callback
 
-import in.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserver2.CMsgClientUserNotifications;
-import in.dragonbra.javasteam.steam.handlers.steamnotifications.Notification;
-import in.dragonbra.javasteam.steam.steamclient.callbackmgr.CallbackMsg;
-
-import java.util.ArrayList;
-import java.util.List;
+import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserver2.CMsgClientUserNotifications
+import `in`.dragonbra.javasteam.steam.handlers.steamnotifications.Notification
+import `in`.dragonbra.javasteam.steam.steamclient.callbackmgr.CallbackMsg
 
 /**
  * Fired when the client receives user notifications.
  */
-public class UserNotificationsCallback extends CallbackMsg {
-
-    private final List<Notification> notifications;
-
-    public UserNotificationsCallback(CMsgClientUserNotifications.Builder msg) {
-        notifications = new ArrayList<>();
-        for (CMsgClientUserNotifications.Notification notification : msg.getNotificationsList()) {
-            notifications.add(new Notification(notification));
-        }
-    }
+@Suppress("unused")
+class UserNotificationsCallback(msg: CMsgClientUserNotifications.Builder) : CallbackMsg() {
 
     /**
+     * Get the notifications list
      * @return the notifications
      */
-    public List<Notification> getNotifications() {
-        return notifications;
-    }
+    val notifications: List<Notification> = msg.notificationsList.map { Notification(it) }
 }

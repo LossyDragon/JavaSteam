@@ -1,44 +1,30 @@
-package in.dragonbra.javasteam.steam.handlers.steamnotifications.callback;
+package `in`.dragonbra.javasteam.steam.handlers.steamnotifications.callback
 
-import in.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserver2.CMsgClientCommentNotifications;
-import in.dragonbra.javasteam.steam.handlers.steamnotifications.SteamNotifications;
-import in.dragonbra.javasteam.steam.steamclient.callbackmgr.CallbackMsg;
+import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserver2.CMsgClientCommentNotifications
+import `in`.dragonbra.javasteam.steam.handlers.steamnotifications.SteamNotifications
+import `in`.dragonbra.javasteam.steam.steamclient.callbackmgr.CallbackMsg
 
 /**
- * Fired in response to calling {@link SteamNotifications#requestCommentNotifications()}.
+ * Fired in response to calling [SteamNotifications.requestCommentNotifications].
  */
-public class CommentNotificationsCallback extends CallbackMsg {
-
-    private final int commentCount;
-
-    private final int commentOwnerCount;
-
-    private final int commentSubscriptionsCount;
-
-    public CommentNotificationsCallback(CMsgClientCommentNotifications.Builder msg) {
-        commentCount = msg.getCountNewComments();
-        commentOwnerCount = msg.getCountNewCommentsOwner();
-        commentSubscriptionsCount = msg.getCountNewCommentsSubscriptions();
-    }
+@Suppress("unused")
+class CommentNotificationsCallback(msg: CMsgClientCommentNotifications.Builder) : CallbackMsg() {
 
     /**
+     * Gets the number of new comments
      * @return the number of new comments
      */
-    public int getCommentCount() {
-        return commentCount;
-    }
+    val commentCount: Int = msg.countNewComments
 
     /**
+     * Gets the number of new comments on the users profile
      * @return the number of new comments on the users profile
      */
-    public int getCommentOwnerCount() {
-        return commentOwnerCount;
-    }
+    val commentOwnerCount: Int = msg.countNewCommentsOwner
 
     /**
+     * Gets the number of new comments on subscribed threads
      * @return the number of new comments on subscribed threads
      */
-    public int getCommentSubscriptionsCount() {
-        return commentSubscriptionsCount;
-    }
+    val commentSubscriptionsCount: Int = msg.countNewCommentsSubscriptions
 }
