@@ -1,156 +1,67 @@
-package in.dragonbra.javasteam.steam.handlers.steamscreenshots;
+package `in`.dragonbra.javasteam.steam.handlers.steamscreenshots
 
-import in.dragonbra.javasteam.enums.EUCMFilePrivacyState;
-import in.dragonbra.javasteam.types.GameID;
-
-import java.util.Date;
+import `in`.dragonbra.javasteam.enums.EUCMFilePrivacyState
+import `in`.dragonbra.javasteam.types.GameID
+import java.util.*
 
 /**
  * Represents the details required to add a screenshot
+ *
+ * @constructor Initializes a new instance of the [ScreenshotDetails] class.
  */
-public class ScreenshotDetails {
-
-    private GameID gameID;
-
-    private String ufsImageFilePath;
-
-    private String usfThumbnailFilePath;
-
-    private String caption;
-
-    private EUCMFilePrivacyState privacy;
-
-    private int width;
-
-    private int height;
-
-    private Date creationTime;
-
-    private boolean containsSpoilers;
+class ScreenshotDetails {
 
     /**
+     * Gets or sets the Steam game ID this screenshot belongs to
      * @return the Steam game ID this screenshot belongs to
      */
-    public GameID getGameID() {
-        return gameID;
-    }
+    var gameID: GameID? = null
 
     /**
-     * @param gameID the Steam game ID this screenshot belongs to
-     */
-    public void setGameID(GameID gameID) {
-        this.gameID = gameID;
-    }
-
-    /**
+     * Gets or sets the UFS image filepath.
      * @return the UFS image filepath.
      */
-    public String getUfsImageFilePath() {
-        return ufsImageFilePath;
-    }
+    var ufsImageFilePath: String? = null
 
     /**
-     * @param ufsImageFilePath the UFS image filepath.
-     */
-    public void setUfsImageFilePath(String ufsImageFilePath) {
-        this.ufsImageFilePath = ufsImageFilePath;
-    }
-
-    /**
+     * Gets or sets the UFS thumbnail filepath.
      * @return the UFS thumbnail filepath.
      */
-    public String getUsfThumbnailFilePath() {
-        return usfThumbnailFilePath;
-    }
+    var usfThumbnailFilePath: String? = null
 
     /**
-     * @param usfThumbnailFilePath the UFS thumbnail filepath.
-     */
-    public void setUsfThumbnailFilePath(String usfThumbnailFilePath) {
-        this.usfThumbnailFilePath = usfThumbnailFilePath;
-    }
-
-    /**
+     * Gets or sets the screenshot caption
      * @return the screenshot caption
      */
-    public String getCaption() {
-        return caption;
-    }
+    var caption: String? = null
 
     /**
-     * @param caption the screenshot caption
-     */
-    public void setCaption(String caption) {
-        this.caption = caption;
-    }
-
-    /**
+     * Gets or sets the screenshot privacy
      * @return the screenshot privacy
      */
-    public EUCMFilePrivacyState getPrivacy() {
-        return privacy;
-    }
+    var privacy: EUCMFilePrivacyState? = null
 
     /**
-     * @param privacy the screenshot privacy
-     */
-    public void setPrivacy(EUCMFilePrivacyState privacy) {
-        this.privacy = privacy;
-    }
-
-    /**
+     * Gets or sets the screenshot width
      * @return the screenshot width
      */
-    public int getWidth() {
-        return width;
-    }
+    var width: Int = 0
 
     /**
-     * @param width the screenshot width
-     */
-    public void setWidth(int width) {
-        this.width = width;
-    }
-
-    /**
+     * Gets or sets the screenshot height
      * @return the screenshot height
      */
-    public int getHeight() {
-        return height;
-    }
+    var height: Int = 0
 
     /**
-     * @param height the screenshot height
-     */
-    public void setHeight(int height) {
-        this.height = height;
-    }
-
-    /**
+     * Gets or sets the creation time
      * @return the creation time
      */
-    public Date getCreationTime() {
-        return creationTime;
-    }
+    var creationTime: Date? = null
 
     /**
-     * @param creationTime the creation time
+     * Gets or sets whether the screenshot contains spoilers
+     * @return whether the screenshot contains spoilers
      */
-    public void setCreationTime(Date creationTime) {
-        this.creationTime = creationTime;
-    }
-
-    /**
-     * @return whether or not the screenshot contains spoilers
-     */
-    public boolean isContainsSpoilers() {
-        return containsSpoilers;
-    }
-
-    /**
-     * @param containsSpoilers whether or not the screenshot contains spoilers.
-     */
-    public void setContainsSpoilers(boolean containsSpoilers) {
-        this.containsSpoilers = containsSpoilers;
-    }
+    var isContainsSpoilers: Boolean = false
 }

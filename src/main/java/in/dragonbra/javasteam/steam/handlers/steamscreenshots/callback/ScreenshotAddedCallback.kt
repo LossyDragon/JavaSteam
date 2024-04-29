@@ -1,38 +1,30 @@
-package in.dragonbra.javasteam.steam.handlers.steamscreenshots.callback;
+package `in`.dragonbra.javasteam.steam.handlers.steamscreenshots.callback
 
-import in.dragonbra.javasteam.enums.EResult;
-import in.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserverUcm.CMsgClientUCMAddScreenshotResponse;
-import in.dragonbra.javasteam.steam.steamclient.callbackmgr.CallbackMsg;
-import in.dragonbra.javasteam.types.JobID;
-import in.dragonbra.javasteam.types.UGCHandle;
+import `in`.dragonbra.javasteam.enums.EResult
+import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserverUcm.CMsgClientUCMAddScreenshotResponse
+import `in`.dragonbra.javasteam.steam.steamclient.callbackmgr.CallbackMsg
+import `in`.dragonbra.javasteam.types.JobID
+import `in`.dragonbra.javasteam.types.UGCHandle
 
 /**
  * This callback is fired when a new screenshot is added.
  */
-public class ScreenshotAddedCallback extends CallbackMsg {
-
-    private final EResult result;
-
-    private final UGCHandle screenshotID;
-
-    public ScreenshotAddedCallback(JobID jobID, CMsgClientUCMAddScreenshotResponse.Builder msg) {
-        setJobID(jobID);
-
-        result = EResult.from(msg.getEresult());
-        screenshotID = new UGCHandle(msg.getScreenshotid());
-    }
+@Suppress("MemberVisibilityCanBePrivate", "unused")
+class ScreenshotAddedCallback(jobID: JobID, msg: CMsgClientUCMAddScreenshotResponse.Builder) : CallbackMsg() {
 
     /**
-     * @return the result by {@link EResult}
+     * Gets the result.
+     * @return the result.
      */
-    public EResult getResult() {
-        return result;
-    }
+    val result: EResult = EResult.from(msg.eresult)
 
     /**
-     * @return the screenshot ID of the newly added screenshot.
+     * Gets the screenshot ID of the newly added screenshot.
+     * @return the screenshot.
      */
-    public UGCHandle getScreenshotID() {
-        return screenshotID;
+    val screenshotID: UGCHandle = UGCHandle(msg.screenshotid)
+
+    init {
+        this.jobID = jobID
     }
 }
