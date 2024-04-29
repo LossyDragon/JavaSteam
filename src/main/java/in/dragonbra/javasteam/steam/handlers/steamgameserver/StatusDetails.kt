@@ -1,124 +1,53 @@
-package in.dragonbra.javasteam.steam.handlers.steamgameserver;
+package `in`.dragonbra.javasteam.steam.handlers.steamgameserver
 
-import in.dragonbra.javasteam.enums.EServerFlags;
-
-import java.net.InetAddress;
-import java.util.EnumSet;
+import `in`.dragonbra.javasteam.enums.EServerFlags
+import java.net.InetAddress
+import java.util.*
 
 /**
  * Represents the details of the game server's current status.
  */
-public class StatusDetails {
-
-    private int appID;
-
-    private EnumSet<EServerFlags> serverFlags;
-
-    private String gameDirectory;
-
-    private InetAddress address;
-
-    private int port;
-
-    private int queryPort;
-
-    private String version;
+class StatusDetails {
 
     /**
+     * Gets or sets the AppID this game server is serving.
      * @return the AppID this game server is serving
      */
-    public int getAppID() {
-        return appID;
-    }
+    var appID: Int = 0
 
     /**
-     * @param appID the AppID this game server is serving
-     */
-    public void setAppID(int appID) {
-        this.appID = appID;
-    }
-
-    /**
+     * Gets or sets the server's basic state as flags.
      * @return the server's basic state as flags
      */
-    public EnumSet<EServerFlags> getServerFlags() {
-        return serverFlags;
-    }
+    var serverFlags: EnumSet<EServerFlags>? = null
 
     /**
-     * @param serverFlags the server's basic state as flags
-     */
-    public void setServerFlags(EnumSet<EServerFlags> serverFlags) {
-        this.serverFlags = serverFlags;
-    }
-
-    /**
+     * Gets or sets the directory the game data is in.
      * @return the directory the game data is in
      */
-    public String getGameDirectory() {
-        return gameDirectory;
-    }
+    var gameDirectory: String? = null
 
     /**
-     * @param gameDirectory the directory the game data is in
-     */
-    public void setGameDirectory(String gameDirectory) {
-        this.gameDirectory = gameDirectory;
-    }
-
-    /**
+     * Gets or sets the IP address the game server listens on.
      * @return the IP address the game server listens on
      */
-    public InetAddress getAddress() {
-        return address;
-    }
+    var address: InetAddress? = null
 
     /**
-     * @param address the IP address the game server listens on
-     */
-    public void setAddress(InetAddress address) {
-        this.address = address;
-    }
-
-    /**
+     * Gets or sets the port the game server listens on.
      * @return the port the game server listens on
      */
-    public int getPort() {
-        return port;
-    }
+    var port: Int = 0
 
     /**
-     * @param port the port the game server listens on
-     */
-    public void setPort(int port) {
-        this.port = port;
-    }
-
-    /**
+     * Gets or sets the port the game server responds to queries on.
      * @return the port the game server responds to queries on
      */
-    public int getQueryPort() {
-        return queryPort;
-    }
+    var queryPort: Int = 0
 
     /**
-     * @param queryPort the port the game server responds to queries on
-     */
-    public void setQueryPort(int queryPort) {
-        this.queryPort = queryPort;
-    }
-
-    /**
+     * Gets or sets the current version of the game server.
      * @return the current version of the game server
      */
-    public String getVersion() {
-        return version;
-    }
-
-    /**
-     * @param version the current version of the game server
-     */
-    public void setVersion(String version) {
-        this.version = version;
-    }
+    var version: String? = null
 }

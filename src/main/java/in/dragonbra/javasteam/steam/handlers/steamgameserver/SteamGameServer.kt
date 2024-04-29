@@ -1,203 +1,171 @@
-package in.dragonbra.javasteam.steam.handlers.steamgameserver;
+package `in`.dragonbra.javasteam.steam.handlers.steamgameserver
 
-import com.google.protobuf.ByteString;
-import in.dragonbra.javasteam.base.ClientMsgProtobuf;
-import in.dragonbra.javasteam.base.IPacketMsg;
-import in.dragonbra.javasteam.enums.EAccountType;
-import in.dragonbra.javasteam.enums.EMsg;
-import in.dragonbra.javasteam.enums.EResult;
-import in.dragonbra.javasteam.enums.EServerFlags;
-import in.dragonbra.javasteam.generated.MsgClientLogon;
-import in.dragonbra.javasteam.handlers.ClientMsgHandler;
-import in.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserver.CMsgClientTicketAuthComplete;
-import in.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserverGameservers.CMsgGSServerType;
-import in.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserverGameservers.CMsgGSStatusReply;
-import in.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserverLogin.CMsgClientLogOff;
-import in.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserverLogin.CMsgClientLogon;
-import in.dragonbra.javasteam.steam.handlers.steamgameserver.callback.StatusReplyCallback;
-import in.dragonbra.javasteam.steam.handlers.steamgameserver.callback.TicketAuthCallback;
-import in.dragonbra.javasteam.steam.handlers.steamuser.callback.LoggedOnCallback;
-import in.dragonbra.javasteam.steam.steamclient.callbacks.DisconnectedCallback;
-import in.dragonbra.javasteam.types.SteamID;
-import in.dragonbra.javasteam.util.HardwareUtils;
-import in.dragonbra.javasteam.util.NetHelpers;
-import in.dragonbra.javasteam.util.Strings;
-import in.dragonbra.javasteam.util.Utils;
-import in.dragonbra.javasteam.util.compat.Consumer;
-
-import java.net.Inet6Address;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
+import com.google.protobuf.ByteString
+import `in`.dragonbra.javasteam.base.ClientMsgProtobuf
+import `in`.dragonbra.javasteam.base.IPacketMsg
+import `in`.dragonbra.javasteam.enums.EAccountType
+import `in`.dragonbra.javasteam.enums.EMsg
+import `in`.dragonbra.javasteam.enums.EResult
+import `in`.dragonbra.javasteam.enums.EServerFlags
+import `in`.dragonbra.javasteam.generated.MsgClientLogon
+import `in`.dragonbra.javasteam.handlers.ClientMsgHandler
+import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserver
+import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserverGameservers
+import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserverLogin
+import `in`.dragonbra.javasteam.steam.handlers.steamgameserver.callback.StatusReplyCallback
+import `in`.dragonbra.javasteam.steam.handlers.steamgameserver.callback.TicketAuthCallback
+import `in`.dragonbra.javasteam.steam.handlers.steamuser.callback.LoggedOnCallback
+import `in`.dragonbra.javasteam.steam.steamclient.callbacks.DisconnectedCallback
+import `in`.dragonbra.javasteam.types.SteamID
+import `in`.dragonbra.javasteam.util.HardwareUtils
+import `in`.dragonbra.javasteam.util.NetHelpers
+import `in`.dragonbra.javasteam.util.Utils
+import `in`.dragonbra.javasteam.util.compat.Consumer
+import java.net.Inet6Address
+import java.util.*
 
 /**
  * This handler is used for interacting with the Steam network as a game server.
  */
-public class SteamGameServer extends ClientMsgHandler {
+@Suppress("unused")
+class SteamGameServer : ClientMsgHandler() {
 
-    private Map<EMsg, Consumer<IPacketMsg>> dispatchMap;
+    private var dispatchMap: EnumMap<EMsg, Consumer<IPacketMsg>> = EnumMap(EMsg::class.java)
 
-    public SteamGameServer() {
-        dispatchMap = new HashMap<>();
-
-        dispatchMap.put(EMsg.GSStatusReply, this::handleStatusReply);
-        dispatchMap.put(EMsg.ClientTicketAuthComplete, this::handleAuthComplete);
-
-        dispatchMap = Collections.unmodifiableMap(dispatchMap);
+    init {
+        dispatchMap[EMsg.GSStatusReply] = Consumer<IPacketMsg>(::handleStatusReply)
+        dispatchMap[EMsg.ClientTicketAuthComplete] = Consumer<IPacketMsg>(::handleAuthComplete)
     }
 
     /**
      * Logs onto the Steam network as a persistent game server.
      * The client should already have been connected at this point.
-     * Results are return in a {@link LoggedOnCallback}.
-     *
+     * Results are return in a [LoggedOnCallback].
      * @param details The details to use for logging on.
      */
-    public void logOn(LogOnDetails details) {
-        if (details == null) {
-            throw new IllegalArgumentException("details is null");
+    fun logOn(details: LogOnDetails) {
+        require(!details.token.isNullOrEmpty()) { "LogOn requires a game server token to be set in 'details'." }
+
+        if (!client.isConnected) {
+            LoggedOnCallback(EResult.NoConnection).also(client::postCallback)
+            return
         }
 
-        if (Strings.isNullOrEmpty(details.getToken())) {
-            throw new IllegalArgumentException("LogOn requires a game server token to be set in 'details'.");
-        }
+        ClientMsgProtobuf<SteammessagesClientserverLogin.CMsgClientLogon.Builder>(
+            SteammessagesClientserverLogin.CMsgClientLogon::class.java,
+            EMsg.ClientLogonGameServer
+        ).apply {
+            val gsId = SteamID(0, 0, client.universe, EAccountType.GameServer)
 
-        if (!client.isConnected()) {
-            client.postCallback(new LoggedOnCallback(EResult.NoConnection));
-            return;
-        }
+            protoHeader.setClientSessionid(0)
+            protoHeader.setSteamid(gsId.convertToUInt64())
 
-        ClientMsgProtobuf<CMsgClientLogon.Builder> logon =
-                new ClientMsgProtobuf<>(CMsgClientLogon.class, EMsg.ClientLogonGameServer);
+            val localIp: Int = NetHelpers.getIPAddress(client.localIP)
+            body.setDeprecatedObfustucatedPrivateIp(localIp xor MsgClientLogon.ObfuscationMask) // NOTE: Using deprecated method.
+            // body.setObfuscatedPrivateIp() // TODO: Look into impl this instead of the above.
 
-        SteamID gsId = new SteamID(0, 0, client.getUniverse(), EAccountType.GameServer);
+            body.setProtocolVersion(MsgClientLogon.CurrentProtocol)
 
-        logon.getProtoHeader().setClientSessionid(0);
-        logon.getProtoHeader().setSteamid(gsId.convertToUInt64());
+            body.setClientOsType(Utils.getOSType().code())
+            body.setGameServerAppId(details.appID)
+            body.setMachineId(ByteString.copyFrom(HardwareUtils.getMachineID()))
 
-        int localIp = NetHelpers.getIPAddress(client.getLocalIP());
-        logon.getBody().setDeprecatedObfustucatedPrivateIp(localIp ^ MsgClientLogon.ObfuscationMask); // NOTE: Using deprecated method.
-
-        logon.getBody().setProtocolVersion(MsgClientLogon.CurrentProtocol);
-
-        logon.getBody().setClientOsType(Utils.getOSType().code());
-        logon.getBody().setGameServerAppId(details.getAppID());
-        logon.getBody().setMachineId(ByteString.copyFrom(HardwareUtils.getMachineID()));
-
-        logon.getBody().setGameServerToken(details.getToken());
-
-        client.send(logon);
+            body.setGameServerToken(details.token)
+        }.also(client::send)
     }
 
     /**
      * Logs the client into the Steam3 network as an anonymous game server.
      * The client should already have been connected at this point.
-     * Results are return in a {@link LoggedOnCallback}.
-     */
-    public void logOnAnonymous() {
-        logOnAnonymous(0);
-    }
-
-    /**
-     * Logs the client into the Steam3 network as an anonymous game server.
-     * The client should already have been connected at this point.
-     * Results are return in a {@link LoggedOnCallback}.
-     *
+     * Results are return in a [LoggedOnCallback].
      * @param appId The AppID served by this game server, or 0 for the default.
      */
-    public void logOnAnonymous(int appId) {
-
-        if (!client.isConnected()) {
-            client.postCallback(new LoggedOnCallback(EResult.NoConnection));
-            return;
+    @JvmOverloads
+    fun logOnAnonymous(appId: Int = 0) {
+        if (!client.isConnected) {
+            LoggedOnCallback(EResult.NoConnection).also(client::postCallback)
+            return
         }
 
-        ClientMsgProtobuf<CMsgClientLogon.Builder> logon =
-                new ClientMsgProtobuf<>(CMsgClientLogon.class, EMsg.ClientLogonGameServer);
+        ClientMsgProtobuf<SteammessagesClientserverLogin.CMsgClientLogon.Builder>(
+            SteammessagesClientserverLogin.CMsgClientLogon::class.java,
+            EMsg.ClientLogonGameServer
+        ).apply {
+            val gsId = SteamID(0, 0, client.universe, EAccountType.AnonGameServer)
+            protoHeader.setClientSessionid(0)
+            protoHeader.setSteamid(gsId.convertToUInt64())
 
-        SteamID gsId = new SteamID(0, 0, client.getUniverse(), EAccountType.AnonGameServer);
+            val localIp: Int = NetHelpers.getIPAddress(client.localIP)
+            body.setDeprecatedObfustucatedPrivateIp(localIp xor MsgClientLogon.ObfuscationMask) // NOTE: Using deprecated method.
+            // body.setObfuscatedPrivateIp() // TODO: Look into impl this instead of the above.
 
-        logon.getProtoHeader().setClientSessionid(0);
-        logon.getProtoHeader().setSteamid(gsId.convertToUInt64());
+            body.setProtocolVersion(MsgClientLogon.CurrentProtocol)
 
-        int localIp = NetHelpers.getIPAddress(client.getLocalIP());
-        logon.getBody().setDeprecatedObfustucatedPrivateIp(localIp ^ MsgClientLogon.ObfuscationMask); // NOTE: Using deprecated method.
-
-        logon.getBody().setProtocolVersion(MsgClientLogon.CurrentProtocol);
-
-        logon.getBody().setClientOsType(Utils.getOSType().code());
-        logon.getBody().setGameServerAppId(appId);
-        logon.getBody().setMachineId(ByteString.copyFrom(HardwareUtils.getMachineID()));
-
-        client.send(logon);
+            body.setClientOsType(Utils.getOSType().code())
+            body.setGameServerAppId(appId)
+            body.setMachineId(ByteString.copyFrom(HardwareUtils.getMachineID()))
+        }.also(client::send)
     }
 
     /**
      * Informs the Steam servers that this client wishes to log off from the network.
-     * The Steam server will disconnect the client, and a {@link DisconnectedCallback} will be posted.
+     * The Steam server will disconnect the client, and a [DisconnectedCallback] will be posted.
      */
-    public void logOff() {
-        setExpectDisconnection(true);
+    fun logOff() {
+        isExpectDisconnection = true
 
-        ClientMsgProtobuf<CMsgClientLogOff.Builder> logOff = new ClientMsgProtobuf<>(CMsgClientLogOff.class, EMsg.ClientLogOff);
-        client.send(logOff);
+        ClientMsgProtobuf<SteammessagesClientserverLogin.CMsgClientLogOff.Builder>(
+            SteammessagesClientserverLogin.CMsgClientLogOff::class.java,
+            EMsg.ClientLogOff
+        ).also(client::send)
 
         // TODO: 2018-02-28 it seems like the socket is not closed after getting logged of or I am doing something horribly wrong, let's disconnect here
-        client.disconnect();
+        client.disconnect()
     }
 
     /**
      * Sends the server's status to the Steam network.
-     * Results are returned in a {@link StatusReplyCallback} callback.
-     * @param details A {@link StatusDetails} object containing the server's status.
+     * Results are returned in a [StatusReplyCallback] callback.
+     * @param details A [StatusDetails] object containing the server's status.
      */
-    public void sendStatus(StatusDetails details) {
-        if (details == null) {
-            throw new IllegalArgumentException("details is null");
-        }
+    fun sendStatus(details: StatusDetails) {
+        require(!(details.address != null && details.address is Inet6Address)) { "Only IPv4 addresses are supported." }
 
-        if (details.getAddress() != null && details.getAddress() instanceof Inet6Address) {
-            throw new IllegalArgumentException("Only IPv4 addresses are supported.");
-        }
-
-        ClientMsgProtobuf<CMsgGSServerType.Builder> status = new ClientMsgProtobuf<>(CMsgGSServerType.class, EMsg.GSServerType);
-        status.getBody().setAppIdServed(details.getAppID());
-        status.getBody().setFlags(EServerFlags.code(details.getServerFlags()));
-        status.getBody().setGameDir(details.getGameDirectory());
-        status.getBody().setGamePort(details.getPort());
-        status.getBody().setGameQueryPort(details.getQueryPort());
-        status.getBody().setGameVersion(details.getVersion());
-
-        if (details.getAddress() != null) {
-            status.getBody().setDeprecatedGameIpAddress(NetHelpers.getIPAddress(details.getAddress())); // NOTE: Using deprecated method.
-        }
-
-        client.send(status);
+        ClientMsgProtobuf<SteammessagesClientserverGameservers.CMsgGSServerType.Builder>(
+            SteammessagesClientserverGameservers.CMsgGSServerType::class.java,
+            EMsg.GSServerType
+        ).apply {
+            body.setAppIdServed(details.appID)
+            body.setFlags(EServerFlags.code(details.serverFlags))
+            body.setGameDir(details.gameDirectory)
+            body.setGamePort(details.port)
+            body.setGameQueryPort(details.queryPort)
+            body.setGameVersion(details.version)
+            if (details.address != null) {
+                body.setDeprecatedGameIpAddress(NetHelpers.getIPAddress(details.address)) // NOTE: Using deprecated method.
+            }
+        }.also(client::send)
     }
 
-    @Override
-    public void handleMsg(IPacketMsg packetMsg) {
-        if (packetMsg == null) {
-            throw new IllegalArgumentException("packetMsg is null");
-        }
+    override fun handleMsg(packetMsg: IPacketMsg) {
+        dispatchMap[packetMsg.msgType]?.accept(packetMsg)
+    }
 
-        Consumer<IPacketMsg> dispatcher = dispatchMap.get(packetMsg.getMsgType());
-        if (dispatcher != null) {
-            dispatcher.accept(packetMsg);
+    private fun handleStatusReply(packetMsg: IPacketMsg) {
+        ClientMsgProtobuf<SteammessagesClientserverGameservers.CMsgGSStatusReply.Builder>(
+            SteammessagesClientserverGameservers.CMsgGSStatusReply::class.java,
+            packetMsg
+        ).also { statusReply ->
+            StatusReplyCallback(statusReply.body).also(client::postCallback)
         }
     }
 
-    private void handleStatusReply(IPacketMsg packetMsg) {
-        ClientMsgProtobuf<CMsgGSStatusReply.Builder> statusReply =
-                new ClientMsgProtobuf<>(CMsgGSStatusReply.class, packetMsg);
-
-        client.postCallback(new StatusReplyCallback(statusReply.getBody()));
-    }
-
-    private void handleAuthComplete(IPacketMsg packetMsg) {
-        ClientMsgProtobuf<CMsgClientTicketAuthComplete.Builder> statusReply =
-                new ClientMsgProtobuf<>(CMsgClientTicketAuthComplete.class, packetMsg);
-
-        client.postCallback(new TicketAuthCallback(statusReply.getBody()));
+    private fun handleAuthComplete(packetMsg: IPacketMsg) {
+        ClientMsgProtobuf<SteammessagesClientserver.CMsgClientTicketAuthComplete.Builder>(
+            SteammessagesClientserver.CMsgClientTicketAuthComplete::class.java,
+            packetMsg
+        ).also { statusReply ->
+            TicketAuthCallback(statusReply.body).also(client::postCallback)
+        }
     }
 }

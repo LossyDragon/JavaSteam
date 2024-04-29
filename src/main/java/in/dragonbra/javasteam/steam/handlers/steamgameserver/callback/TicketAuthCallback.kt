@@ -1,79 +1,50 @@
-package in.dragonbra.javasteam.steam.handlers.steamgameserver.callback;
+package `in`.dragonbra.javasteam.steam.handlers.steamgameserver.callback
 
-import in.dragonbra.javasteam.enums.EAuthSessionResponse;
-import in.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserver.CMsgClientTicketAuthComplete;
-import in.dragonbra.javasteam.steam.steamclient.callbackmgr.CallbackMsg;
-import in.dragonbra.javasteam.types.GameID;
-import in.dragonbra.javasteam.types.SteamID;
+import `in`.dragonbra.javasteam.enums.EAuthSessionResponse
+import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserver.CMsgClientTicketAuthComplete
+import `in`.dragonbra.javasteam.steam.steamclient.callbackmgr.CallbackMsg
+import `in`.dragonbra.javasteam.types.GameID
+import `in`.dragonbra.javasteam.types.SteamID
 
 /**
  * This callback is fired when ticket authentication has completed.
  */
-public class TicketAuthCallback extends CallbackMsg {
-
-    private final SteamID steamID;
-
-    private final GameID gameID;
-
-    private final int state;
-
-    private final EAuthSessionResponse authSessionResponse;
-
-    private final int ticketCrc;
-
-    private final int ticketSequence;
-
-    public TicketAuthCallback(CMsgClientTicketAuthComplete.Builder tickAuth) {
-        steamID = new SteamID(tickAuth.getSteamId());
-        gameID = new GameID(tickAuth.getGameId());
-
-        state = tickAuth.getEstate();
-
-        authSessionResponse = EAuthSessionResponse.from(tickAuth.getEauthSessionResponse());
-
-        ticketCrc = tickAuth.getTicketCrc();
-        ticketSequence = tickAuth.getTicketSequence();
-    }
+@Suppress("unused")
+class TicketAuthCallback(tickAuth: CMsgClientTicketAuthComplete.Builder) : CallbackMsg() {
 
     /**
+     * Gets the SteamID the ticket auth completed for.
      * @return the SteamID the ticket auth completed for
      */
-    public SteamID getSteamID() {
-        return steamID;
-    }
+    val steamID: SteamID = SteamID(tickAuth.steamId)
 
     /**
+     * Gets the GameID the ticket was for.
      * @return the GameID the ticket was for
      */
-    public GameID getGameID() {
-        return gameID;
-    }
+    val gameID: GameID = GameID(tickAuth.gameId)
 
     /**
+     * Gets the authentication state.
      * @return the authentication state
      */
-    public int getState() {
-        return state;
-    }
+    val state: Int = tickAuth.estate
 
     /**
+     * Gets the auth session response.
      * @return the auth session response
      */
-    public EAuthSessionResponse getAuthSessionResponse() {
-        return authSessionResponse;
-    }
+    val authSessionResponse: EAuthSessionResponse = EAuthSessionResponse.from(tickAuth.eauthSessionResponse)
 
     /**
+     * Gets the ticket CRC.
      * @return the ticket CRC
      */
-    public int getTicketCrc() {
-        return ticketCrc;
-    }
+    val ticketCrc: Int = tickAuth.ticketCrc
 
     /**
+     * Gets the ticket sequence.
      * @return the ticket sequence
      */
-    public int getTicketSequence() {
-        return ticketSequence;
-    }
+    val ticketSequence: Int = tickAuth.ticketSequence
 }
