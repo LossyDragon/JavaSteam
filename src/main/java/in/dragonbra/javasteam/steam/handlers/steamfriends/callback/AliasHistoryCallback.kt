@@ -1,38 +1,23 @@
-package in.dragonbra.javasteam.steam.handlers.steamfriends.callback;
+package `in`.dragonbra.javasteam.steam.handlers.steamfriends.callback
 
-import in.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserver.CMsgClientAMGetPersonaNameHistoryResponse;
-import in.dragonbra.javasteam.steam.handlers.steamfriends.NameTableInstance;
-import in.dragonbra.javasteam.steam.handlers.steamfriends.SteamFriends;
-import in.dragonbra.javasteam.steam.steamclient.callbackmgr.CallbackMsg;
-import in.dragonbra.javasteam.types.JobID;
-import in.dragonbra.javasteam.types.SteamID;
-
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
+import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserver.CMsgClientAMGetPersonaNameHistoryResponse
+import `in`.dragonbra.javasteam.steam.handlers.steamfriends.NameTableInstance
+import `in`.dragonbra.javasteam.steam.handlers.steamfriends.SteamFriends
+import `in`.dragonbra.javasteam.steam.steamclient.callbackmgr.CallbackMsg
+import `in`.dragonbra.javasteam.types.JobID
 
 /**
- * Callback fired in response to calling {@link SteamFriends#requestAliasHistory(SteamID)}.
+ * Callback fired in response to calling [SteamFriends.requestAliasHistory].
  */
-public class AliasHistoryCallback extends CallbackMsg {
-
-    private List<NameTableInstance> responses;
-
-    public AliasHistoryCallback(JobID jobID, CMsgClientAMGetPersonaNameHistoryResponse.Builder msg) {
-        setJobID(jobID);
-        responses = new ArrayList<>();
-
-        for (CMsgClientAMGetPersonaNameHistoryResponse.NameTableInstance instance : msg.getResponsesList()) {
-            responses.add(new NameTableInstance(instance));
-        }
-
-        responses = Collections.unmodifiableList(responses);
-    }
+class AliasHistoryCallback(jobID: JobID, msg: CMsgClientAMGetPersonaNameHistoryResponse.Builder) : CallbackMsg() {
 
     /**
+     * Gets a list of previous names.
      * @return the responses to the steam ids
      */
-    public List<NameTableInstance> getResponses() {
-        return responses;
+    var responses: List<NameTableInstance> = msg.responsesList.map { NameTableInstance(it) }
+
+    init {
+        this.jobID = jobID
     }
 }

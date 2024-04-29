@@ -1,128 +1,110 @@
-package in.dragonbra.javasteam.steam.handlers.steamfriends.callback;
+package `in`.dragonbra.javasteam.steam.handlers.steamfriends.callback
 
-import in.dragonbra.javasteam.enums.EResult;
-import in.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserverFriends.CMsgClientFriendProfileInfoResponse;
-import in.dragonbra.javasteam.steam.steamclient.callbackmgr.CallbackMsg;
-import in.dragonbra.javasteam.types.JobID;
-import in.dragonbra.javasteam.types.SteamID;
-
-import java.util.Date;
+import `in`.dragonbra.javasteam.enums.EResult
+import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserverFriends.CMsgClientFriendProfileInfoResponse
+import `in`.dragonbra.javasteam.steam.steamclient.callbackmgr.CallbackMsg
+import `in`.dragonbra.javasteam.types.JobID
+import `in`.dragonbra.javasteam.types.SteamID
+import java.util.*
 
 /**
  * This callback is fired in response to requesting profile info for a user.
  */
-public class ProfileInfoCallback extends CallbackMsg {
-
-    private final EResult result;
-
-    private final SteamID steamID;
-
-    private final Date timeCreated;
-
-    private final String realName;
-
-    private final String cityName;
-
-    private final String stateName;
-
-    private final String countryName;
-
-    private final String headline;
-
-    private final String summary;
-
-    public ProfileInfoCallback(JobID jobID, CMsgClientFriendProfileInfoResponse.Builder response) {
-        setJobID(jobID);
-
-        result = EResult.from(response.getEresult());
-
-        steamID = new SteamID(response.getSteamidFriend());
-
-        timeCreated = new Date(response.getTimeCreated() * 1000L);
-
-        realName = response.getRealName();
-
-        cityName = response.getCityName();
-        stateName = response.getStateName();
-        countryName = response.getCountryName();
-
-        headline = response.getHeadline();
-
-        summary = response.getSummary();
-    }
-
-    public ProfileInfoCallback(EResult result, SteamID steamID, Date timeCreated, String realName, String cityName, String stateName, String countryName, String headline, String summary) {
-        this.result = result;
-        this.steamID = steamID;
-        this.timeCreated = timeCreated;
-        this.realName = realName;
-        this.cityName = cityName;
-        this.stateName = stateName;
-        this.countryName = countryName;
-        this.headline = headline;
-        this.summary = summary;
-    }
+@Suppress("unused")
+class ProfileInfoCallback : CallbackMsg {
 
     /**
-     * @return the result of requesting profile info.
+     * Gets the result of requesting profile info.
+     * @return the result.
      */
-    public EResult getResult() {
-        return result;
-    }
+    val result: EResult
 
     /**
-     * @return the {@link SteamID} this info belongs to.
+     * Gets the [SteamID] this info belongs to.
+     * @return the [SteamID] this info belongs to.
      */
-    public SteamID getSteamID() {
-        return steamID;
-    }
+    val steamID: SteamID
 
     /**
+     * Gets the time this account was created.
      * @return the time this account was created.
      */
-    public Date getTimeCreated() {
-        return timeCreated;
-    }
+    val timeCreated: Date
 
     /**
+     * Gets the real name.
      * @return the real name.
      */
-    public String getRealName() {
-        return realName;
-    }
+    val realName: String
 
     /**
+     * Gets the name of the city.
      * @return the name of the city.
      */
-    public String getCityName() {
-        return cityName;
-    }
+    val cityName: String
 
     /**
+     * Gets the name of the state.
      * @return the name of the state.
      */
-    public String getStateName() {
-        return stateName;
-    }
+    val stateName: String
 
     /**
+     * Gets the name of the country.
      * @return the name of the country.
      */
-    public String getCountryName() {
-        return countryName;
-    }
+    val countryName: String
 
     /**
+     * Gets the headline.
      * @return the headline.
      */
-    public String getHeadline() {
-        return headline;
+    val headline: String
+
+    /**
+     * Gets the summary.
+     * @return the summary.
+     */
+    val summary: String
+
+    /**
+     * Primary constructor for handler
+     */
+    constructor(jobID: JobID, response: CMsgClientFriendProfileInfoResponse.Builder) {
+        this.jobID = jobID
+        result = EResult.from(response.eresult)
+        steamID = SteamID(response.steamidFriend)
+        timeCreated = Date(response.timeCreated * 1000L)
+        realName = response.realName
+        cityName = response.cityName
+        stateName = response.stateName
+        countryName = response.countryName
+        headline = response.headline
+        summary = response.summary
     }
 
     /**
-     * @return the summary.
+     * TODO kDoc
      */
-    public String getSummary() {
-        return summary;
+    constructor(
+        result: EResult,
+        steamID: SteamID,
+        timeCreated: Date,
+        realName: String,
+        cityName: String,
+        stateName: String,
+        countryName: String,
+        headline: String,
+        summary: String,
+    ) {
+        this.result = result
+        this.steamID = steamID
+        this.timeCreated = timeCreated
+        this.realName = realName
+        this.cityName = cityName
+        this.stateName = stateName
+        this.countryName = countryName
+        this.headline = headline
+        this.summary = summary
     }
 }

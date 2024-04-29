@@ -1,768 +1,1013 @@
-package in.dragonbra.javasteam.steam.handlers.steamfriends;
+package `in`.dragonbra.javasteam.steam.handlers.steamfriends
 
-import com.google.protobuf.ByteString;
-import in.dragonbra.javasteam.base.ClientMsg;
-import in.dragonbra.javasteam.base.ClientMsgProtobuf;
-import in.dragonbra.javasteam.base.IPacketMsg;
-import in.dragonbra.javasteam.enums.*;
-import in.dragonbra.javasteam.generated.*;
-import in.dragonbra.javasteam.handlers.ClientMsgHandler;
-import in.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserver.CMsgClientAMGetPersonaNameHistory;
-import in.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserver.CMsgClientAMGetPersonaNameHistoryResponse;
-import in.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserver.CMsgClientChatInvite;
-import in.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserver.CMsgClientClanState;
-import in.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserver2.CMsgClientChatGetFriendMessageHistory;
-import in.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserver2.CMsgClientChatGetFriendMessageHistoryForOfflineMessages;
-import in.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserver2.CMsgClientChatGetFriendMessageHistoryResponse;
-import in.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserverFriends.*;
-import in.dragonbra.javasteam.steam.handlers.steamfriends.callback.*;
-import in.dragonbra.javasteam.steam.steamclient.configuration.SteamConfiguration;
-import in.dragonbra.javasteam.types.AsyncJobSingle;
-import in.dragonbra.javasteam.types.JobID;
-import in.dragonbra.javasteam.types.SteamID;
-import in.dragonbra.javasteam.util.compat.Consumer;
-import in.dragonbra.javasteam.util.log.LogManager;
-import in.dragonbra.javasteam.util.log.Logger;
-
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.util.*;
+import com.google.protobuf.ByteString
+import `in`.dragonbra.javasteam.base.ClientMsg
+import `in`.dragonbra.javasteam.base.ClientMsgProtobuf
+import `in`.dragonbra.javasteam.base.IPacketMsg
+import `in`.dragonbra.javasteam.enums.EAccountType
+import `in`.dragonbra.javasteam.enums.EChatAction
+import `in`.dragonbra.javasteam.enums.EChatEntryType
+import `in`.dragonbra.javasteam.enums.EChatInfoType
+import `in`.dragonbra.javasteam.enums.EChatMemberStateChange
+import `in`.dragonbra.javasteam.enums.EClanRelationship
+import `in`.dragonbra.javasteam.enums.EClientPersonaStateFlag
+import `in`.dragonbra.javasteam.enums.EFriendRelationship
+import `in`.dragonbra.javasteam.enums.EMsg
+import `in`.dragonbra.javasteam.enums.EPersonaState
+import `in`.dragonbra.javasteam.enums.EPersonaStateFlag
+import `in`.dragonbra.javasteam.generated.MsgClientChatAction
+import `in`.dragonbra.javasteam.generated.MsgClientChatActionResult
+import `in`.dragonbra.javasteam.generated.MsgClientChatEnter
+import `in`.dragonbra.javasteam.generated.MsgClientChatMemberInfo
+import `in`.dragonbra.javasteam.generated.MsgClientChatMsg
+import `in`.dragonbra.javasteam.generated.MsgClientChatRoomInfo
+import `in`.dragonbra.javasteam.generated.MsgClientJoinChat
+import `in`.dragonbra.javasteam.generated.MsgClientSetIgnoreFriend
+import `in`.dragonbra.javasteam.generated.MsgClientSetIgnoreFriendResponse
+import `in`.dragonbra.javasteam.handlers.ClientMsgHandler
+import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserver.CMsgClientAMGetPersonaNameHistory
+import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserver.CMsgClientAMGetPersonaNameHistoryResponse
+import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserver.CMsgClientChatInvite
+import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserver.CMsgClientClanState
+import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserver2.CMsgClientChatGetFriendMessageHistory
+import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserver2.CMsgClientChatGetFriendMessageHistoryForOfflineMessages
+import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserver2.CMsgClientChatGetFriendMessageHistoryResponse
+import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserverFriends.CMsgClientAddFriend
+import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserverFriends.CMsgClientAddFriendResponse
+import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserverFriends.CMsgClientChangeStatus
+import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserverFriends.CMsgClientFriendMsg
+import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserverFriends.CMsgClientFriendMsgIncoming
+import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserverFriends.CMsgClientFriendProfileInfo
+import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserverFriends.CMsgClientFriendProfileInfoResponse
+import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserverFriends.CMsgClientFriendsList
+import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserverFriends.CMsgClientPersonaState
+import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserverFriends.CMsgClientPlayerNicknameList
+import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserverFriends.CMsgClientRemoveFriend
+import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserverFriends.CMsgClientRequestFriendData
+import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserverFriends.CMsgClientSetPlayerNickname
+import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserverFriends.CMsgClientSetPlayerNicknameResponse
+import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserverFriends.CMsgPersonaChangeResponse
+import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserverLogin.CMsgClientAccountInfo
+import `in`.dragonbra.javasteam.steam.handlers.steamfriends.cache.AccountCache
+import `in`.dragonbra.javasteam.steam.handlers.steamfriends.cache.Clan
+import `in`.dragonbra.javasteam.steam.handlers.steamfriends.callback.AliasHistoryCallback
+import `in`.dragonbra.javasteam.steam.handlers.steamfriends.callback.ChatActionResultCallback
+import `in`.dragonbra.javasteam.steam.handlers.steamfriends.callback.ChatEnterCallback
+import `in`.dragonbra.javasteam.steam.handlers.steamfriends.callback.ChatInviteCallback
+import `in`.dragonbra.javasteam.steam.handlers.steamfriends.callback.ChatMemberInfoCallback
+import `in`.dragonbra.javasteam.steam.handlers.steamfriends.callback.ChatMsgCallback
+import `in`.dragonbra.javasteam.steam.handlers.steamfriends.callback.ChatRoomInfoCallback
+import `in`.dragonbra.javasteam.steam.handlers.steamfriends.callback.ClanStateCallback
+import `in`.dragonbra.javasteam.steam.handlers.steamfriends.callback.FriendAddedCallback
+import `in`.dragonbra.javasteam.steam.handlers.steamfriends.callback.FriendMsgCallback
+import `in`.dragonbra.javasteam.steam.handlers.steamfriends.callback.FriendMsgEchoCallback
+import `in`.dragonbra.javasteam.steam.handlers.steamfriends.callback.FriendMsgHistoryCallback
+import `in`.dragonbra.javasteam.steam.handlers.steamfriends.callback.FriendsListCallback
+import `in`.dragonbra.javasteam.steam.handlers.steamfriends.callback.IgnoreFriendCallback
+import `in`.dragonbra.javasteam.steam.handlers.steamfriends.callback.NicknameCallback
+import `in`.dragonbra.javasteam.steam.handlers.steamfriends.callback.NicknameListCallback
+import `in`.dragonbra.javasteam.steam.handlers.steamfriends.callback.PersonaChangeCallback
+import `in`.dragonbra.javasteam.steam.handlers.steamfriends.callback.PersonaStatesCallback
+import `in`.dragonbra.javasteam.steam.handlers.steamfriends.callback.ProfileInfoCallback
+import `in`.dragonbra.javasteam.steam.handlers.steamuser.callback.AccountInfoCallback
+import `in`.dragonbra.javasteam.steam.steamclient.configuration.SteamConfiguration
+import `in`.dragonbra.javasteam.types.AsyncJobSingle
+import `in`.dragonbra.javasteam.types.GameID
+import `in`.dragonbra.javasteam.types.JobID
+import `in`.dragonbra.javasteam.types.SteamID
+import `in`.dragonbra.javasteam.types.SteamID.ChatInstanceFlags
+import `in`.dragonbra.javasteam.util.compat.Consumer
+import `in`.dragonbra.javasteam.util.log.LogManager
+import `in`.dragonbra.javasteam.util.log.Logger
+import java.io.IOException
+import java.nio.charset.StandardCharsets
+import java.util.EnumMap
 
 /**
  * This handler handles all interaction with other users on the Steam3 network.
  */
-@SuppressWarnings("unused")
-public class SteamFriends extends ClientMsgHandler {
+@Suppress("unused", "MemberVisibilityCanBePrivate")
+class SteamFriends : ClientMsgHandler() {
 
-    private static final Logger logger = LogManager.getLogger(SteamFriends.class);
+    private val friendList: MutableList<SteamID> = mutableListOf()
 
-    private Map<EMsg, Consumer<IPacketMsg>> dispatchMap;
+    private val clanList: MutableList<SteamID> = mutableListOf()
 
-    public SteamFriends() {
-        dispatchMap = new HashMap<>();
+    private val cache: AccountCache = AccountCache()
 
-        dispatchMap.put(EMsg.ClientPersonaState, this::handlePersonaState);
-        dispatchMap.put(EMsg.ClientClanState, this::handleClanState);
-        dispatchMap.put(EMsg.ClientFriendsList, this::handleFriendsList);
-        dispatchMap.put(EMsg.ClientFriendMsgIncoming, this::handleFriendMsg);
-        dispatchMap.put(EMsg.ClientFriendMsgEchoToSender, this::handleFriendEchoMsg);
-        dispatchMap.put(EMsg.ClientChatGetFriendMessageHistoryResponse, this::handleFriendMessageHistoryResponse);
-        dispatchMap.put(EMsg.ClientAddFriendResponse, this::handleFriendResponse);
-        dispatchMap.put(EMsg.ClientChatEnter, this::handleChatEnter);
-        dispatchMap.put(EMsg.ClientChatMsg, this::handleChatMsg);
-        dispatchMap.put(EMsg.ClientChatMemberInfo, this::handleChatMemberInfo);
-        dispatchMap.put(EMsg.ClientChatRoomInfo, this::handleChatRoomInfo);
-        dispatchMap.put(EMsg.ClientChatActionResult, this::handleChatActionResult);
-        dispatchMap.put(EMsg.ClientChatInvite, this::handleChatInvite);
-        dispatchMap.put(EMsg.ClientSetIgnoreFriendResponse, this::handleIgnoreFriendResponse);
-        dispatchMap.put(EMsg.ClientFriendProfileInfoResponse, this::handleProfileInfoResponse);
-        dispatchMap.put(EMsg.ClientPersonaChangeResponse, this::handlePersonaChangeResponse);
-        dispatchMap.put(EMsg.ClientPlayerNicknameList, this::handleNicknameList);
-        dispatchMap.put(EMsg.AMClientSetPlayerNicknameResponse, this::handlePlayerNicknameResponse);
-        dispatchMap.put(EMsg.ClientAMGetPersonaNameHistoryResponse, this::handleAliasHistoryResponse);
+    private var dispatchMap: EnumMap<EMsg, Consumer<IPacketMsg>> = EnumMap(EMsg::class.java)
 
-        dispatchMap = Collections.unmodifiableMap(dispatchMap);
+    init {
+        dispatchMap[EMsg.ClientPersonaState] = Consumer(::handlePersonaState)
+        dispatchMap[EMsg.ClientClanState] = Consumer(::handleClanState)
+        dispatchMap[EMsg.ClientFriendsList] = Consumer(::handleFriendsList)
+        dispatchMap[EMsg.ClientFriendMsgIncoming] = Consumer(::handleFriendMsg)
+        dispatchMap[EMsg.ClientFriendMsgEchoToSender] = Consumer(::handleFriendEchoMsg)
+        dispatchMap[EMsg.ClientChatGetFriendMessageHistoryResponse] = Consumer(::handleFriendMessageHistoryResponse)
+        dispatchMap[EMsg.ClientAccountInfo] = Consumer(::handleAccountInfo)
+        dispatchMap[EMsg.ClientAddFriendResponse] = Consumer(::handleFriendResponse)
+        dispatchMap[EMsg.ClientChatEnter] = Consumer(::handleChatEnter)
+        dispatchMap[EMsg.ClientChatMsg] = Consumer(::handleChatMsg)
+        dispatchMap[EMsg.ClientChatMemberInfo] = Consumer(::handleChatMemberInfo)
+        dispatchMap[EMsg.ClientChatRoomInfo] = Consumer(::handleChatRoomInfo)
+        dispatchMap[EMsg.ClientChatActionResult] = Consumer(::handleChatActionResult)
+        dispatchMap[EMsg.ClientChatInvite] = Consumer(::handleChatInvite)
+        dispatchMap[EMsg.ClientSetIgnoreFriendResponse] = Consumer(::handleIgnoreFriendResponse)
+        dispatchMap[EMsg.ClientFriendProfileInfoResponse] = Consumer(::handleProfileInfoResponse)
+        dispatchMap[EMsg.ClientPersonaChangeResponse] = Consumer(::handlePersonaChangeResponse)
+        dispatchMap[EMsg.AMClientSetPlayerNicknameResponse] = Consumer(::handlePlayerNicknameResponse)
+        dispatchMap[EMsg.ClientAMGetPersonaNameHistoryResponse] = Consumer(::handleAliasHistoryResponse)
+        dispatchMap[EMsg.ClientPlayerNicknameList] = Consumer(::handleNicknameList)
+    }
+
+    /**
+     * Gets the local user's persona name. Will be null before user initialization.
+     *  User initialization is performed prior to [AccountInfoCallback] callback.
+     * @return the local username.
+     */
+    fun getPersonaName(): String? {
+        return cache.localUser.name
     }
 
     /**
      * Sets the local user's persona name and broadcasts it over the network.
-     * Results are returned in a{@link PersonaChangeCallback} callback.
-     *
+     *  Results are returned in a [PersonaChangeCallback] callback.
      * @param name The name.
      */
-    public void setPersonaName(String name) {
-        if (name == null) {
-            throw new IllegalArgumentException("name is null");
-        }
+    fun setPersonaName(name: String) {
+        // cache the local name right away, so that early calls to SetPersonaState don't reset the set name
+        cache.localUser.name = name
 
-        ClientMsgProtobuf<CMsgClientChangeStatus.Builder> stateMsg = new ClientMsgProtobuf<>(CMsgClientChangeStatus.class, EMsg.ClientChangeStatus);
+        ClientMsgProtobuf<CMsgClientChangeStatus.Builder>(
+            CMsgClientChangeStatus::class.java,
+            EMsg.ClientChangeStatus
+        ).apply {
+            cache.localUser.personaState?.code()?.let { body.setPersonaState(it) }
+            body.setPlayerName(name)
+        }.also(client::send)
+    }
 
-        stateMsg.getBody().setPlayerName(name);
-
-        client.send(stateMsg);
+    /**
+     * Gets the local user's persona state.
+     * @return The persona state.
+     */
+    fun getPersonaState(): EPersonaState? {
+        return cache.localUser.personaState
     }
 
     /**
      * Sets the local user's persona state and broadcasts it over the network.
-     * Results are returned in a{@link PersonaChangeCallback} callback.
-     *
+     *  Results are returned in a [PersonaChangeCallback] callback.
      * @param state The state.
      */
-    public void setPersonaState(EPersonaState state) {
-        if (state == null) {
-            throw new IllegalArgumentException("state is null");
-        }
+    fun setPersonaState(state: EPersonaState) {
+        cache.localUser.personaState = state
 
-        ClientMsgProtobuf<CMsgClientChangeStatus.Builder> stateMsg = new ClientMsgProtobuf<>(CMsgClientChangeStatus.class, EMsg.ClientChangeStatus);
-
-        stateMsg.getBody().setPersonaState(state.code());
-        stateMsg.getBody().setPersonaSetByUser(true);
-
-        client.send(stateMsg);
+        ClientMsgProtobuf<CMsgClientChangeStatus.Builder>(
+            CMsgClientChangeStatus::class.java,
+            EMsg.ClientChangeStatus
+        ).apply {
+            body.setPersonaState(state.code())
+            body.setPersonaSetByUser(true)
+        }.also(client::send)
     }
 
     /**
      * JavaSteam addition:
-     * Sets the local user's persona state flag back to normal desktop mode.
+     *  Sets the local user's persona state flag back to normal desktop mode.
      */
-    public void resetPersonaStateFlag() {
-        ClientMsgProtobuf<CMsgClientChangeStatus.Builder> stateMsg = new ClientMsgProtobuf<>(CMsgClientChangeStatus.class, EMsg.ClientChangeStatus);
-
-        stateMsg.getBody().setPersonaSetByUser(true);
-        stateMsg.getBody().setPersonaStateFlags(0);
-
-        client.send(stateMsg);
+    fun resetPersonaStateFlag() {
+        ClientMsgProtobuf<CMsgClientChangeStatus.Builder>(
+            CMsgClientChangeStatus::class.java,
+            EMsg.ClientChangeStatus
+        ).apply {
+            body.setPersonaSetByUser(true)
+            body.setPersonaStateFlags(0)
+        }.also(client::send)
     }
 
     /**
      * JavaSteam addition:
-     * Sets the local user's persona state flag to a valid ClientType
-     *
+     *  Sets the local user's persona state flag to a valid ClientType
      * @param flag one of the following
-     *             {@link EPersonaStateFlag#ClientTypeWeb},
-     *             {@link EPersonaStateFlag#ClientTypeMobile},
-     *             {@link EPersonaStateFlag#ClientTypeTenfoot},
-     *             or {@link EPersonaStateFlag#ClientTypeVR}.
+     * [EPersonaStateFlag.ClientTypeWeb],
+     * [EPersonaStateFlag.ClientTypeMobile],
+     * [EPersonaStateFlag.ClientTypeTenfoot],
+     * [EPersonaStateFlag.ClientTypeVR],
+     * or [EPersonaStateFlag.LaunchTypeGamepad].
      */
-    public void setPersonaStateFlag(EPersonaStateFlag flag) {
-        if (flag.code() < EPersonaStateFlag.ClientTypeWeb.code() || flag.code() > EPersonaStateFlag.ClientTypeVR.code()) {
-            throw new IllegalArgumentException("Persona State Flag was not a valid ClientType");
+    fun setPersonaStateFlag(flag: EPersonaStateFlag) {
+        require(flag >= EPersonaStateFlag.ClientTypeWeb) {
+            "Persona State Flag was not a valid ClientType"
+        }
+        require(flag <= EPersonaStateFlag.LaunchTypeGamepad) {
+            "Persona State Flag was not a valid ClientType"
         }
 
-        ClientMsgProtobuf<CMsgClientChangeStatus.Builder> stateMsg = new ClientMsgProtobuf<>(CMsgClientChangeStatus.class, EMsg.ClientChangeStatus);
+        ClientMsgProtobuf<CMsgClientChangeStatus.Builder>(
+            CMsgClientChangeStatus::class.java,
+            EMsg.ClientChangeStatus
+        ).apply {
+            body.setPersonaSetByUser(true)
+            body.setPersonaStateFlags(flag.code())
+        }.also(client::send)
+    }
 
-        stateMsg.getBody().setPersonaSetByUser(true);
-        stateMsg.getBody().setPersonaStateFlags(flag.code());
+    /**
+     * Gets the friend count of the local user.
+     * @return the number of friends.
+     */
+    fun getFriendCount(): Int {
+        // lock it?
+        return friendList.size
+    }
 
-        client.send(stateMsg);
+    /**
+     * Gets a friend by index.
+     * @param index the index.
+     * @return A valid steamid of a friend if the index is in range; otherwise a steamid representing 0.
+     */
+    fun getFriendByIndex(index: Int): SteamID {
+        // lock it?
+        if (index < 0 || index >= friendList.size) {
+            return SteamID(0)
+        }
+
+        return friendList[index]
+    }
+
+    /**
+     * Gets the persona name of a friend.
+     * @param steamID the [SteamID].
+     * @return the name.
+     */
+    fun getFriendPersonaName(steamID: SteamID): String? {
+        return cache.getUser(steamID).name
+    }
+
+    /**
+     * Gets the persona state of a friend.
+     * @param steamID the [SteamID].
+     * @return the persona state, or null if not set.
+     */
+    fun getFriendPersonaState(steamID: SteamID): EPersonaState? {
+        return cache.getUser(steamID).personaState
+    }
+
+    /**
+     * Gets the relationship of a friend.
+     * @param steamID the [SteamID].
+     * @return The relationship of the friend to the local user, or null of not set.
+     */
+    fun getFriendRelationship(steamID: SteamID): EFriendRelationship? {
+        return cache.getUser(steamID).relationship
+    }
+
+    /**
+     * Gets the game name of a friend playing a game.
+     * @param steamID the [SteamID].
+     * @return The game name of a friend playing a game, or null if they haven't been cached yet.
+     */
+    fun getFriendGamePlayedName(steamID: SteamID): String? {
+        return cache.getUser(steamID).gamaName
+    }
+
+    /**
+     * Gets the GameID of a friend playing a game.
+     * @param steamID the [SteamID].
+     * @return The [GameID] of a friend playing a game, or 0 if they haven't been cached yet.
+     */
+    fun getFriendGamePlayed(steamID: SteamID): GameID {
+        return cache.getUser(steamID).gameID
+    }
+
+    /**
+     * Gets an SHA-1 hash representing the friend's avatar.
+     * @param steamID the [SteamID].
+     * @return A byte array representing an SHA-1 hash of the friend's avatar, or null if not set.
+     */
+    fun getFriendAvatar(steamID: SteamID): ByteArray? {
+        return cache.getUser(steamID).avatarHash
+    }
+
+    /**
+     * Gets the count of clans the local user is a member of.
+     * @return The number of clans this user is a member of.
+     */
+    fun getClanCount(): Int {
+        return clanList.size
+    }
+
+    /**
+     * Gets a clan SteamID by index.
+     * @param index The index.
+     * @return A valid steamid of a clan if the index is in range; otherwise a steamid representing 0.
+     */
+    fun getClanByIndex(index: Int): SteamID {
+        if (index < 0 || index >= clanList.size) {
+            return SteamID(0)
+        }
+
+        return clanList[index]
+    }
+
+    /**
+     * Gets the name of a clan.
+     * @param steamID The clan SteamID.
+     * @return The name.
+     */
+    fun getClanName(steamID: SteamID): String? {
+        return cache.clans.getAccount(steamID, Clan::class.java).name
+    }
+
+    /**
+     * Gets the relationship of a clan.
+     * @param steamID The clan SteamID.
+     * @return The relationship of the clan to the local user.
+     */
+    fun getClanRelationship(steamID: SteamID): EClanRelationship? {
+        return cache.clans.getAccount(steamID, Clan::class.java).relationship
+    }
+
+    /**
+     * Gets an SHA-1 hash representing the clan's avatar.
+     * @param steamID The SteamID of the clan to get the avatar of.
+     * @return A byte array representing an SHA-1 hash of the clan's avatar, or null if the clan could not be found.
+     */
+    fun getClanAvatar(steamID: SteamID): ByteArray? {
+        return cache.clans.getAccount(steamID, Clan::class.java).avatarHash
     }
 
     /**
      * Sends a chat message to a friend.
-     *
      * @param target  The target to send to.
      * @param type    The type of message to send.
      * @param message The message to send.
      */
-    public void sendChatMessage(SteamID target, EChatEntryType type, String message) {
-        if (target == null) {
-            throw new IllegalArgumentException("target is null");
-        }
-
-        if (type == null) {
-            throw new IllegalArgumentException("type is null");
-        }
-
-        if (message == null) {
-            throw new IllegalArgumentException("message is null");
-        }
-
-        ClientMsgProtobuf<CMsgClientFriendMsg.Builder> chatMsg = new ClientMsgProtobuf<>(CMsgClientFriendMsg.class, EMsg.ClientFriendMsg);
-
-        chatMsg.getBody().setSteamid(target.convertToUInt64());
-        chatMsg.getBody().setChatEntryType(type.code());
-        chatMsg.getBody().setMessage(ByteString.copyFrom(message, StandardCharsets.UTF_8));
-
-        client.send(chatMsg);
+    fun sendChatMessage(target: SteamID, type: EChatEntryType, message: String) {
+        ClientMsgProtobuf<CMsgClientFriendMsg.Builder>(
+            CMsgClientFriendMsg::class.java,
+            EMsg.ClientFriendMsg
+        ).apply {
+            body.setSteamid(target.convertToUInt64())
+            body.setChatEntryType(type.code())
+            body.setMessage(ByteString.copyFrom(message, StandardCharsets.UTF_8))
+        }.also(client::send)
     }
 
     /**
      * Sends a friend request to a user.
-     *
      * @param accountNameOrEmail The account name or email of the user.
      */
-    public void addFriend(String accountNameOrEmail) {
-        if (accountNameOrEmail == null) {
-            throw new IllegalArgumentException("accountNameOrEmail is null");
-        }
-
-        ClientMsgProtobuf<CMsgClientAddFriend.Builder> addFriend = new ClientMsgProtobuf<>(CMsgClientAddFriend.class, EMsg.ClientAddFriend);
-
-        addFriend.getBody().setAccountnameOrEmailToAdd(accountNameOrEmail);
-
-        client.send(addFriend);
+    fun addFriend(accountNameOrEmail: String) {
+        ClientMsgProtobuf<CMsgClientAddFriend.Builder>(
+            CMsgClientAddFriend::class.java,
+            EMsg.ClientAddFriend
+        ).apply {
+            body.setAccountnameOrEmailToAdd(accountNameOrEmail)
+        }.also(client::send)
     }
 
     /**
      * Sends a friend request to a user.
-     *
      * @param steamID The SteamID of the friend to add.
      */
-    public void addFriend(SteamID steamID) {
-        if (steamID == null) {
-            throw new IllegalArgumentException("steamID is null");
-        }
-
-        ClientMsgProtobuf<CMsgClientAddFriend.Builder> addFriend = new ClientMsgProtobuf<>(CMsgClientAddFriend.class, EMsg.ClientAddFriend);
-
-        addFriend.getBody().setSteamidToAdd(steamID.convertToUInt64());
-
-        client.send(addFriend);
+    fun addFriend(steamID: SteamID) {
+        ClientMsgProtobuf<CMsgClientAddFriend.Builder>(
+            CMsgClientAddFriend::class.java,
+            EMsg.ClientAddFriend
+        ).apply {
+            body.setSteamidToAdd(steamID.convertToUInt64())
+        }.also(client::send)
     }
 
     /**
      * Removes a friend from your friends list.
-     *
      * @param steamID The SteamID of the friend to remove.
      */
-    public void removeFriend(SteamID steamID) {
-        if (steamID == null) {
-            throw new IllegalArgumentException("steamID is null");
-        }
-
-        ClientMsgProtobuf<CMsgClientRemoveFriend.Builder> removeFriend = new ClientMsgProtobuf<>(CMsgClientRemoveFriend.class, EMsg.ClientRemoveFriend);
-
-        removeFriend.getBody().setFriendid(steamID.convertToUInt64());
-
-        client.send(removeFriend);
+    fun removeFriend(steamID: SteamID) {
+        ClientMsgProtobuf<CMsgClientRemoveFriend.Builder>(
+            CMsgClientRemoveFriend::class.java,
+            EMsg.ClientRemoveFriend
+        ).apply {
+            body.setFriendid(steamID.convertToUInt64())
+        }.also(client::send)
     }
 
     /**
      * Attempts to join a chat room.
-     *
      * @param steamID The SteamID of the chat room.
      */
-    public void joinChat(SteamID steamID) {
-        if (steamID == null) {
-            throw new IllegalArgumentException("steamID is null");
+    fun joinChat(steamID: SteamID) {
+        var chatId = SteamID(steamID.convertToUInt64()) // copy the steamid so we don't modify it
+        if (chatId.isClanAccount) {
+            chatId = chatId.toChatID()
         }
 
-        SteamID chatID = fixChatID(steamID); // copy the steamid so we don't modify it
-
-        ClientMsg<MsgClientJoinChat> joinChat = new ClientMsg<>(MsgClientJoinChat.class);
-
-        joinChat.getBody().setSteamIdChat(chatID);
-
-        client.send(joinChat);
+        ClientMsg(MsgClientJoinChat::class.java).apply {
+            body.steamIdChat = chatId
+        }.also(client::send)
     }
 
     /**
      * Attempts to leave a chat room.
-     *
      * @param steamID The SteamID of the chat room.
      */
-    public void leaveChat(SteamID steamID) {
-        if (steamID == null) {
-            throw new IllegalArgumentException("steamID is null");
+    fun leaveChat(steamID: SteamID) {
+        val chatId = SteamID(steamID.convertToUInt64()) // copy the steamid so we don't modify it
+        if (chatId.isClanAccount) {
+            // this steamid is incorrect, so we'll fix it up
+            chatId.accountInstance = ChatInstanceFlags.CLAN.code()
+            chatId.accountType = EAccountType.Chat
         }
 
-        SteamID chatID = fixChatID(steamID); // copy the steamid so we don't modify it
+        ClientMsg(MsgClientChatMemberInfo::class.java).apply {
+            body.steamIdChat = chatId
+            body.type = EChatInfoType.StateChange
+            try {
+                // SteamID can be null if not connected - will be ultimately ignored in Client.Send.
+                val localSteamID = client.steamID?.convertToUInt64() ?: return
 
-        ClientMsg<MsgClientChatMemberInfo> leaveChat = new ClientMsg<>(MsgClientChatMemberInfo.class);
-
-        leaveChat.getBody().setSteamIdChat(chatID);
-        leaveChat.getBody().setType(EChatInfoType.StateChange);
-
-        try {
-            leaveChat.write(client.getSteamID().convertToUInt64()); // ChatterActedOn
-            leaveChat.write(EChatMemberStateChange.Left.code()); // StateChange
-            leaveChat.write(client.getSteamID().convertToUInt64()); // ChatterActedBy
-        } catch (IOException e) {
-            logger.debug(e);
-        }
-
-        client.send(leaveChat);
+                write(localSteamID) // ChatterActedOn
+                write(EChatMemberStateChange.Left.code()) // StateChange
+                write(localSteamID) // ChatterActedBy
+            } catch (e: IOException) {
+                logger.debug(e)
+            }
+        }.also(client::send)
     }
 
     /**
      * Sends a message to a chat room.
-     *
      * @param steamIdChat The SteamID of the chat room.
      * @param type        The message type.
      * @param message     The message.
      */
-    public void sendChatRoomMessage(SteamID steamIdChat, EChatEntryType type, String message) {
-        if (steamIdChat == null) {
-            throw new IllegalArgumentException("steamIdChat is null");
+    fun sendChatRoomMessage(steamIdChat: SteamID, type: EChatEntryType, message: String) {
+        val chatId = SteamID(steamIdChat.convertToUInt64()) // copy the steamid so we don't modify it
+        if (chatId.isClanAccount) {
+            // this steamid is incorrect, so we'll fix it up
+            chatId.accountInstance = ChatInstanceFlags.CLAN.code()
+            chatId.accountType = EAccountType.Chat
         }
 
-        if (type == null) {
-            throw new IllegalArgumentException("type is null");
-        }
-
-        if (message == null) {
-            throw new IllegalArgumentException("message is null");
-        }
-
-        SteamID chatID = fixChatID(steamIdChat); // copy the steamid so we don't modify it
-
-        ClientMsg<MsgClientChatMsg> chatMsg = new ClientMsg<>(MsgClientChatMsg.class);
-
-        chatMsg.getBody().setChatMsgType(type);
-        chatMsg.getBody().setSteamIdChatRoom(chatID);
-        chatMsg.getBody().setSteamIdChatter(client.getSteamID());
-
-        try {
-            chatMsg.writeNullTermString(message, StandardCharsets.UTF_8);
-        } catch (IOException e) {
-            logger.debug(e);
-        }
-
-        client.send(chatMsg);
+        ClientMsg(MsgClientChatMsg::class.java).apply {
+            body.chatMsgType = type
+            body.steamIdChatRoom = chatId
+            // Can be null if not connected - will ultimately be ignored in Client.Send.
+            body.steamIdChatter = client.steamID ?: SteamID()
+            try {
+                writeNullTermString(message, StandardCharsets.UTF_8)
+            } catch (e: IOException) {
+                logger.debug(e)
+            }
+        }.also(client::send)
     }
 
     /**
      * Invites a user to a chat room.
-     * The results of this action will be available through the {@link ChatActionResultCallback} callback.
-     *
+     *  The results of this action will be available through the [ChatActionResultCallback] callback.
      * @param steamIdUser The SteamID of the user to invite.
      * @param steamIdChat The SteamID of the chat room to invite the user to.
      */
-    public void inviteUserToChat(SteamID steamIdUser, SteamID steamIdChat) {
-        if (steamIdChat == null) {
-            throw new IllegalArgumentException("steamIdChat is null");
+    fun inviteUserToChat(steamIdUser: SteamID, steamIdChat: SteamID) {
+        val chatId = SteamID(steamIdChat.convertToUInt64()) // copy the steamid so we don't modify it
+        if (chatId.isClanAccount) {
+            // this steamid is incorrect, so we'll fix it up
+            chatId.accountInstance = ChatInstanceFlags.CLAN.code()
+            chatId.accountType = EAccountType.Chat
         }
 
-        if (steamIdUser == null) {
-            throw new IllegalArgumentException("steamIdUser is null");
-        }
-
-        SteamID chatID = fixChatID(steamIdChat); // copy the steamid so we don't modify it
-
-        ClientMsgProtobuf<CMsgClientChatInvite.Builder> inviteMsg = new ClientMsgProtobuf<>(CMsgClientChatInvite.class, EMsg.ClientChatInvite);
-
-        inviteMsg.getBody().setSteamIdChat(chatID.convertToUInt64());
-        inviteMsg.getBody().setSteamIdInvited(steamIdUser.convertToUInt64());
-
-        // steamclient also sends the steamid of the user that did the invitation
-        // we'll mimic that behavior
-        inviteMsg.getBody().setSteamIdPatron(client.getSteamID().convertToUInt64());
-
-        client.send(inviteMsg);
+        ClientMsgProtobuf<CMsgClientChatInvite.Builder>(
+            CMsgClientChatInvite::class.java,
+            EMsg.ClientChatInvite
+        ).apply {
+            body.setSteamIdChat(chatId.convertToUInt64())
+            body.setSteamIdInvited(steamIdUser.convertToUInt64())
+            // steamclient also sends the steamid of the user that did the invitation
+            // we'll mimic that behavior
+            body.setSteamIdPatron(client.steamID?.convertToUInt64() ?: SteamID().convertToUInt64())
+        }.also(client::send)
     }
 
     /**
      * Kicks the specified chat member from the given chat room.
-     *
      * @param steamIdChat   The SteamID of chat room to kick the member from.
      * @param steamIdMember The SteamID of the member to kick from the chat.
      */
-    public void kickChatMember(SteamID steamIdChat, SteamID steamIdMember) {
-        if (steamIdChat == null) {
-            throw new IllegalArgumentException("steamIdChat is null");
+    fun kickChatMember(steamIdChat: SteamID, steamIdMember: SteamID) {
+        val chatId = SteamID(steamIdChat.convertToUInt64()) // copy the steamid so we don't modify it
+        if (chatId.isClanAccount) {
+            // this steamid is incorrect, so we'll fix it up
+            chatId.accountInstance = ChatInstanceFlags.CLAN.code()
+            chatId.accountType = EAccountType.Chat
         }
 
-        if (steamIdMember == null) {
-            throw new IllegalArgumentException("steamIdMember is null");
-        }
-
-        SteamID chatID = fixChatID(steamIdChat); // copy the steamid so we don't modify it
-
-        ClientMsg<MsgClientChatAction> kickMember = new ClientMsg<>(MsgClientChatAction.class);
-
-        kickMember.getBody().setSteamIdChat(chatID);
-        kickMember.getBody().setSteamIdUserToActOn(steamIdMember);
-
-        kickMember.getBody().setChatAction(EChatAction.Kick);
-
-        client.send(kickMember);
+        ClientMsg(MsgClientChatAction::class.java).apply {
+            body.steamIdChat = chatId
+            body.steamIdUserToActOn = steamIdMember
+            body.chatAction = EChatAction.Kick
+        }.also(client::send)
     }
 
     /**
      * Bans the specified chat member from the given chat room.
-     *
      * @param steamIdChat   The SteamID of chat room to ban the member from.
      * @param steamIdMember The SteamID of the member to ban from the chat.
      */
-    public void banChatMember(SteamID steamIdChat, SteamID steamIdMember) {
-        if (steamIdChat == null) {
-            throw new IllegalArgumentException("steamIdChat is null");
+    fun banChatMember(steamIdChat: SteamID, steamIdMember: SteamID) {
+        val chatId = SteamID(steamIdChat.convertToUInt64()) // copy the steamid so we don't modify it
+        if (chatId.isClanAccount) {
+            // this steamid is incorrect, so we'll fix it up
+            chatId.accountInstance = ChatInstanceFlags.CLAN.code()
+            chatId.accountType = EAccountType.Chat
         }
 
-        if (steamIdMember == null) {
-            throw new IllegalArgumentException("steamIdMember is null");
-        }
-
-        SteamID chatID = fixChatID(steamIdChat); // copy the steamid so we don't modify it
-
-        ClientMsg<MsgClientChatAction> kickMember = new ClientMsg<>(MsgClientChatAction.class);
-
-        kickMember.getBody().setSteamIdChat(chatID);
-        kickMember.getBody().setSteamIdUserToActOn(steamIdMember);
-
-        kickMember.getBody().setChatAction(EChatAction.Ban);
-
-        client.send(kickMember);
+        ClientMsg(MsgClientChatAction::class.java).apply {
+            body.steamIdChat = chatId
+            body.steamIdUserToActOn = steamIdMember
+            body.chatAction = EChatAction.Ban
+        }.also(client::send)
     }
 
     /**
      * Unbans the specified chat member from the given chat room.
-     *
      * @param steamIdChat   The SteamID of chat room to unban the member from.
      * @param steamIdMember The SteamID of the member to unban from the chat.
      */
-    public void unbanChatMember(SteamID steamIdChat, SteamID steamIdMember) {
-        if (steamIdChat == null) {
-            throw new IllegalArgumentException("steamIdChat is null");
+    fun unbanChatMember(steamIdChat: SteamID, steamIdMember: SteamID) {
+        val chatId = SteamID(steamIdChat.convertToUInt64()) // copy the steamid so we don't modify it
+        if (chatId.isClanAccount) {
+            // this steamid is incorrect, so we'll fix it up
+            chatId.accountInstance = ChatInstanceFlags.CLAN.code()
+            chatId.accountType = EAccountType.Chat
         }
 
-        if (steamIdMember == null) {
-            throw new IllegalArgumentException("steamIdMember is null");
-        }
-
-        SteamID chatID = fixChatID(steamIdChat); // copy the steamid so we don't modify it
-
-        ClientMsg<MsgClientChatAction> kickMember = new ClientMsg<>(MsgClientChatAction.class);
-
-        kickMember.getBody().setSteamIdChat(chatID);
-        kickMember.getBody().setSteamIdUserToActOn(steamIdMember);
-
-        kickMember.getBody().setChatAction(EChatAction.UnBan);
-
-        client.send(kickMember);
+        ClientMsg(MsgClientChatAction::class.java).apply {
+            body.steamIdChat = chatId
+            body.steamIdUserToActOn = steamIdMember
+            body.chatAction = EChatAction.UnBan
+        }.also(client::send)
     }
 
     /**
      * Requests persona state for a list of specified SteamID.
-     * Results are returned in {@link PersonaState}.
-     *
+     *  Results are returned in [PersonaState].
      * @param steamIdList   A list of SteamIDs to request the info of.
-     * @param requestedInfo The requested info flags. If none specified, this uses {@link SteamConfiguration#getDefaultPersonaStateFlags()}.
+     * @param requestedInfo The requested info flags. If none specified, this uses [SteamConfiguration.defaultPersonaStateFlags].
      */
-    public void requestFriendInfo(List<SteamID> steamIdList, int requestedInfo) {
-        if (steamIdList == null) {
-            throw new IllegalArgumentException("steamIdList is null");
+    @JvmOverloads
+    fun requestFriendInfo(steamIdList: List<SteamID>, requestedInfo: Int? = null) {
+        var info = requestedInfo
+
+        if (info == null) {
+            info = EClientPersonaStateFlag.code(client.configuration.defaultPersonaStateFlags)
         }
 
-        if (requestedInfo == 0) {
-            requestedInfo = EClientPersonaStateFlag.code(client.getConfiguration().getDefaultPersonaStateFlags());
-        }
-
-        ClientMsgProtobuf<CMsgClientRequestFriendData.Builder> request = new ClientMsgProtobuf<>(CMsgClientRequestFriendData.class, EMsg.ClientRequestFriendData);
-
-        for (SteamID steamID : steamIdList) {
-            request.getBody().addFriends(steamID.convertToUInt64());
-        }
-        request.getBody().setPersonaStateRequested(requestedInfo);
-
-        client.send(request);
+        ClientMsgProtobuf<CMsgClientRequestFriendData.Builder>(
+            CMsgClientRequestFriendData::class.java,
+            EMsg.ClientRequestFriendData
+        ).apply {
+            body.setPersonaStateRequested(info)
+            body.addAllFriends(steamIdList.map { it.convertToUInt64() })
+        }.also(client::send)
     }
 
     /**
      * Requests persona state for a specified SteamID.
-     * Results are returned in {@link PersonaState}.
-     *
+     *  Results are returned in [PersonaState].
      * @param steamID       A SteamID to request the info of.
-     * @param requestedInfo The requested info flags. If none specified, this uses {@link SteamConfiguration#getDefaultPersonaStateFlags()}.
+     * @param requestedInfo The requested info flags. If none specified, this uses [SteamConfiguration.defaultPersonaStateFlags].
      */
-    public void requestFriendInfo(SteamID steamID, int requestedInfo) {
-        if (steamID == null) {
-            throw new IllegalArgumentException("steamID is null");
-        }
-
-        List<SteamID> list = new ArrayList<>();
-        list.add(steamID);
-        requestFriendInfo(list, requestedInfo);
+    @JvmOverloads
+    fun requestFriendInfo(steamID: SteamID, requestedInfo: Int? = null) {
+        requestFriendInfo(listOf(steamID), requestedInfo)
     }
 
     /**
-     * Ignores a friend on Steam.
-     * Results are returned in a {@link IgnoreFriendCallback}.
-     *
-     * @param steamID The SteamID of the friend to ignore or unignore.
-     * @return The Job ID of the request. This can be used to find the appropriate {@link IgnoreFriendCallback}.
+     * Ignores or Un-Ignores a friend on Steam.
+     *  Results are returned in a [IgnoreFriendCallback].
+     * @param steamID   The SteamID of the friend to ignore or un-ignore.
+     * @param setIgnore if set to **true**, the friend will be ignored; otherwise, they will be un-ignored.
+     * @return The Job ID of the request. This can be used to find the appropriate [IgnoreFriendCallback].
      */
-    public AsyncJobSingle<IgnoreFriendCallback> ignoreFriend(SteamID steamID) {
-        return ignoreFriend(steamID, true);
+    @JvmOverloads
+    fun ignoreFriend(steamID: SteamID, setIgnore: Boolean = true): AsyncJobSingle<IgnoreFriendCallback> {
+        val ignore = ClientMsg(MsgClientSetIgnoreFriend::class.java).apply {
+            sourceJobID = client.getNextJobID()
+            body.mySteamId =
+                client.steamID ?: SteamID() // Can be null if not connected - will ultimately be ignored in Client.Send.
+            body.ignore = if (setIgnore) 1.toByte() else 0.toByte()
+            body.steamIdFriend = steamID
+        }.also(client::send)
+
+        return AsyncJobSingle(client, ignore.sourceJobID)
     }
 
     /**
-     * Ignores or unignores a friend on Steam.
-     * Results are returned in a {@link IgnoreFriendCallback}.
-     *
-     * @param steamID   The SteamID of the friend to ignore or unignore.
-     * @param setIgnore if set to <b>true</b>, the friend will be ignored; otherwise, they will be unignored.
-     * @return The Job ID of the request. This can be used to find the appropriate {@link IgnoreFriendCallback}.
-     */
-    public AsyncJobSingle<IgnoreFriendCallback> ignoreFriend(SteamID steamID, boolean setIgnore) {
-        if (steamID == null) {
-            throw new IllegalArgumentException("steamID is null");
-        }
-
-        ClientMsg<MsgClientSetIgnoreFriend> ignore = new ClientMsg<>(MsgClientSetIgnoreFriend.class);
-        JobID jobID = client.getNextJobID();
-        ignore.setSourceJobID(jobID);
-
-        ignore.getBody().setMySteamId(client.getSteamID());
-        ignore.getBody().setIgnore(setIgnore ? (byte) 1 : (byte) 0);
-        ignore.getBody().setSteamIdFriend(steamID);
-
-        client.send(ignore);
-
-        return new AsyncJobSingle<>(this.client, ignore.getSourceJobID());
-    }
-
-    /**
-     * Requests profile information for the given {@link SteamID}
-     * Results are returned in a {@link ProfileInfoCallback}
-     *
+     * Requests profile information for the given [SteamID]
+     *  Results are returned in a [ProfileInfoCallback]
      * @param steamID The SteamID of the friend to request the details of.
-     * @return The Job ID of the request. This can be used to find the appropriate {@link ProfileInfoCallback}.
+     * @return The Job ID of the request. This can be used to find the appropriate [ProfileInfoCallback].
      */
-    public AsyncJobSingle<ProfileInfoCallback> requestProfileInfo(SteamID steamID) {
-        if (steamID == null) {
-            throw new IllegalArgumentException("steamID is null");
-        }
+    fun requestProfileInfo(steamID: SteamID): AsyncJobSingle<ProfileInfoCallback> {
+        val request = ClientMsgProtobuf<CMsgClientFriendProfileInfo.Builder>(
+            CMsgClientFriendProfileInfo::class.java,
+            EMsg.ClientFriendProfileInfo
+        ).apply {
+            sourceJobID = client.getNextJobID()
+            body.setSteamidFriend(steamID.convertToUInt64())
+        }.also(client::send)
 
-        ClientMsgProtobuf<CMsgClientFriendProfileInfo.Builder> request =
-                new ClientMsgProtobuf<>(CMsgClientFriendProfileInfo.class, EMsg.ClientFriendProfileInfo);
-        JobID jobID = client.getNextJobID();
-        request.setSourceJobID(jobID);
-
-        request.getBody().setSteamidFriend(steamID.convertToUInt64());
-
-        client.send(request);
-
-        return new AsyncJobSingle<>(this.client, request.getSourceJobID());
+        return AsyncJobSingle(client, request.sourceJobID)
     }
 
     /**
      * Requests the last few chat messages with a friend.
-     * Results are returned in a {@link FriendMsgHistoryCallback}
-     *
+     *  Results are returned in a [FriendMsgHistoryCallback]
      * @param steamID SteamID of the friend
      */
-    public void requestMessageHistory(SteamID steamID) {
-        if (steamID == null) {
-            throw new IllegalArgumentException("steamID is null");
-        }
-
-        ClientMsgProtobuf<CMsgClientChatGetFriendMessageHistory.Builder> request =
-                new ClientMsgProtobuf<>(CMsgClientChatGetFriendMessageHistory.class, EMsg.ClientChatGetFriendMessageHistory);
-
-        request.getBody().setSteamid(steamID.convertToUInt64());
-
-        client.send(request);
+    fun requestMessageHistory(steamID: SteamID) {
+        ClientMsgProtobuf<CMsgClientChatGetFriendMessageHistory.Builder>(
+            CMsgClientChatGetFriendMessageHistory::class.java,
+            EMsg.ClientChatGetFriendMessageHistory
+        ).apply {
+            body.setSteamid(steamID.convertToUInt64())
+        }.also(client::send)
     }
 
     /**
      * Requests all offline messages.
-     * This also marks them as read server side.
-     * Results are returned in a {@link FriendMsgHistoryCallback}.
+     *  This also marks them as read server side.
+     *  Results are returned in a [FriendMsgHistoryCallback].
      */
-    public void requestOfflineMessages() {
-        ClientMsgProtobuf<CMsgClientChatGetFriendMessageHistoryForOfflineMessages.Builder> request =
-                new ClientMsgProtobuf<>(CMsgClientChatGetFriendMessageHistoryForOfflineMessages.class, EMsg.ClientChatGetFriendMessageHistoryForOfflineMessages);
-        client.send(request);
+    fun requestOfflineMessages() {
+        ClientMsgProtobuf<CMsgClientChatGetFriendMessageHistoryForOfflineMessages.Builder>(
+            CMsgClientChatGetFriendMessageHistoryForOfflineMessages::class.java,
+            EMsg.ClientChatGetFriendMessageHistoryForOfflineMessages
+        ).also(client::send)
     }
 
     /**
      * Set the nickname of a friend.
-     * The result is returned in a {@link NicknameCallback}.
-     *
+     *  The result is returned in a [NicknameCallback].
      * @param friendID the steam id of the friend
      * @param nickname the nickname to set to
-     * @return The Job ID of the request. This can be used to find the appropriate {@link NicknameCallback}.
+     * @return The Job ID of the request. This can be used to find the appropriate [NicknameCallback].
      */
-    public JobID setFriendNickname(SteamID friendID, String nickname) {
-        if (friendID == null) {
-            throw new IllegalArgumentException("friendID is null");
-        }
-        if (nickname == null) {
-            throw new IllegalArgumentException("nickname is null");
-        }
+    fun setFriendNickname(friendID: SteamID, nickname: String): JobID {
+        val jobID: JobID = client.getNextJobID()
+        ClientMsgProtobuf<CMsgClientSetPlayerNickname.Builder>(
+            CMsgClientSetPlayerNickname::class.java,
+            EMsg.AMClientSetPlayerNickname
+        ).apply {
+            sourceJobID = jobID
+            body.setSteamid(friendID.convertToUInt64())
+            body.setNickname(nickname)
+        }.also(client::send)
 
-        ClientMsgProtobuf<CMsgClientSetPlayerNickname.Builder> request =
-                new ClientMsgProtobuf<>(CMsgClientSetPlayerNickname.class, EMsg.AMClientSetPlayerNickname);
-        JobID jobID = client.getNextJobID();
-        request.setSourceJobID(jobID);
-
-        request.getBody().setSteamid(friendID.convertToUInt64());
-        request.getBody().setNickname(nickname);
-
-        client.send(request);
-
-        return jobID;
+        return jobID
     }
 
     /**
      * Request the alias history of the account of the given steam id.
-     * The result is returned in a {@link AliasHistoryCallback}.
-     *
+     *  The result is returned in a [AliasHistoryCallback].
      * @param steamID the steam id
-     * @return The Job ID of the request. This can be used to find the appropriate {@link AliasHistoryCallback}.
+     * @return The Job ID of the request. This can be used to find the appropriate [AliasHistoryCallback].
      */
-    public JobID requestAliasHistory(SteamID steamID) {
-        if (steamID == null) {
-            throw new IllegalArgumentException("steamID is null");
-        }
-        return requestAliasHistory(Collections.singletonList(steamID));
-    }
+    fun requestAliasHistory(steamID: SteamID): JobID = requestAliasHistory(listOf(steamID))
 
     /**
      * Request the alias history of the accounts of the given steam ids.
-     * The result is returned in a {@link AliasHistoryCallback}.
-     *
+     *  The result is returned in a [AliasHistoryCallback].
      * @param steamIDs the steam ids
-     * @return The Job ID of the request. This can be used to find the appropriate {@link AliasHistoryCallback}.
+     * @return The Job ID of the request. This can be used to find the appropriate [AliasHistoryCallback].
      */
-    public JobID requestAliasHistory(List<SteamID> steamIDs) {
-        if (steamIDs == null) {
-            throw new IllegalArgumentException("steamIDs is null");
-        }
+    fun requestAliasHistory(steamIDs: List<SteamID>): JobID {
+        val jobID: JobID = client.getNextJobID()
+        ClientMsgProtobuf<CMsgClientAMGetPersonaNameHistory.Builder>(
+            CMsgClientAMGetPersonaNameHistory::class.java,
+            EMsg.ClientAMGetPersonaNameHistory
+        ).apply {
+            sourceJobID = jobID
+            body.setIdCount(steamIDs.size) // Should count the list size instead of the body size from initial commit.
+            steamIDs.forEach { steamID ->
+                val id = CMsgClientAMGetPersonaNameHistory.IdInstance.newBuilder().setSteamid(steamID.convertToUInt64())
+                body.addIds(id)
+            }
+        }.also(client::send)
 
-        ClientMsgProtobuf<CMsgClientAMGetPersonaNameHistory.Builder> request =
-                new ClientMsgProtobuf<>(CMsgClientAMGetPersonaNameHistory.class, EMsg.ClientAMGetPersonaNameHistory);
-        JobID jobID = client.getNextJobID();
-        request.setSourceJobID(jobID);
-
-        for (SteamID steamID : steamIDs) {
-            request.getBody().addIds(CMsgClientAMGetPersonaNameHistory.IdInstance.newBuilder()
-                    .setSteamid(steamID.convertToUInt64()));
-        }
-
-        request.getBody().setIdCount(request.getBody().getIdsCount());
-
-        client.send(request);
-
-        return jobID;
+        return jobID
     }
 
-    @Override
-    public void handleMsg(IPacketMsg packetMsg) {
-        if (packetMsg == null) {
-            throw new IllegalArgumentException("packetMsg is null");
-        }
+    override fun handleMsg(packetMsg: IPacketMsg) {
+        dispatchMap[packetMsg.msgType]?.accept(packetMsg)
+    }
 
-        Consumer<IPacketMsg> dispatcher = dispatchMap.get(packetMsg.getMsgType());
-        if (dispatcher != null) {
-            dispatcher.accept(packetMsg);
+    private fun handleAccountInfo(packetMsg: IPacketMsg) {
+        ClientMsgProtobuf<CMsgClientAccountInfo.Builder>(
+            CMsgClientAccountInfo::class.java,
+            packetMsg.msgType
+        ).also {
+            // cache off our local name
+            cache.localUser.name = it.body.personaName
         }
     }
 
-    private SteamID fixChatID(SteamID steamIdChat) {
-        SteamID chatID = new SteamID(steamIdChat.convertToUInt64()); // copy the steamid so we don't modify it
-
-        if (chatID.isClanAccount()) {
-            // this steamid is incorrect, so we'll fix it up
-            chatID = chatID.toChatID();
+    private fun handleFriendMsg(packetMsg: IPacketMsg) {
+        ClientMsgProtobuf<CMsgClientFriendMsgIncoming.Builder>(
+            CMsgClientFriendMsgIncoming::class.java,
+            packetMsg
+        ).also { resp ->
+            FriendMsgCallback(resp.body).also(client::postCallback)
         }
-
-        return chatID;
     }
 
-    private void handleFriendMsg(IPacketMsg packetMsg) {
-        ClientMsgProtobuf<CMsgClientFriendMsgIncoming.Builder> friendMsg = new ClientMsgProtobuf<>(CMsgClientFriendMsgIncoming.class, packetMsg);
-        client.postCallback(new FriendMsgCallback(friendMsg.getBody()));
+    private fun handleFriendEchoMsg(packetMsg: IPacketMsg) {
+        ClientMsgProtobuf<CMsgClientFriendMsgIncoming.Builder>(
+            CMsgClientFriendMsgIncoming::class.java,
+            packetMsg
+        ).also { resp ->
+            FriendMsgEchoCallback(resp.body).also(client::postCallback)
+        }
     }
 
-    private void handleFriendEchoMsg(IPacketMsg packetMsg) {
-        ClientMsgProtobuf<CMsgClientFriendMsgIncoming.Builder> friendMsg = new ClientMsgProtobuf<>(CMsgClientFriendMsgIncoming.class, packetMsg);
-        client.postCallback(new FriendMsgEchoCallback(friendMsg.getBody()));
+    private fun handleFriendMessageHistoryResponse(packetMsg: IPacketMsg) {
+        ClientMsgProtobuf<CMsgClientChatGetFriendMessageHistoryResponse.Builder>(
+            CMsgClientChatGetFriendMessageHistoryResponse::class.java,
+            packetMsg
+        ).also { resp ->
+            FriendMsgHistoryCallback(resp.body, client.universe).also(client::postCallback)
+        }
     }
 
-    private void handleFriendMessageHistoryResponse(IPacketMsg packetMsg) {
-        ClientMsgProtobuf<CMsgClientChatGetFriendMessageHistoryResponse.Builder> historyResponse =
-                new ClientMsgProtobuf<>(CMsgClientChatGetFriendMessageHistoryResponse.class, packetMsg);
-        client.postCallback(new FriendMsgHistoryCallback(historyResponse.getBody(), client.getUniverse()));
-    }
+    private fun handleFriendsList(packetMsg: IPacketMsg) {
+        val list = ClientMsgProtobuf<CMsgClientFriendsList.Builder>(CMsgClientFriendsList::class.java, packetMsg)
 
-    private void handleFriendsList(IPacketMsg packetMsg) {
-        ClientMsgProtobuf<CMsgClientFriendsList.Builder> list = new ClientMsgProtobuf<>(CMsgClientFriendsList.class, packetMsg);
+        cache.localUser.steamID = client.steamID!!
+
+        // should lock?
+        if (!list.body.bincremental) {
+            // if we're not an incremental update, the message contains all friends, so we should clear our current list
+            friendList.clear()
+            clanList.clear()
+        }
 
         // we have to request information for all of our friends because steam only sends persona information for online friends
-        ClientMsgProtobuf<CMsgClientRequestFriendData.Builder> reqInfo = new ClientMsgProtobuf<>(CMsgClientRequestFriendData.class, EMsg.ClientRequestFriendData);
+        val reqInfo = ClientMsgProtobuf<CMsgClientRequestFriendData.Builder>(
+            CMsgClientRequestFriendData::class.java,
+            EMsg.ClientRequestFriendData
+        ).apply {
+            body.setPersonaStateRequested(EClientPersonaStateFlag.code(client.configuration.defaultPersonaStateFlags))
+        }
 
-        reqInfo.getBody().setPersonaStateRequested(EClientPersonaStateFlag.code(client.getConfiguration().getDefaultPersonaStateFlags()));
+        // should lock?
+        val friendsToRemove = mutableListOf<SteamID>()
+        val clansToRemove = mutableListOf<SteamID>()
 
-        for (CMsgClientFriendsList.Friend friendObj : list.getBody().getFriendsList()) {
-            if (!list.getBody().getBincremental()) {
+        list.body.friendsList.forEach { friendObj ->
+            val friendId = SteamID(friendObj.ulfriendid)
+
+            if (friendId.isIndividualAccount) {
+                val user = cache.getUser(friendId).apply {
+                    relationship = EFriendRelationship.from(friendObj.efriendrelationship)
+                }
+
+                if (friendList.contains(friendId)) {
+                    // if this is a friend on our list, and they removed us, mark them for removal
+                    if (user.relationship == EFriendRelationship.None) {
+                        friendsToRemove.add(friendId)
+                    }
+                } else {
+                    // we don't know about this friend yet, lets add them
+                    friendList.add(friendId)
+                }
+            } else if (friendId.isClanAccount) {
+                val clan = cache.clans.getAccount(friendId, Clan::class.java).apply {
+                    relationship = EClanRelationship.from(friendObj.efriendrelationship)
+                }
+
+                if (clanList.contains(friendId)) {
+                    // mark clans we were removed/kicked from
+                    // note: not actually sure about the kicked relationship, but i'm using it for good measure
+                    if (clan.relationship == EClanRelationship.None || clan.relationship == EClanRelationship.Kicked) {
+                        clansToRemove.add(friendId)
+                    }
+                } else {
+                    // don't know about this clan, add it
+                    clanList.add(friendId)
+                }
+            }
+
+            if (!list.body.bincremental) {
                 // request persona state for our friend & clan list when it's a non-incremental update
-                reqInfo.getBody().addFriends(friendObj.getUlfriendid());
+                reqInfo.body.addFriends(friendId.convertToUInt64())
             }
         }
 
-        if (reqInfo.getBody().getFriendsCount() > 0) {
-            client.send(reqInfo);
+        // remove anything we marked for removal
+        friendsToRemove.forEach { friendList.remove(it) }
+        clansToRemove.forEach { clanList.remove(it) }
+
+        if (reqInfo.body.friendsCount > 0) {
+            reqInfo.also(client::send)
         }
 
-        client.postCallback(new FriendsListCallback(list.getBody()));
+        FriendsListCallback(list.body).also(client::postCallback)
     }
 
-    private void handlePersonaState(IPacketMsg packetMsg) {
-        ClientMsgProtobuf<CMsgClientPersonaState.Builder> persState = new ClientMsgProtobuf<>(CMsgClientPersonaState.class, packetMsg);
+    private fun handlePersonaState(packetMsg: IPacketMsg) {
+        val perState = ClientMsgProtobuf<CMsgClientPersonaState.Builder>(
+            CMsgClientPersonaState::class.java,
+            packetMsg
+        )
 
-        client.postCallback(new PersonaStatesCallback(persState.getBody()));
+        val flags = EClientPersonaStateFlag.from(perState.body.statusFlags)
+
+        perState.body.friendsList.forEach { friend ->
+            val friendId = SteamID(friend.friendid)
+
+            if (friendId.isIndividualAccount) {
+                val cacheFriend = cache.getUser(friendId)
+
+                // TODO check this
+                if (EClientPersonaStateFlag.from(EClientPersonaStateFlag.code(flags))
+                        .contains(EClientPersonaStateFlag.PlayerName)
+                ) {
+                    cacheFriend.name = friend.playerName
+                }
+
+                // TODO check this
+                if (EClientPersonaStateFlag.from(EClientPersonaStateFlag.code(flags))
+                        .contains(EClientPersonaStateFlag.Presence)
+                ) {
+                    cacheFriend.avatarHash = friend.avatarHash.toByteArray()
+                    cacheFriend.personaState = EPersonaState.from(friend.personaState)
+                    cacheFriend.personaStateFlags = EPersonaStateFlag.from(friend.personaStateFlags)
+                }
+
+                // TODO check this
+                if (EClientPersonaStateFlag.from(EClientPersonaStateFlag.code(flags))
+                        .contains(EClientPersonaStateFlag.GameDataBlob)
+                ) {
+                    cacheFriend.gamaName = friend.gameName
+                    cacheFriend.gameID = GameID(friend.gameid)
+                    cacheFriend.gameAppID = friend.gamePlayedAppId
+                }
+            } else if (friendId.isClanAccount) {
+                val cacheClan = cache.clans.getAccount(friendId, Clan::class.java)
+
+                // TODO check this
+                if (EClientPersonaStateFlag.from(EClientPersonaStateFlag.code(flags))
+                        .contains(EClientPersonaStateFlag.PlayerName)
+                ) {
+                    cacheClan.name = friend.playerName
+                }
+
+                // TODO check this
+                if (EClientPersonaStateFlag.from(EClientPersonaStateFlag.code(flags))
+                        .contains(EClientPersonaStateFlag.Presence)
+                ) {
+                    cacheClan.avatarHash = friend.avatarHash.toByteArray()
+                }
+            }
+
+            // todo: cache other details/account types?
+        }
+
+        PersonaStatesCallback(perState.body).also(client::postCallback)
     }
 
-    private void handleClanState(IPacketMsg packetMsg) {
-        ClientMsgProtobuf<CMsgClientClanState.Builder> clanState = new ClientMsgProtobuf<>(CMsgClientClanState.class, packetMsg);
-        client.postCallback(new ClanStateCallback(clanState.getBody()));
+    private fun handleClanState(packetMsg: IPacketMsg) {
+        ClientMsgProtobuf<CMsgClientClanState.Builder>(
+            CMsgClientClanState::class.java,
+            packetMsg
+        ).also { resp ->
+            ClanStateCallback(resp.body).also(client::postCallback)
+        }
     }
 
-    private void handleFriendResponse(IPacketMsg packetMsg) {
-        ClientMsgProtobuf<CMsgClientAddFriendResponse.Builder> friendResponse = new ClientMsgProtobuf<>(CMsgClientAddFriendResponse.class, packetMsg);
-        client.postCallback(new FriendAddedCallback(friendResponse.getBody()));
+    private fun handleFriendResponse(packetMsg: IPacketMsg) {
+        ClientMsgProtobuf<CMsgClientAddFriendResponse.Builder>(
+            CMsgClientAddFriendResponse::class.java,
+            packetMsg
+        ).also { resp ->
+            FriendAddedCallback(resp.body).also(client::postCallback)
+        }
     }
 
-    private void handleChatEnter(IPacketMsg packetMsg) {
-        ClientMsg<MsgClientChatEnter> chatEnter = new ClientMsg<>(MsgClientChatEnter.class, packetMsg);
-        byte[] payload = chatEnter.getPayload().toByteArray();
-        client.postCallback(new ChatEnterCallback(chatEnter.getBody(), payload));
+    private fun handleChatEnter(packetMsg: IPacketMsg) {
+        ClientMsg(
+            MsgClientChatEnter::class.java,
+            packetMsg
+        ).also { resp ->
+            ChatEnterCallback(resp.body, resp.payload.toByteArray()).also(client::postCallback)
+        }
     }
 
-    private void handleChatMsg(IPacketMsg packetMsg) {
-        ClientMsg<MsgClientChatMsg> chatMsg = new ClientMsg<>(MsgClientChatMsg.class, packetMsg);
-        byte[] payload = chatMsg.getPayload().toByteArray();
-        client.postCallback(new ChatMsgCallback(chatMsg.getBody(), payload));
+    private fun handleChatMsg(packetMsg: IPacketMsg) {
+        ClientMsg(
+            MsgClientChatMsg::class.java,
+            packetMsg
+        ).also { resp ->
+            ChatMsgCallback(resp.body, resp.payload.toByteArray()).also(client::postCallback)
+        }
     }
 
-    private void handleChatMemberInfo(IPacketMsg packetMsg) {
-        ClientMsg<MsgClientChatMemberInfo> membInfo = new ClientMsg<>(MsgClientChatMemberInfo.class, packetMsg);
-        byte[] payload = membInfo.getPayload().toByteArray();
-        client.postCallback(new ChatMemberInfoCallback(membInfo.getBody(), payload));
+    private fun handleChatMemberInfo(packetMsg: IPacketMsg) {
+        ClientMsg(
+            MsgClientChatMemberInfo::class.java,
+            packetMsg
+        ).also { resp ->
+            ChatMemberInfoCallback(resp.body, resp.payload.toByteArray()).also(client::postCallback)
+        }
     }
 
-    private void handleChatRoomInfo(IPacketMsg packetMsg) {
-        ClientMsg<MsgClientChatRoomInfo> roomInfo = new ClientMsg<>(MsgClientChatRoomInfo.class, packetMsg);
-        byte[] payload = roomInfo.getPayload().toByteArray();
-        client.postCallback(new ChatRoomInfoCallback(roomInfo.getBody(), payload));
+    private fun handleChatRoomInfo(packetMsg: IPacketMsg) {
+        ClientMsg(
+            MsgClientChatRoomInfo::class.java,
+            packetMsg
+        ).also { resp ->
+            ChatRoomInfoCallback(resp.body, resp.payload.toByteArray()).also(client::postCallback)
+        }
     }
 
-    private void handleChatActionResult(IPacketMsg packetMsg) {
-        ClientMsg<MsgClientChatActionResult> actionResult = new ClientMsg<>(MsgClientChatActionResult.class, packetMsg);
-        client.postCallback(new ChatActionResultCallback(actionResult.getBody()));
+    private fun handleChatActionResult(packetMsg: IPacketMsg) {
+        ClientMsg(
+            MsgClientChatActionResult::class.java,
+            packetMsg
+        ).also { resp ->
+            ChatActionResultCallback(resp.body).also(client::postCallback)
+        }
     }
 
-    private void handleChatInvite(IPacketMsg packetMsg) {
-        ClientMsgProtobuf<CMsgClientChatInvite.Builder> chatInvite = new ClientMsgProtobuf<>(CMsgClientChatInvite.class, packetMsg);
-        client.postCallback(new ChatInviteCallback(chatInvite.getBody()));
+    private fun handleChatInvite(packetMsg: IPacketMsg) {
+        ClientMsgProtobuf<CMsgClientChatInvite.Builder>(
+            CMsgClientChatInvite::class.java,
+            packetMsg
+        ).also { resp ->
+            ChatInviteCallback(resp.body).also(client::postCallback)
+        }
     }
 
-    private void handleIgnoreFriendResponse(IPacketMsg packetMsg) {
-        ClientMsg<MsgClientSetIgnoreFriendResponse> response = new ClientMsg<>(MsgClientSetIgnoreFriendResponse.class, packetMsg);
-        client.postCallback(new IgnoreFriendCallback(response.getTargetJobID(), response.getBody()));
+    private fun handleIgnoreFriendResponse(packetMsg: IPacketMsg) {
+        ClientMsg(
+            MsgClientSetIgnoreFriendResponse::class.java,
+            packetMsg
+        ).also { resp ->
+            IgnoreFriendCallback(resp.targetJobID, resp.body).also(client::postCallback)
+        }
     }
 
-    private void handleProfileInfoResponse(IPacketMsg packetMsg) {
-        ClientMsgProtobuf<CMsgClientFriendProfileInfoResponse.Builder> response = new ClientMsgProtobuf<>(CMsgClientFriendProfileInfoResponse.class, packetMsg);
-        client.postCallback(new ProfileInfoCallback(new JobID(packetMsg.getTargetJobID()), response.getBody()));
+    private fun handleProfileInfoResponse(packetMsg: IPacketMsg) {
+        ClientMsgProtobuf<CMsgClientFriendProfileInfoResponse.Builder>(
+            CMsgClientFriendProfileInfoResponse::class.java,
+            packetMsg
+        ).also { resp ->
+            ProfileInfoCallback(JobID(packetMsg.targetJobID), resp.body).also(client::postCallback)
+        }
     }
 
-    private void handlePersonaChangeResponse(IPacketMsg packetMsg) {
-        ClientMsgProtobuf<CMsgPersonaChangeResponse.Builder> response = new ClientMsgProtobuf<>(CMsgPersonaChangeResponse.class, packetMsg);
+    private fun handlePersonaChangeResponse(packetMsg: IPacketMsg) {
+        ClientMsgProtobuf<CMsgPersonaChangeResponse.Builder>(
+            CMsgPersonaChangeResponse::class.java,
+            packetMsg
+        ).also { resp ->
+            // update our cache to what steam says our name is
+            cache.localUser.name = resp.body.playerName
 
-        client.postCallback(new PersonaChangeCallback(new JobID(packetMsg.getTargetJobID()), response.getBody()));
+            PersonaChangeCallback(JobID(packetMsg.targetJobID), resp.body).also(client::postCallback)
+        }
     }
 
-    private void handleNicknameList(IPacketMsg packetMsg) {
-        ClientMsgProtobuf<CMsgClientPlayerNicknameList.Builder> resp =
-                new ClientMsgProtobuf<>(CMsgClientPlayerNicknameList.class, packetMsg);
-
-        client.postCallback(new NicknameListCallback(resp.getBody()));
+    private fun handleNicknameList(packetMsg: IPacketMsg) {
+        ClientMsgProtobuf<CMsgClientPlayerNicknameList.Builder>(
+            CMsgClientPlayerNicknameList::class.java,
+            packetMsg
+        ).also { resp ->
+            NicknameListCallback(resp.body).also(client::postCallback)
+        }
     }
 
-    private void handlePlayerNicknameResponse(IPacketMsg packetMsg) {
-        ClientMsgProtobuf<CMsgClientSetPlayerNicknameResponse.Builder> resp =
-                new ClientMsgProtobuf<>(CMsgClientSetPlayerNicknameResponse.class, packetMsg);
-
-        client.postCallback(new NicknameCallback(resp.getTargetJobID(), resp.getBody()));
+    private fun handlePlayerNicknameResponse(packetMsg: IPacketMsg) {
+        ClientMsgProtobuf<CMsgClientSetPlayerNicknameResponse.Builder>(
+            CMsgClientSetPlayerNicknameResponse::class.java,
+            packetMsg
+        ).also { resp ->
+            NicknameCallback(resp.targetJobID, resp.body).also(client::postCallback)
+        }
     }
 
-    private void handleAliasHistoryResponse(IPacketMsg packetMsg) {
-        ClientMsgProtobuf<CMsgClientAMGetPersonaNameHistoryResponse.Builder> resp =
-                new ClientMsgProtobuf<>(CMsgClientAMGetPersonaNameHistoryResponse.class, packetMsg);
+    private fun handleAliasHistoryResponse(packetMsg: IPacketMsg) {
+        ClientMsgProtobuf<CMsgClientAMGetPersonaNameHistoryResponse.Builder>(
+            CMsgClientAMGetPersonaNameHistoryResponse::class.java,
+            packetMsg
+        ).also { resp ->
+            AliasHistoryCallback(resp.targetJobID, resp.body).also(client::postCallback)
+        }
+    }
 
-        client.postCallback(new AliasHistoryCallback(resp.getTargetJobID(), resp.getBody()));
+    companion object {
+        private val logger: Logger = LogManager.getLogger(SteamFriends::class.java)
     }
 }

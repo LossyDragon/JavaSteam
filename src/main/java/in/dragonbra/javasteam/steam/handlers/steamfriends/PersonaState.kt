@@ -1,222 +1,132 @@
-package in.dragonbra.javasteam.steam.handlers.steamfriends;
+package `in`.dragonbra.javasteam.steam.handlers.steamfriends
 
-import in.dragonbra.javasteam.enums.EClientPersonaStateFlag;
-import in.dragonbra.javasteam.enums.EPersonaState;
-import in.dragonbra.javasteam.enums.EPersonaStateFlag;
-import in.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserverFriends.CMsgClientPersonaState;
-import in.dragonbra.javasteam.types.GameID;
-import in.dragonbra.javasteam.types.SteamID;
-import in.dragonbra.javasteam.util.NetHelpers;
-
-import java.net.InetAddress;
-import java.util.Date;
-import java.util.EnumSet;
+import `in`.dragonbra.javasteam.enums.EClientPersonaStateFlag
+import `in`.dragonbra.javasteam.enums.EPersonaState
+import `in`.dragonbra.javasteam.enums.EPersonaStateFlag
+import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserverFriends.CMsgClientPersonaState
+import `in`.dragonbra.javasteam.types.GameID
+import `in`.dragonbra.javasteam.types.SteamID
+import `in`.dragonbra.javasteam.util.NetHelpers
+import java.net.InetAddress
+import java.util.*
 
 /**
  * Represents the persona state of a friend.
  */
-public class PersonaState {
-
-    private final EnumSet<EClientPersonaStateFlag> statusFlags;
-
-    private final SteamID friendID;
-
-    private final EPersonaState state;
-
-    private final EnumSet<EPersonaStateFlag> stateFlags;
-
-    private final int gameAppID;
-
-    private final GameID gameID;
-
-    private final String gameName;
-
-    private final InetAddress gameServerIP;
-
-    private final int gameServerPort;
-
-    private final int queryPort;
-
-    private final SteamID sourceSteamID;
-
-    private final byte[] gameDataBlob;
-
-    private final String name;
-
-    private final byte[] avatarHash;
-
-    private final Date lastLogOff;
-
-    private final Date lastLogOn;
-
-    private final int clanRank;
-
-    private final String clanTag;
-
-    private final int onlineSessionInstances;
-
-    public PersonaState(CMsgClientPersonaState.Friend friend) {
-        statusFlags = EClientPersonaStateFlag.from(friend.getPersonaStateFlags());
-
-        friendID = new SteamID(friend.getFriendid());
-        state = EPersonaState.from(friend.getPersonaState());
-        stateFlags = EPersonaStateFlag.from(friend.getPersonaStateFlags());
-
-        gameAppID = friend.getGamePlayedAppId();
-        gameID = new GameID(friend.getGameid());
-        gameName = friend.getGameName();
-
-        gameServerIP = NetHelpers.getIPAddress(friend.getGameServerIp());
-        gameServerPort = friend.getGameServerPort();
-        queryPort = friend.getQueryPort();
-
-        sourceSteamID = new SteamID(friend.getSteamidSource());
-
-        gameDataBlob = friend.getGameDataBlob().toByteArray();
-
-        name = friend.getPlayerName();
-
-        avatarHash = friend.getAvatarHash().toByteArray();
-
-        lastLogOff = new Date(friend.getLastLogoff() * 1000L);
-        lastLogOn = new Date(friend.getLastLogon() * 1000L);
-
-        clanRank = friend.getClanRank();
-        clanTag = friend.getClanTag();
-
-        onlineSessionInstances = friend.getOnlineSessionInstances();
-    }
+@Suppress("unused")
+class PersonaState(friend: CMsgClientPersonaState.Friend) {
 
     /**
-     * @return the status flags. This shows what has changed.
+     * Gets the status flags. This shows what has changed.
+     * @return The status flags.
      */
-    public EnumSet<EClientPersonaStateFlag> getStatusFlags() {
-        return statusFlags;
-    }
+    val statusFlags: EnumSet<EClientPersonaStateFlag> = EClientPersonaStateFlag.from(friend.personaStateFlags)
 
     /**
-     * @return the friend's {@link SteamID}
+     * Gets the friend ID.
+     * @return the friend [SteamID]
      */
-    public SteamID getFriendID() {
-        return friendID;
-    }
+    val friendID: SteamID = SteamID(friend.friendid)
 
     /**
+     * Gets the state.
      * @return the state.
      */
-    public EPersonaState getState() {
-        return state;
-    }
+    val state: EPersonaState = EPersonaState.from(friend.personaState)
 
     /**
+     * Gets the state flags.
      * @return the state flags.
      */
-    public EnumSet<EPersonaStateFlag> getStateFlags() {
-        return stateFlags;
-    }
+    val stateFlags: EnumSet<EPersonaStateFlag> = EPersonaStateFlag.from(friend.personaStateFlags)
 
     /**
+     * Gets the game app ID.
      * @return the game app ID.
      */
-    public int getGameAppID() {
-        return gameAppID;
-    }
+    val gameAppID: Int = friend.gamePlayedAppId
 
     /**
+     * Gets the game ID.
      * @return the game ID.
      */
-    public GameID getGameID() {
-        return gameID;
-    }
+    val gameID: GameID = GameID(friend.gameid)
 
     /**
+     *  Gets the name of the game.
      * @return the name of the game.
      */
-    public String getGameName() {
-        return gameName;
-    }
+    val gameName: String = friend.gameName
 
     /**
+     * Gets the game server IP.
      * @return the game server IP.
      */
-    public InetAddress getGameServerIP() {
-        return gameServerIP;
-    }
+    val gameServerIP: InetAddress = NetHelpers.getIPAddress(friend.gameServerIp)
 
     /**
+     * Gets the game server port.
      * @return the game server port.
      */
-    public int getGameServerPort() {
-        return gameServerPort;
-    }
+    val gameServerPort: Int = friend.gameServerPort
 
     /**
+     * Gets the query port.
      * @return the query port.
      */
-    public int getQueryPort() {
-        return queryPort;
-    }
+    val queryPort: Int = friend.queryPort
 
     /**
-     * @return the source {@link SteamID}.
+     * Gets the source steam ID.
+     * @return the source [SteamID].
      */
-    public SteamID getSourceSteamID() {
-        return sourceSteamID;
-    }
+    val sourceSteamID: SteamID = SteamID(friend.steamidSource)
 
     /**
+     * Gets the game data blob.
      * @return the game data blob.
      */
-    public byte[] getGameDataBlob() {
-        return gameDataBlob;
-    }
+    val gameDataBlob: ByteArray = friend.gameDataBlob.toByteArray()
 
     /**
+     * Gets the name.
      * @return the name.
      */
-    public String getName() {
-        return name;
-    }
+    val name: String = friend.playerName
 
     /**
+     * Gets the avatar hash.
      * @return the avatar hash.
      */
-    public byte[] getAvatarHash() {
-        return avatarHash;
-    }
+    val avatarHash: ByteArray = friend.avatarHash.toByteArray()
 
     /**
+     * Gets the last log off.
      * @return the last log off.
      */
-    public Date getLastLogOff() {
-        return lastLogOff;
-    }
+    val lastLogOff: Date = Date(friend.lastLogoff * 1000L)
 
     /**
+     * Gets the last log on.
      * @return the last log on.
      */
-    public Date getLastLogOn() {
-        return lastLogOn;
-    }
+    val lastLogOn: Date = Date(friend.lastLogon * 1000L)
 
     /**
+     * Gets the clan rank.
      * @return the clan rank.
      */
-    public int getClanRank() {
-        return clanRank;
-    }
+    val clanRank: Int = friend.clanRank
 
     /**
+     * Gets the clan tag.
      * @return the clan tag.
      */
-    public String getClanTag() {
-        return clanTag;
-    }
+    val clanTag: String = friend.clanTag
 
     /**
+     * Gets the online session instances.
      * @return the online session instance.
      */
-    public int getOnlineSessionInstances() {
-        return onlineSessionInstances;
-    }
+    val onlineSessionInstances: Int = friend.onlineSessionInstances
 }

@@ -1,47 +1,30 @@
-package in.dragonbra.javasteam.steam.handlers.steamfriends.callback;
+package `in`.dragonbra.javasteam.steam.handlers.steamfriends.callback
 
-import in.dragonbra.javasteam.enums.EResult;
-import in.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserverFriends.CMsgClientAddFriendResponse;
-import in.dragonbra.javasteam.steam.steamclient.callbackmgr.CallbackMsg;
-import in.dragonbra.javasteam.types.SteamID;
+import `in`.dragonbra.javasteam.enums.EResult
+import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserverFriends.CMsgClientAddFriendResponse
+import `in`.dragonbra.javasteam.steam.steamclient.callbackmgr.CallbackMsg
+import `in`.dragonbra.javasteam.types.SteamID
 
 /**
  * This callback is fired in response to adding a user to your friends list.
  */
-public class FriendAddedCallback extends CallbackMsg {
-
-    private final EResult result;
-
-    private final SteamID steamID;
-
-    private final String personaName;
-
-    public FriendAddedCallback(CMsgClientAddFriendResponse.Builder msg) {
-        result = EResult.from(msg.getEresult());
-
-        steamID = new SteamID(msg.getSteamIdAdded());
-
-        personaName = msg.getPersonaNameAdded();
-    }
+class FriendAddedCallback(msg: CMsgClientAddFriendResponse.Builder) : CallbackMsg() {
 
     /**
-     * @return the result of the request.
+     * Gets the result of the request.
+     * @return the result.
      */
-    public EResult getResult() {
-        return result;
-    }
+    val result: EResult = EResult.from(msg.eresult)
 
     /**
-     * @return the {@link SteamID} of the friend that was added.
+     * Gets the [SteamID] of the friend that was added.
+     * @return the [SteamID] of the friend that was added.
      */
-    public SteamID getSteamID() {
-        return steamID;
-    }
+    val steamID: SteamID = SteamID(msg.steamIdAdded)
 
     /**
+     * Gets the persona name of the friend.
      * @return the persona name of the friend.
      */
-    public String getPersonaName() {
-        return personaName;
-    }
+    val personaName: String = msg.personaNameAdded
 }

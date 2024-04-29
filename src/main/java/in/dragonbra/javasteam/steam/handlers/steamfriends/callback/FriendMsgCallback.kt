@@ -1,64 +1,46 @@
-package in.dragonbra.javasteam.steam.handlers.steamfriends.callback;
+package `in`.dragonbra.javasteam.steam.handlers.steamfriends.callback
 
-import in.dragonbra.javasteam.enums.EChatEntryType;
-import in.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserverFriends.CMsgClientFriendMsgIncoming;
-import in.dragonbra.javasteam.steam.steamclient.callbackmgr.CallbackMsg;
-import in.dragonbra.javasteam.types.SteamID;
-
-import java.nio.charset.StandardCharsets;
+import `in`.dragonbra.javasteam.enums.EChatEntryType
+import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserverFriends.CMsgClientFriendMsgIncoming
+import `in`.dragonbra.javasteam.steam.steamclient.callbackmgr.CallbackMsg
+import `in`.dragonbra.javasteam.types.SteamID
+import java.nio.charset.StandardCharsets
 
 /**
  * This callback is fired in response to receiving a message from a friend.
  */
-public class FriendMsgCallback extends CallbackMsg {
-
-    private final SteamID sender;
-
-    private final EChatEntryType entryType;
-
-    private final boolean fromLimitedAccount;
-
-    private String message;
-
-    public FriendMsgCallback(CMsgClientFriendMsgIncoming.Builder msg) {
-        sender = new SteamID(msg.getSteamidFrom());
-        entryType = EChatEntryType.from(msg.getChatEntryType());
-
-        fromLimitedAccount = msg.getFromLimitedAccount();
-
-        if (msg.hasMessage()) {
-            message = msg.getMessage().toString(StandardCharsets.UTF_8);
-            message = message.replaceAll("\0+$", ""); // trim any extra null chars from the end
-        }
-    }
+@Suppress("unused")
+class FriendMsgCallback(msg: CMsgClientFriendMsgIncoming.Builder) : CallbackMsg() {
 
     /**
+     * Gets or sets the sender.
      * @return the sender.
      */
-    public SteamID getSender() {
-        return sender;
-    }
+    val sender: SteamID = SteamID(msg.steamidFrom)
 
     /**
+     * Gets the chat entry type.
      * @return the chat entry type.
      */
-    public EChatEntryType getEntryType() {
-        return entryType;
-    }
+    val entryType: EChatEntryType = EChatEntryType.from(msg.chatEntryType)
 
     /**
      * Gets a value indicating whether this message is from a limited account.
-     *
-     * @return <b>true</b> if this message is from a limited account; otherwise, <b>false</b>.
+     * @return **true** if this message is from a limited account; otherwise, **false**.
      */
-    public boolean isFromLimitedAccount() {
-        return fromLimitedAccount;
-    }
+    val isFromLimitedAccount: Boolean = msg.fromLimitedAccount
 
     /**
+     * Gets the message.
      * @return the message.
      */
-    public String getMessage() {
-        return message;
+    var message: String? = null
+        private set
+
+    init {
+        if (msg.hasMessage()) {
+            message = msg.message.toString(StandardCharsets.UTF_8)
+            message = message!!.replace("\u0000+$".toRegex(), "") // trim any extra null chars from the end
+        }
     }
 }
