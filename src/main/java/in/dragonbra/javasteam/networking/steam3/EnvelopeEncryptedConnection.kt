@@ -33,20 +33,25 @@ class EnvelopeEncryptedConnection(
 
     private var encryption: INetFilterEncryption? = null
 
-    private val onConnected: EventHandler<EventArgs> =
-        EventHandler { _, _ -> state = EncryptionState.CONNECTED }
+    private val onConnected = EventHandler<EventArgs> { _, _ ->
+        state = EncryptionState.CONNECTED
+    }
 
-    private val onDisconnected: EventHandler<DisconnectedEventArgs> =
-        EventHandler<DisconnectedEventArgs> { _, e ->
-            state = EncryptionState.DISCONNECTED
-            encryption = null
+    private val onDisconnected = EventHandler<DisconnectedEventArgs> { _, e ->
+        state = EncryptionState.DISCONNECTED
+        encryption = null
 
-            disconnected.handleEvent(this@EnvelopeEncryptedConnection, e)
-        }
+        disconnected.handleEvent(this@EnvelopeEncryptedConnection, e)
+    }
 
     private val onNetMsgReceived: EventHandler<NetMsgEventArgs> =
         object : EventHandler<NetMsgEventArgs> {
-            override fun handleEvent(sender: Any, e: NetMsgEventArgs) {
+            override fun handleEvent(sender: Any, e: NetMsgEventArgs?) {
+                if (e == null) {
+                    logger.error("NetMsgEventArgs received null event.")
+                    return
+                }
+
                 if (state == EncryptionState.ENCRYPTED) {
                     val plaintextData = encryption!!.processIncoming(e.data)
                     netMsgReceived.handleEvent(this@EnvelopeEncryptedConnection, e.withData(plaintextData))

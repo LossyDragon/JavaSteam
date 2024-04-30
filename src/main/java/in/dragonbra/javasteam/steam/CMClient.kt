@@ -176,22 +176,29 @@ abstract class CMClient(val configuration: SteamConfiguration, identifier: Strin
 
     private lateinit var heartBeatFunc: ScheduledFunction
 
-    private val netMsgReceived: EventHandler<NetMsgEventArgs> =
-        EventHandler<NetMsgEventArgs> { _: Any, e: NetMsgEventArgs ->
-            getPacketMsg(e.data).also(::onClientMsgReceived)
+    private val netMsgReceived = EventHandler<NetMsgEventArgs> { _, e ->
+        if (e == null) {
+            logger.error("NetMsgEventArgs received null event.")
+            return@EventHandler
         }
+        getPacketMsg(e.data).also(::onClientMsgReceived)
+    }
 
-    private val connected: EventHandler<EventArgs> =
-        EventHandler<EventArgs> { _: Any, _: EventArgs ->
-            servers.tryMark(connection!!.currentEndPoint!!, connection!!.protocolTypes, ServerQuality.GOOD)
+    private val connected = EventHandler<EventArgs> { _, _ ->
+        servers.tryMark(connection!!.currentEndPoint!!, connection!!.protocolTypes, ServerQuality.GOOD)
 
-            isConnected = true
-            onClientConnected()
-        }
+        isConnected = true
+        onClientConnected()
+    }
 
     private val disconnected: EventHandler<DisconnectedEventArgs> =
         object : EventHandler<DisconnectedEventArgs> {
-            override fun handleEvent(sender: Any, e: DisconnectedEventArgs) {
+            override fun handleEvent(sender: Any, e: DisconnectedEventArgs?) {
+                if (e == null) {
+                    logger.debug("DisconnectedEventArgs received null event")
+                    return
+                }
+
                 isConnected = false
 
                 if (!e.isUserInitiated && !isExpectDisconnection) {

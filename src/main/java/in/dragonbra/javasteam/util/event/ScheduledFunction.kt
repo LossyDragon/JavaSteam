@@ -1,55 +1,36 @@
-package in.dragonbra.javasteam.util.event;
+package `in`.dragonbra.javasteam.util.event
 
-import java.util.Timer;
-import java.util.TimerTask;
+import java.util.*
 
 /**
  * @author lngtr
  * @since 2018-02-20
  */
-public class ScheduledFunction {
+class ScheduledFunction(private val func: Runnable, var delay: Long) {
 
-    private long delay;
+    private var timer: Timer? = null
 
-    private final Runnable func;
+    private var bStarted = false
 
-    private Timer timer;
-
-    private boolean bStarted = false;
-
-    public ScheduledFunction(Runnable func, long delay) {
-        this.delay = delay;
-        this.func = func;
+    private val timerTask = object : TimerTask() {
+        override fun run() {
+            func.run()
+        }
     }
 
-    public void start() {
+    fun start() {
         if (!bStarted) {
-            timer = new Timer();
-            timer.scheduleAtFixedRate(new TimerTask() {
-                @Override
-                public void run() {
-                    if (func != null) {
-                        func.run();
-                    }
-                }
-            }, 0, delay);
-            bStarted = true;
+            timer = Timer()
+            timer!!.scheduleAtFixedRate(timerTask, 0, delay)
+            bStarted = true
         }
     }
 
-    public void stop() {
+    fun stop() {
         if (bStarted) {
-            timer.cancel();
-            timer = null;
-            bStarted = false;
+            timer!!.cancel()
+            timer = null
+            bStarted = false
         }
-    }
-
-    public long getDelay() {
-        return delay;
-    }
-
-    public void setDelay(long delay) {
-        this.delay = delay;
     }
 }
