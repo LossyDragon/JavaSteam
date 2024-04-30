@@ -1,67 +1,41 @@
-package in.dragonbra.javasteam.steam.handlers.steamuser.callback;
+package `in`.dragonbra.javasteam.steam.handlers.steamuser.callback
 
-import in.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserver2.CMsgClientEmailAddrInfo;
-import in.dragonbra.javasteam.steam.steamclient.callbackmgr.CallbackMsg;
+import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserver2.CMsgClientEmailAddrInfo
+import `in`.dragonbra.javasteam.steam.steamclient.callbackmgr.CallbackMsg
 
 /**
  * This callback is received when email information is received from the network.
  */
-public class EmailAddrInfoCallback extends CallbackMsg {
-
-    private final String emailAddress;
-
-    private final boolean emailIsValidated;
-
-    private final boolean emailValidationChanged;
-
-    private final boolean credentialChangeRequiresCode;
-
-    private final boolean passwordOrSecretqaChangeRequiresCode;
-
-    public EmailAddrInfoCallback(CMsgClientEmailAddrInfo.Builder msg) {
-        emailAddress = msg.getEmailAddress();
-
-        emailIsValidated = msg.getEmailIsValidated();
-
-        emailValidationChanged = msg.getEmailValidationChanged();
-
-        credentialChangeRequiresCode = msg.getCredentialChangeRequiresCode();
-
-        passwordOrSecretqaChangeRequiresCode = msg.getPasswordOrSecretqaChangeRequiresCode();
-    }
+@Suppress("unused")
+class EmailAddrInfoCallback(msg: CMsgClientEmailAddrInfo.Builder) : CallbackMsg() {
 
     /**
+     * Gets the email address of this account.
      * @return the email address of this account.
      */
-    public String getEmailAddress() {
-        return emailAddress;
-    }
+    val emailAddress: String = msg.emailAddress
 
     /**
+     * Gets a value indicating validated email or not.
      * @return a value indicating validated email or not.
      */
-    public boolean isEmailValidated() {
-        return emailIsValidated;
-    }
+    val isEmailValidated: Boolean = msg.emailIsValidated
 
     /**
+     * TODO kDoc
      * @return ???
      */
-    public boolean isEmailValidationChanged() {
-        return emailValidationChanged;
-    }
+    val isEmailValidationChanged: Boolean = msg.emailValidationChanged
 
     /**
+     * TODO kDoc
      * @return ???
      */
-    public boolean isCredentialChangeRequiresCode() {
-        return credentialChangeRequiresCode;
-    }
+    val isCredentialChangeRequiresCode: Boolean = msg.credentialChangeRequiresCode
 
     /**
+     * TODO kDoc
      * @return ???
      */
-    public boolean isPasswordOrSecretqaChangeRequiresCode() {
-        return passwordOrSecretqaChangeRequiresCode;
-    }
+    val isPasswordOrSecretqaChangeRequiresCode: Boolean = msg.passwordOrSecretqaChangeRequiresCode
 }

@@ -1,80 +1,50 @@
-package in.dragonbra.javasteam.steam.handlers.steamuser.callback;
+package `in`.dragonbra.javasteam.steam.handlers.steamuser.callback
 
-import in.dragonbra.javasteam.enums.EAccountFlags;
-import in.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserverLogin.CMsgClientAccountInfo;
-import in.dragonbra.javasteam.steam.steamclient.callbackmgr.CallbackMsg;
-
-import java.util.EnumSet;
+import `in`.dragonbra.javasteam.enums.EAccountFlags
+import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserverLogin.CMsgClientAccountInfo
+import `in`.dragonbra.javasteam.steam.steamclient.callbackmgr.CallbackMsg
+import java.util.*
 
 /**
  * This callback is received when account information is received from the network.
  * This generally happens after logon.
  */
-public class AccountInfoCallback extends CallbackMsg {
-
-    private final String personaName;
-
-    private final String country;
-
-    private final int countAuthedComputers;
-
-    private final EnumSet<EAccountFlags> accountFlags;
-
-    private final long facebookID;
-
-    private final String facebookName;
-
-    public AccountInfoCallback(CMsgClientAccountInfo.Builder msg) {
-        personaName = msg.getPersonaName();
-        country = msg.getIpCountry();
-
-        countAuthedComputers = msg.getCountAuthedComputers();
-
-        accountFlags = EAccountFlags.from(msg.getAccountFlags());
-
-        facebookID = msg.getFacebookId();
-        facebookName = msg.getFacebookName();
-    }
+@Suppress("unused")
+class AccountInfoCallback(msg: CMsgClientAccountInfo.Builder) : CallbackMsg() {
 
     /**
+     * Gets the last recorded persona name used by this account.
      * @return the last recorded persona name used by this account.
      */
-    public String getPersonaName() {
-        return personaName;
-    }
+    val personaName: String = msg.personaName
 
     /**
+     * Gets the country this account is connected from.
      * @return the country this account is connected from.
      */
-    public String getCountry() {
-        return country;
-    }
+    val country: String = msg.ipCountry
 
     /**
+     * Gets the count of SteamGuard authenticated computers.
      * @return the count of SteamGuard authenticated computers.
      */
-    public int getCountAuthedComputers() {
-        return countAuthedComputers;
-    }
+    val countAuthedComputers: Int = msg.countAuthedComputers
 
     /**
-     * @return the account flags for this account. See {@link EAccountFlags}.
+     * Gets the account flags for this account.
+     * @return the account flags for this account. See [EAccountFlags].
      */
-    public EnumSet<EAccountFlags> getAccountFlags() {
-        return accountFlags;
-    }
+    val accountFlags: EnumSet<EAccountFlags> = EAccountFlags.from(msg.accountFlags)
 
     /**
+     * Gets the facebook ID of this account if it is linked with facebook.
      * @return the facebook ID of this account if it is linked with facebook.
      */
-    public long getFacebookID() {
-        return facebookID;
-    }
+    val facebookID: Long = msg.facebookId
 
     /**
+     * Gets the facebook name if this account is linked with facebook.
      * @return the facebook name if this account is linked with facebook.
      */
-    public String getFacebookName() {
-        return facebookName;
-    }
+    val facebookName: String = msg.facebookName
 }

@@ -1,237 +1,199 @@
-package in.dragonbra.javasteam.steam.handlers.steamuser.callback;
+package `in`.dragonbra.javasteam.steam.handlers.steamuser.callback
 
-import com.google.protobuf.ByteString;
-import com.google.protobuf.InvalidProtocolBufferException;
-import in.dragonbra.javasteam.enums.EAccountFlags;
-import in.dragonbra.javasteam.enums.EResult;
-import in.dragonbra.javasteam.generated.MsgClientLogOnResponse;
-import in.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserverLogin.CMsgClientLogonResponse;
-import in.dragonbra.javasteam.protobufs.steamclient.SteammessagesParentalSteamclient.ParentalSettings;
-import in.dragonbra.javasteam.steam.handlers.steamuser.LogOnDetails;
-import in.dragonbra.javasteam.steam.handlers.steamuser.SteamUser;
-import in.dragonbra.javasteam.steam.steamclient.callbackmgr.CallbackMsg;
-import in.dragonbra.javasteam.types.SteamID;
-import in.dragonbra.javasteam.util.NetHelpers;
-
-import java.net.InetAddress;
-import java.util.Date;
-import java.util.EnumSet;
+import com.google.protobuf.InvalidProtocolBufferException
+import `in`.dragonbra.javasteam.enums.EAccountFlags
+import `in`.dragonbra.javasteam.enums.EResult
+import `in`.dragonbra.javasteam.generated.MsgClientLogOnResponse
+import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserverLogin.CMsgClientLogonResponse
+import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesParentalSteamclient
+import `in`.dragonbra.javasteam.steam.handlers.steamuser.LogOnDetails
+import `in`.dragonbra.javasteam.steam.handlers.steamuser.SteamUser
+import `in`.dragonbra.javasteam.steam.steamclient.callbackmgr.CallbackMsg
+import `in`.dragonbra.javasteam.types.SteamID
+import `in`.dragonbra.javasteam.util.NetHelpers
+import java.net.InetAddress
+import java.util.*
 
 /**
- * This callback is returned in response to an attempt to log on to the Steam3 network through {@link SteamUser}.
+ * This callback is returned in response to an attempt to log on to the Steam3 network through [SteamUser].
  */
-@SuppressWarnings("unused")
-public class LoggedOnCallback extends CallbackMsg {
+@Suppress("unused")
+class LoggedOnCallback : CallbackMsg {
 
-    private final EResult result;
+    /**
+     * Gets the result of the logon.
+     * @return the result.
+     */
+    val result: EResult
 
-    private EResult extendedResult;
+    /**
+     * Gets the extended result of the logon.
+     * @return the extended result of the logon as [EResult].
+     */
+    var extendedResult: EResult? = null
+        private set
 
-    private int outOfGameSecsPerHeartbeat;
+    /**
+     * Gets the out of game secs per heartbeat value.
+     *  This is used internally to initialize heartbeating.
+     * @return the out of game secs per heartbeat value.
+     */
+    var outOfGameSecsPerHeartbeat: Int = 0
+        private set
 
-    private int inGameSecsPerHeartbeat;
+    /**
+     * Gets the in game secs per heartbeat value.
+     *  This is used internally to initialize heartbeating.
+     * @return the in game secs per heartbeat value.
+     */
+    var inGameSecsPerHeartbeat: Int = 0
+        private set
 
-    private InetAddress publicIP;
+    /**
+     * Gets or sets the public IP of the client
+     * @return the public IP of the client.
+     */
+    var publicIP: InetAddress? = null
+        private set
 
-    private Date serverTime;
+    /**
+     * Gets the Steam3 server time.
+     * @return the Steam3 server time.
+     */
+    var serverTime: Date? = null
+        private set
 
-    private EnumSet<EAccountFlags> accountFlags;
+    /**
+     * Gets the account flags assigned by the server.
+     * @return the account flags assigned by the server. See [EAccountFlags].
+     */
+    var accountFlags: EnumSet<EAccountFlags>? = null
+        private set
 
-    private SteamID clientSteamID;
+    /**
+     * Gets the client steam ID.
+     * @return the client steam ID as [SteamID]
+     */
+    var clientSteamID: SteamID? = null
+        private set
 
-    private String emailDomain;
+    /**
+     * Gets the email domain.
+     * @return the email domain.
+     */
+    var emailDomain: String? = null
+        private set
 
-    private int cellID;
+    /**
+     * Gets the Steam2 CellID.
+     * @return the Steam2 CellID.
+     */
+    var cellID: Int = 0
+        private set
 
-    private int cellIDPingThreshold;
+    /**
+     * Gets the Steam2 CellID ping threshold.
+     * @return the Steam2 CellID ping threshold.
+     */
+    var cellIDPingThreshold: Int = 0
+        private set
 
-    private byte[] steam2Ticket;
+    /**
+     * Gets the Steam2 ticket.
+     *  This is used for authenticated content downloads in Steam2.
+     *  This field will only be set when [LogOnDetails.isRequestSteam2Ticket] has been set to true.
+     * @return the Steam2 ticket.
+     */
+    var steam2Ticket: ByteArray? = null
+        private set
 
-    private String ipCountryCode;
+    /**
+     * Gets the IP country code.
+     * @return the IP country code.
+     */
+    var ipCountryCode: String? = null
+        private set
 
-    private String vanityURL;
+    /**
+     * Gets the vanity URL.
+     * @return the vanity URL.
+     */
+    var vanityURL: String? = null
+        private set
 
-    private int numLoginFailuresToMigrate;
+    /**
+     * Gets the threshold for login failures before Steam wants the client to migrate to a new CM.
+     * @return the threshold for login failures before Steam wants the client to migrate to a new CM.
+     */
+    var numLoginFailuresToMigrate: Int = 0
+        private set
 
-    private int numDisconnectsToMigrate;
+    /**
+     * Gets the threshold for disconnects before Steam wants the client to migrate to a new CM.
+     * @return the threshold for disconnects before Steam wants the client to migrate to a new CM.
+     */
+    var numDisconnectsToMigrate: Int = 0
+        private set
 
-    private ParentalSettings parentalSettings;
+    /**
+     * Gets the Steam parental settings.
+     * @return the Steam parental settings.
+     */
+    var parentalSettings: SteammessagesParentalSteamclient.ParentalSettings? = null
+        private set
 
-    public LoggedOnCallback(CMsgClientLogonResponse.Builder resp) {
-        result = EResult.from(resp.getEresult());
-        extendedResult = EResult.from(resp.getEresultExtended());
+    constructor(resp: CMsgClientLogonResponse.Builder) {
+        result = EResult.from(resp.eresult)
+        extendedResult = EResult.from(resp.eresultExtended)
 
-        outOfGameSecsPerHeartbeat = resp.getLegacyOutOfGameHeartbeatSeconds();
-        inGameSecsPerHeartbeat = resp.getHeartbeatSeconds();
+        outOfGameSecsPerHeartbeat = resp.legacyOutOfGameHeartbeatSeconds
+        inGameSecsPerHeartbeat = resp.heartbeatSeconds
 
-        publicIP = NetHelpers.getIPAddress(resp.getPublicIp().getV4()); // Has ipV6 support, but still using ipV4
-        serverTime = new Date(resp.getRtime32ServerTime() * 1000L);
+        publicIP = NetHelpers.getIPAddress(resp.publicIp.v4) // TODO: Has ipV6 support, but still using ipV4
 
-        accountFlags = EAccountFlags.from(resp.getAccountFlags());
+        serverTime = Date(resp.rtime32ServerTime * 1000L)
 
-        clientSteamID = new SteamID(resp.getClientSuppliedSteamid());
+        accountFlags = EAccountFlags.from(resp.accountFlags)
 
-        emailDomain = resp.getEmailDomain();
+        clientSteamID = SteamID(resp.clientSuppliedSteamid)
 
-        cellID = resp.getCellId();
-        cellIDPingThreshold = resp.getCellIdPingThreshold();
+        emailDomain = resp.emailDomain
 
-        steam2Ticket = resp.getSteam2Ticket().toByteArray();
+        cellID = resp.cellId
+        cellIDPingThreshold = resp.cellIdPingThreshold
 
-        ipCountryCode = resp.getIpCountryCode();
+        steam2Ticket = resp.steam2Ticket.toByteArray()
 
-        vanityURL = resp.getVanityUrl();
+        ipCountryCode = resp.ipCountryCode
 
-        numLoginFailuresToMigrate = resp.getCountLoginfailuresToMigrate();
-        numDisconnectsToMigrate = resp.getCountDisconnectsToMigrate();
+        vanityURL = resp.vanityUrl
 
-        ByteString data = resp.getParentalSettings();
-        if (data != null) {
+        numLoginFailuresToMigrate = resp.countLoginfailuresToMigrate
+        numDisconnectsToMigrate = resp.countDisconnectsToMigrate
+
+        resp.parentalSettings?.let {
             try {
-                parentalSettings = ParentalSettings.parseFrom(data);
-            } catch (InvalidProtocolBufferException e) {
-                e.printStackTrace();
+                parentalSettings = SteammessagesParentalSteamclient.ParentalSettings.parseFrom(it)
+            } catch (e: InvalidProtocolBufferException) {
+                e.printStackTrace()
             }
         }
     }
 
-    public LoggedOnCallback(MsgClientLogOnResponse resp) {
-        result = resp.getResult();
+    constructor(resp: MsgClientLogOnResponse) {
+        result = resp.result
 
-        outOfGameSecsPerHeartbeat = resp.getOutOfGameHeartbeatRateSec();
-        inGameSecsPerHeartbeat = resp.getInGameHeartbeatRateSec();
+        outOfGameSecsPerHeartbeat = resp.outOfGameHeartbeatRateSec
+        inGameSecsPerHeartbeat = resp.inGameHeartbeatRateSec
 
-        publicIP = NetHelpers.getIPAddress(resp.getIpPublic());
+        publicIP = NetHelpers.getIPAddress(resp.ipPublic)
 
-        serverTime = new Date(resp.getServerRealTime() * 1000L);
+        serverTime = Date(resp.serverRealTime * 1000L)
 
-        clientSteamID = resp.getClientSuppliedSteamId();
+        clientSteamID = resp.clientSuppliedSteamId
     }
 
-    public LoggedOnCallback(EResult result) {
-        this.result = result;
-    }
-
-    /**
-     * @return the result of the logon as {@link EResult}.
-     */
-    public EResult getResult() {
-        return result;
-    }
-
-    /**
-     * @return the extended result of the logon as {@link EResult}.
-     */
-    public EResult getExtendedResult() {
-        return extendedResult;
-    }
-
-    /**
-     * @return the out of game secs per heartbeat value.
-     * This is used internally to initialize heartbeating.
-     */
-    public int getOutOfGameSecsPerHeartbeat() {
-        return outOfGameSecsPerHeartbeat;
-    }
-
-    /**
-     * @return the in game secs per heartbeat value.
-     * This is used internally to initialize heartbeating.
-     */
-    public int getInGameSecsPerHeartbeat() {
-        return inGameSecsPerHeartbeat;
-    }
-
-    /**
-     * @return the public IP of the client.
-     */
-    public InetAddress getPublicIP() {
-        return publicIP;
-    }
-
-    /**
-     * @return the Steam3 server time.
-     */
-    public Date getServerTime() {
-        return serverTime;
-    }
-
-    /**
-     * @return the account flags assigned by the server. See {@link EAccountFlags}.
-     */
-    public EnumSet<EAccountFlags> getAccountFlags() {
-        return accountFlags;
-    }
-
-    /**
-     * @return the client steam ID as {@link SteamID}
-     */
-    public SteamID getClientSteamID() {
-        return clientSteamID;
-    }
-
-    /**
-     * @return the email domain.
-     */
-    public String getEmailDomain() {
-        return emailDomain;
-    }
-
-    /**
-     * @return the Steam2 CellID.
-     */
-    public int getCellID() {
-        return cellID;
-    }
-
-    /**
-     * @return the Steam2 CellID ping threshold.
-     */
-    public int getCellIDPingThreshold() {
-        return cellIDPingThreshold;
-    }
-
-    /**
-     * @return the Steam2 ticket.
-     * This is used for authenticated content downloads in Steam2.
-     * This field will only be set when {@link LogOnDetails#isRequestSteam2Ticket} has been set to true.
-     */
-    public byte[] getSteam2Ticket() {
-        return steam2Ticket;
-    }
-
-    /**
-     * @return the IP country code.
-     */
-    public String getIpCountryCode() {
-        return ipCountryCode;
-    }
-
-    /**
-     * @return the vanity URL.
-     */
-    public String getVanityURL() {
-        return vanityURL;
-    }
-
-    /**
-     * @return the threshold for login failures before Steam wants the client to migrate to a new CM.
-     */
-    public int getNumLoginFailuresToMigrate() {
-        return numLoginFailuresToMigrate;
-    }
-
-    /**
-     * @return the threshold for disconnects before Steam wants the client to migrate to a new CM.
-     */
-    public int getNumDisconnectsToMigrate() {
-        return numDisconnectsToMigrate;
-    }
-
-    /**
-     * @return the Steam parental settings.
-     */
-    public ParentalSettings getParentalSettings() {
-        return parentalSettings;
+    constructor(eResult: EResult) {
+        result = eResult
     }
 }

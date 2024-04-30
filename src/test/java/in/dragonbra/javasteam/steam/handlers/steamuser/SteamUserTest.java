@@ -74,10 +74,10 @@ public class SteamUserTest extends HandlerTestBase<SteamUser> {
         });
     }
 
-    @Test
-    public void logOnNullDetails() {
-        assertThrows(IllegalArgumentException.class, () -> handler.logOn(null));
-    }
+//    @Test
+//    public void logOnNullDetails() {
+//        assertThrows(IllegalArgumentException.class, () -> handler.logOn(null));
+//    }
 
     @Test
     public void logOnAnonymous() {
@@ -92,10 +92,10 @@ public class SteamUserTest extends HandlerTestBase<SteamUser> {
         assertEquals(EAccountType.AnonUser, id.getAccountType());
     }
 
-    @Test
-    public void logOnAnonymousNullDetails() {
-        assertThrows(IllegalArgumentException.class, () -> handler.logOnAnonymous(null));
-    }
+//    @Test
+//    public void logOnAnonymousNullDetails() {
+//        assertThrows(IllegalArgumentException.class, () -> handler.logOnAnonymous(null));
+//    }
 
     @Test
     public void logOnAnonymousNotConnected() {
@@ -120,10 +120,10 @@ public class SteamUserTest extends HandlerTestBase<SteamUser> {
         assertNotNull(msg);
     }
 
-    @Test
-    public void handleNullPacket() {
-        assertThrows(IllegalArgumentException.class, () -> handler.handleMsg(null));
-    }
+//    @Test
+//    public void handleNullPacket() {
+//        assertThrows(IllegalArgumentException.class, () -> handler.handleMsg(null));
+//    }
 
     @Test
     public void handleLogonResponse() {

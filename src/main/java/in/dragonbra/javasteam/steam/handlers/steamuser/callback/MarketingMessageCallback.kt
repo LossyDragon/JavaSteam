@@ -1,101 +1,90 @@
-package in.dragonbra.javasteam.steam.handlers.steamuser.callback;
+package `in`.dragonbra.javasteam.steam.handlers.steamuser.callback
 
-import in.dragonbra.javasteam.enums.EMarketingMessageFlags;
-import in.dragonbra.javasteam.generated.MsgClientMarketingMessageUpdate2;
-import in.dragonbra.javasteam.steam.steamclient.callbackmgr.CallbackMsg;
-import in.dragonbra.javasteam.types.GlobalID;
-import in.dragonbra.javasteam.util.log.LogManager;
-import in.dragonbra.javasteam.util.log.Logger;
-import in.dragonbra.javasteam.util.stream.BinaryReader;
-
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.util.*;
+import `in`.dragonbra.javasteam.enums.EMarketingMessageFlags
+import `in`.dragonbra.javasteam.generated.MsgClientMarketingMessageUpdate2
+import `in`.dragonbra.javasteam.steam.steamclient.callbackmgr.CallbackMsg
+import `in`.dragonbra.javasteam.types.GlobalID
+import `in`.dragonbra.javasteam.util.log.LogManager
+import `in`.dragonbra.javasteam.util.log.Logger
+import `in`.dragonbra.javasteam.util.stream.BinaryReader
+import java.io.ByteArrayInputStream
+import java.io.IOException
+import java.nio.charset.StandardCharsets
+import java.util.*
 
 /**
  * This callback is fired when the client receives a marketing message update.
  */
-public class MarketingMessageCallback extends CallbackMsg {
-
-    private static final Logger logger = LogManager.getLogger(MarketingMessageCallback.class);
-
-    private final Date updateTime;
-
-    private final Collection<Message> messages;
-
-    public MarketingMessageCallback(MsgClientMarketingMessageUpdate2 body, byte[] payload) {
-        updateTime = new Date(body.getMarketingMessageUpdateTime() * 1000L);
-
-        List<Message> msgList = new ArrayList<>();
-
-        try (BinaryReader br = new BinaryReader(new ByteArrayInputStream(payload))) {
-            for (int i = 0; i < body.getCount(); i++) {
-                int dataLen = br.readInt() - 4; // total length includes the 4 byte length
-                byte[] messageData = br.readBytes(dataLen);
-
-                msgList.add(new Message(messageData));
-            }
-        } catch (IOException e) {
-            logger.debug(e);
-        }
-
-        messages = Collections.unmodifiableList(msgList);
-    }
+class MarketingMessageCallback(body: MsgClientMarketingMessageUpdate2, payload: ByteArray) : CallbackMsg() {
 
     /**
+     * Gets the time of this marketing message update.
      * @return the time of this marketing message update.
      */
-    public Date getUpdateTime() {
-        return updateTime;
-    }
+    val updateTime: Date = Date(body.marketingMessageUpdateTime * 1000L)
 
     /**
-     * @return the messages as a collection of {@link Message}
+     * Gets the messages.
+     * @return the messages as a collection of [Message]
      */
-    public Collection<Message> getMessages() {
-        return messages;
+    val messages: Collection<Message>
+
+    init {
+        val msgList: MutableList<Message> = ArrayList()
+
+        try {
+            BinaryReader(ByteArrayInputStream(payload)).use { br ->
+                for (i in 0 until body.count) {
+                    val dataLen = br.readInt() - 4 // total length includes the 4 byte length
+                    val messageData = br.readBytes(dataLen)
+
+                    msgList.add(Message(messageData))
+                }
+            }
+        } catch (e: IOException) {
+            logger.debug(e)
+        }
+
+        messages = Collections.unmodifiableList(msgList)
     }
 
     /**
      * Represents a single marketing message.
      */
-    public static class Message {
-        private GlobalID id;
-
-        private String url;
-
-        private EnumSet<EMarketingMessageFlags> flags;
-
-        Message(byte[] data) {
-            try (BinaryReader br = new BinaryReader(new ByteArrayInputStream(data))) {
-                id = new GlobalID(br.readLong());
-                url = br.readNullTermString(StandardCharsets.UTF_8);
-                flags = EMarketingMessageFlags.from(br.readInt());
-            } catch (IOException e) {
-                logger.debug(e);
-            }
-        }
+    class Message internal constructor(data: ByteArray) {
 
         /**
-         * @return the unique identifier for this marketing message. See {@link GlobalID}.
+         * @return the unique identifier for this marketing message. See [GlobalID].
          */
-        public GlobalID getId() {
-            return id;
-        }
+        var id: GlobalID? = null
+            private set
 
         /**
          * @return the URL for this marketing message.
          */
-        public String getUrl() {
-            return url;
-        }
+        var url: String? = null
+            private set
 
         /**
-         * @return the marketing message flags. See {@link EMarketingMessageFlags}.
+         * @return the marketing message flags. See [EMarketingMessageFlags].
          */
-        public EnumSet<EMarketingMessageFlags> getFlags() {
-            return flags;
+        var flags: EnumSet<EMarketingMessageFlags>? = null
+            private set
+
+        init {
+            try {
+                BinaryReader(ByteArrayInputStream(data)).use { br ->
+                    id = GlobalID(br.readLong())
+                    url = br.readNullTermString(StandardCharsets.UTF_8)
+                    flags = EMarketingMessageFlags.from(br.readInt())
+                }
+            } catch (e: IOException) {
+                logger.debug(e)
+            }
         }
+    }
+
+    companion object {
+        private val logger: Logger = LogManager.getLogger(MarketingMessageCallback::class.java)
     }
 }
