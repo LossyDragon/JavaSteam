@@ -9,9 +9,9 @@ import `in`.dragonbra.javasteam.types.AsyncJobSingle
  * @since 2023-01-04
  */
 @Suppress("unused", "MemberVisibilityCanBePrivate")
-abstract class UnifiedService(// private static final Logger logger = LogManager.getLogger(UnifiedService.class);
-    private val steamUnifiedMessages: SteamUnifiedMessages
-) {
+abstract class UnifiedService(private val steamUnifiedMessages: SteamUnifiedMessages) {
+
+    // private static final Logger logger = LogManager.getLogger(UnifiedService.class);
 
     val className: String
         get() = this.javaClass.simpleName
@@ -22,11 +22,11 @@ abstract class UnifiedService(// private static final Logger logger = LogManager
      * @param methodName The Target Job Name.
      * @return The JobID of the message. This can be used to find the appropriate [ServiceMethodResponse].
      */
-    fun sendMessage(message: GeneratedMessage, methodName: String): AsyncJobSingle<ServiceMethodResponse>? {
+    fun sendMessage(message: GeneratedMessage, methodName: String): AsyncJobSingle<ServiceMethodResponse> {
         val serviceName = className
         val rpcEndpoint = getRpcEndpoint(serviceName, methodName)
 
-        return sendMessageOrNotification(rpcEndpoint, message, false)
+        return sendMessageOrNotification(rpcEndpoint, message, false)!!
     }
 
     /**
@@ -44,7 +44,7 @@ abstract class UnifiedService(// private static final Logger logger = LogManager
     private fun sendMessageOrNotification(
         rpcName: String,
         message: GeneratedMessage,
-        isNotification: Boolean
+        isNotification: Boolean,
     ): AsyncJobSingle<ServiceMethodResponse>? {
         if (isNotification) {
             steamUnifiedMessages.sendNotification(rpcName, message)

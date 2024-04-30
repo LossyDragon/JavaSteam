@@ -45,7 +45,7 @@ class SteamUnifiedMessages : ClientMsgHandler() {
      */
     fun <TRequest : GeneratedMessage.Builder<TRequest>> sendMessage(
         rpcName: String,
-        message: GeneratedMessage
+        message: GeneratedMessage,
     ): AsyncJobSingle<ServiceMethodResponse> {
         val jobID: JobID = client.getNextJobID()
         val eMsg = if (client.steamID == null) {
@@ -71,7 +71,7 @@ class SteamUnifiedMessages : ClientMsgHandler() {
      */
     fun <TRequest : GeneratedMessage.Builder<TRequest>> sendNotification(
         rpcName: String,
-        message: GeneratedMessage
+        message: GeneratedMessage,
     ) {
         val eMsg = if (client.steamID == null) {
             EMsg.ServiceMethodCallFromClientNonAuthed
