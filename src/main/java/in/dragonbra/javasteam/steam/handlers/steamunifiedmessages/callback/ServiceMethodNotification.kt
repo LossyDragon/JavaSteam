@@ -1,80 +1,56 @@
-package in.dragonbra.javasteam.steam.handlers.steamunifiedmessages.callback;
+package `in`.dragonbra.javasteam.steam.handlers.steamunifiedmessages.callback
 
-import com.google.protobuf.AbstractMessage;
-import in.dragonbra.javasteam.base.ClientMsgProtobuf;
-import in.dragonbra.javasteam.base.IPacketMsg;
-import in.dragonbra.javasteam.protobufs.steamclient.SteammessagesBase;
-import in.dragonbra.javasteam.steam.steamclient.callbackmgr.CallbackMsg;
+import com.google.protobuf.AbstractMessage
+import `in`.dragonbra.javasteam.base.ClientMsgProtobuf
+import `in`.dragonbra.javasteam.base.IPacketMsg
+import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesBase
+import `in`.dragonbra.javasteam.steam.steamclient.callbackmgr.CallbackMsg
+import `in`.dragonbra.javasteam.steam.handlers.steamunifiedmessages.SteamUnifiedMessages
 
 /**
  * @author Lossy
  * @since 2023-01-04
- * <p>
- * This callback represents a service notification received though
- * {@link in.dragonbra.javasteam.steam.handlers.steamunifiedmessages.SteamUnifiedMessages}.
+ *
+ * This callback represents a service notification received though [SteamUnifiedMessages].
  */
-@SuppressWarnings("unused")
-public class ServiceMethodNotification extends CallbackMsg {
+@Suppress("unused", "MemberVisibilityCanBePrivate")
+class ServiceMethodNotification(messageType: Class<out AbstractMessage>, packetMsg: IPacketMsg) : CallbackMsg() {
 
-    private final String methodName;
-
-    private final Object body;
-
-    private final ClientMsgProtobuf<?> clientMsg;
-
-    private final SteammessagesBase.CMsgProtoBufHeader protoHeader;
-
-    public ServiceMethodNotification(Class<? extends AbstractMessage> messageType, IPacketMsg packetMsg) {
-        // Bounce into generic-land.
-        clientMsg = new ClientMsgProtobuf<>(messageType, packetMsg);
-        protoHeader = clientMsg.getHeader().getProto().build();
-
-        // Note: JobID will be -1
-
-        this.methodName = clientMsg.getHeader().getProto().getTargetJobName();
-        this.body = clientMsg.getBody().build();
-    }
+    // Note: JobID will be -1
 
     /**
-     * @return the client message, See {@link ClientMsgProtobuf}
+     * @return the client message, See [ClientMsgProtobuf]
      */
-    public ClientMsgProtobuf<?> getClientMsg() {
-        return clientMsg;
-    }
+    val clientMsg: ClientMsgProtobuf<*> = ClientMsgProtobuf(messageType, packetMsg) // Bounce into generic-land.
 
     /**
-     * @return the Proto Header, See {@link SteammessagesBase.CMsgProtoBufHeader}
+     * Gets the full name of the service method.
+     * @return the full name of the service method.
      */
-    public SteammessagesBase.CMsgProtoBufHeader getProtoHeader() {
-        return protoHeader;
-    }
-
+    val methodName: String = clientMsg.header.proto.getTargetJobName()
 
     /**
-     * @return Gets the name of the Service.
+     * Gets the protobuf notification body.
+     * @return the protobuf notification body.
      */
-    public String getServiceName() {
-        return methodName.split("\\.")[0];
-    }
+    val body: Any = clientMsg.body.build()
 
     /**
-     * @return Gets the name of the RPC method.
+     * @return the Proto Header, See [SteammessagesBase.CMsgProtoBufHeader]
      */
-    public String getRpcName() {
-        return methodName.substring(getServiceName().length() + 1).split("#")[0];
-    }
+    val protoHeader: SteammessagesBase.CMsgProtoBufHeader = clientMsg.header.proto.build()
 
     /**
-     * @return Gets the full name of the service method.
+     * Gets the name of the Service.
+     * @return the name of the Service.
      */
-    public String getMethodName() {
-        return methodName;
-    }
+    val serviceName: String
+        get() = methodName.split(".")[0]
 
     /**
-     * @return Gets the protobuf notification body.
+     * Gets the name of the RPC method.
+     * @return the name of the RPC method.
      */
-    public Object getBody() {
-        return body;
-    }
+    val rpcName: String
+        get() = methodName.substring(serviceName.length + 1).split('#')[0]
 }

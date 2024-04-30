@@ -1,154 +1,130 @@
-package in.dragonbra.javasteam.steam.handlers.steamunifiedmessages;
+package `in`.dragonbra.javasteam.steam.handlers.steamunifiedmessages
 
-import com.google.protobuf.AbstractMessage;
-import com.google.protobuf.GeneratedMessage;
-import in.dragonbra.javasteam.base.ClientMsgProtobuf;
-import in.dragonbra.javasteam.base.IPacketMsg;
-import in.dragonbra.javasteam.base.PacketClientMsgProtobuf;
-import in.dragonbra.javasteam.enums.EMsg;
-import in.dragonbra.javasteam.handlers.ClientMsgHandler;
-import in.dragonbra.javasteam.steam.handlers.steamunifiedmessages.callback.ServiceMethodNotification;
-import in.dragonbra.javasteam.steam.handlers.steamunifiedmessages.callback.ServiceMethodResponse;
-import in.dragonbra.javasteam.types.AsyncJobSingle;
-import in.dragonbra.javasteam.types.JobID;
-import in.dragonbra.javasteam.util.Strings;
-import in.dragonbra.javasteam.util.compat.Consumer;
-import in.dragonbra.javasteam.util.log.LogManager;
-import in.dragonbra.javasteam.util.log.Logger;
-
-import java.lang.reflect.Method;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
+import com.google.protobuf.AbstractMessage
+import com.google.protobuf.GeneratedMessage
+import `in`.dragonbra.javasteam.base.ClientMsgProtobuf
+import `in`.dragonbra.javasteam.base.IPacketMsg
+import `in`.dragonbra.javasteam.base.PacketClientMsgProtobuf
+import `in`.dragonbra.javasteam.enums.EMsg
+import `in`.dragonbra.javasteam.handlers.ClientMsgHandler
+import `in`.dragonbra.javasteam.steam.handlers.steamunifiedmessages.callback.ServiceMethodNotification
+import `in`.dragonbra.javasteam.steam.handlers.steamunifiedmessages.callback.ServiceMethodResponse
+import `in`.dragonbra.javasteam.types.AsyncJobSingle
+import `in`.dragonbra.javasteam.types.JobID
+import `in`.dragonbra.javasteam.util.compat.Consumer
+import `in`.dragonbra.javasteam.util.log.LogManager
+import `in`.dragonbra.javasteam.util.log.Logger
+import java.util.*
 
 /**
  * @author Lossy
  * @since 2023-01-04
- * <p>
+ *
  * This handler is used for interacting with Steamworks unified messaging
  */
-public class SteamUnifiedMessages extends ClientMsgHandler {
+class SteamUnifiedMessages : ClientMsgHandler() {
 
-    private static final Logger logger = LogManager.getLogger(SteamUnifiedMessages.class);
-    private Map<EMsg, Consumer<IPacketMsg>> dispatchMap;
+    private var dispatchMap: EnumMap<EMsg, Consumer<IPacketMsg>> = EnumMap(EMsg::class.java)
 
-    public SteamUnifiedMessages() {
-        dispatchMap = new HashMap<>();
-
-        dispatchMap.put(EMsg.ServiceMethodResponse, this::handleServiceMethodResponse);
-        dispatchMap.put(EMsg.ServiceMethod, this::handleServiceMethod);
-
-        dispatchMap = Collections.unmodifiableMap(dispatchMap);
+    init {
+        dispatchMap[EMsg.ServiceMethodResponse] = Consumer<IPacketMsg>(::handleServiceMethodResponse)
+        dispatchMap[EMsg.ServiceMethod] = Consumer<IPacketMsg>(::handleServiceMethod)
     }
 
-    @Override
-    public void handleMsg(IPacketMsg packetMsg) {
-        if (packetMsg == null) {
-            throw new IllegalArgumentException("packetMsg is null");
-        }
-
-        Consumer<IPacketMsg> dispatcher = dispatchMap.get(packetMsg.getMsgType());
-        if (dispatcher != null) {
-            dispatcher.accept(packetMsg);
-        }
+    override fun handleMsg(packetMsg: IPacketMsg) {
+        dispatchMap[packetMsg.msgType]?.accept(packetMsg)
     }
 
     /**
      * Sends a message.
-     * Results are returned in a {@link in.dragonbra.javasteam.steam.handlers.steamunifiedmessages.callback.ServiceMethodResponse}.
-     *
-     * @param rpcName    Name of the RPC endpoint. Takes the format ServiceName.RpcName
-     * @param message    The message to send.
-     * @param <TRequest> The type of protobuf object.
-     * @return The JobID of the request. This can be used to find the appropriate {@link in.dragonbra.javasteam.steam.handlers.steamunifiedmessages.callback.ServiceMethodResponse}.
+     * Results are returned in a [ServiceMethodResponse].
+     * @param TRequest The type of protobuf object.
+     * @param rpcName Name of the RPC endpoint. Takes the format ServiceName.RpcName
+     * @param message The message to send.
+     * @return The [JobID] of the request. This can be used to find the appropriate [ServiceMethodResponse].
      */
-    public <TRequest extends GeneratedMessage.Builder<TRequest>> AsyncJobSingle<ServiceMethodResponse> sendMessage(String rpcName, GeneratedMessage message) {
-        if (message == null) {
-            throw new IllegalArgumentException("message is null");
+    fun <TRequest : GeneratedMessage.Builder<TRequest>> sendMessage(
+        rpcName: String,
+        message: GeneratedMessage
+    ): AsyncJobSingle<ServiceMethodResponse> {
+        val jobID: JobID = client.getNextJobID()
+        val eMsg = if (client.steamID == null) {
+            EMsg.ServiceMethodCallFromClientNonAuthed
+        } else {
+            EMsg.ServiceMethodCallFromClient
         }
 
-        JobID jobID = client.getNextJobID();
-        EMsg eMsg = client.getSteamID() == null ? EMsg.ServiceMethodCallFromClientNonAuthed : EMsg.ServiceMethodCallFromClient;
+        ClientMsgProtobuf<TRequest>(message.javaClass, eMsg).apply {
+            sourceJobID = jobID
+            header.proto.setTargetJobName(rpcName)
+            body.mergeFrom(message)
+        }.also(client::send)
 
-        ClientMsgProtobuf<TRequest> msg = new ClientMsgProtobuf<>(message.getClass(), eMsg);
-        msg.setSourceJobID(jobID);
-        msg.getHeader().getProto().setTargetJobName(rpcName);
-        msg.getBody().mergeFrom(message);
-
-        client.send(msg);
-
-        return new AsyncJobSingle<>(client, jobID);
+        return AsyncJobSingle(client, jobID)
     }
 
     /**
      * Sends a notification.
-     *
-     * @param rpcName    Name of the RPC endpoint. Takes the format ServiceName.RpcName
-     * @param message    The message to send.
-     * @param <TRequest> The type of protobuf object.
+     * @param TRequest The type of protobuf object.
+     * @param rpcName Name of the RPC endpoint. Takes the format ServiceName.RpcName
+     * @param message The message to send.
      */
-    public <TRequest extends GeneratedMessage.Builder<TRequest>> void sendNotification(String rpcName, GeneratedMessage message) {
-        if (message == null) {
-            throw new IllegalArgumentException("message is null");
+    fun <TRequest : GeneratedMessage.Builder<TRequest>> sendNotification(
+        rpcName: String,
+        message: GeneratedMessage
+    ) {
+        val eMsg = if (client.steamID == null) {
+            EMsg.ServiceMethodCallFromClientNonAuthed
+        } else {
+            EMsg.ServiceMethodCallFromClient
         }
 
-        EMsg eMsg = client.getSteamID() == null ? EMsg.ServiceMethodCallFromClientNonAuthed : EMsg.ServiceMethodCallFromClient;
-        ClientMsgProtobuf<TRequest> msg = new ClientMsgProtobuf<>(message.getClass(), eMsg);
-        msg.getHeader().getProto().setTargetJobName(rpcName);
-        msg.getBody().mergeFrom(message);
-
-        client.send(msg);
+        ClientMsgProtobuf<TRequest>(message.javaClass, eMsg).apply {
+            header.proto.setTargetJobName(rpcName)
+            body.mergeFrom(message)
+        }.also(client::send)
     }
 
-    private void handleServiceMethodResponse(IPacketMsg packetMsg) {
-        if (!(packetMsg instanceof PacketClientMsgProtobuf)) {
-            throw new IllegalArgumentException("Packet message is expected to be protobuf.");
-        }
+    private fun handleServiceMethodResponse(packetMsg: IPacketMsg) {
+        require(packetMsg is PacketClientMsgProtobuf) { "Packet message is expected to be protobuf." }
 
-        PacketClientMsgProtobuf packetMsgProto = (PacketClientMsgProtobuf) packetMsg;
-
-        client.postCallback(new ServiceMethodResponse(packetMsgProto));
+        ServiceMethodResponse(packetMsg).also(client::postCallback)
     }
 
-    @SuppressWarnings("unchecked")
-    private void handleServiceMethod(IPacketMsg packetMsg) {
-        if (!(packetMsg instanceof PacketClientMsgProtobuf)) {
-            throw new IllegalArgumentException("Packet message is expected to be protobuf.");
-        }
+    private fun handleServiceMethod(packetMsg: IPacketMsg) {
+        require(packetMsg is PacketClientMsgProtobuf) { "Packet message is expected to be protobuf." }
 
-        PacketClientMsgProtobuf packetMsgProto = (PacketClientMsgProtobuf) packetMsg;
+        val jobName: String = packetMsg.header.proto.getTargetJobName()
 
-        String jobName = packetMsgProto.getHeader().getProto().getTargetJobName();
-        if (!Strings.isNullOrEmpty(jobName)) {
-            String[] splitByDot = jobName.split("\\.");
-            String[] splitByHash = splitByDot[1].split("#");
+        if (jobName.isNotEmpty()) {
+            val splitByDot = jobName.split(".").toTypedArray()
+            val splitByHash = splitByDot[1].split("#").toTypedArray()
 
-            String serviceName = splitByDot[0];
-            String methodName = splitByHash[0];
+            val serviceName = splitByDot[0]
+            val methodName = splitByHash[0]
 
-            String serviceInterfaceName = "in.dragonbra.javasteam.rpc.interfaces.I" + serviceName;
+            val serviceInterfaceName = "in.dragonbra.javasteam.rpc.interfaces.I$serviceName"
             try {
-                logger.debug("Handling Service Method: " + serviceInterfaceName);
+                logger.debug("Handling Service Method: $serviceInterfaceName")
 
-                Class<?> serviceInterfaceType = Class.forName(serviceInterfaceName);
+                val serviceInterfaceType = Class.forName(serviceInterfaceName)
+                val method = serviceInterfaceType.declaredMethods.find { it.name == methodName }
 
-                Method method = null;
-                for (Method m : serviceInterfaceType.getDeclaredMethods()) {
-                    if (m.getName().equals(methodName)) {
-                        method = m;
-                    }
+                method?.let {
+                    @Suppress("UNCHECKED_CAST")
+                    val argumentType = it.parameterTypes[0] as Class<out AbstractMessage>
+
+                    ServiceMethodNotification(argumentType, packetMsg).also(client::postCallback)
                 }
-
-                if (method != null) {
-                    Class<? extends AbstractMessage> argumentType = (Class<? extends AbstractMessage>) method.getParameterTypes()[0];
-
-                    client.postCallback(new ServiceMethodNotification(argumentType, packetMsg));
-                }
-            } catch (ClassNotFoundException e) {
+            } catch (e: ClassNotFoundException) {
                 // The RPC service implementation was not implemented.
                 // Either the .proto is missing, or the service was not converted to an interface yet.
-                logger.error("Service Method: " + serviceName + ", was not found");
+                logger.error("Service Method: $serviceName, was not found")
             }
         }
+    }
+
+    companion object {
+        private val logger: Logger = LogManager.getLogger(SteamUnifiedMessages::class.java)
     }
 }
