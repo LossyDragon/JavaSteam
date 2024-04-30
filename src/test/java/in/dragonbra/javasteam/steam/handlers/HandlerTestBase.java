@@ -16,6 +16,7 @@ import in.dragonbra.javasteam.types.SteamID;
 import org.junit.jupiter.api.BeforeEach;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
+
 import java.net.InetAddress;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -50,6 +51,7 @@ public abstract class HandlerTestBase<T extends ClientMsgHandler> extends TestBa
 
     protected abstract T createHandler();
 
+    @SuppressWarnings("unchecked")
     protected <M extends IClientMsg> M verifySend(EMsg msgType) {
         ArgumentCaptor<IClientMsg> msgCaptor = ArgumentCaptor.forClass(IClientMsg.class);
         verify(steamClient, atLeast(1)).send(msgCaptor.capture());
@@ -57,17 +59,16 @@ public abstract class HandlerTestBase<T extends ClientMsgHandler> extends TestBa
         IClientMsg msg = msgCaptor.getValue();
         assertEquals(msgType, msg.getMsgType());
 
-        //noinspection unchecked
         return (M) msg;
     }
 
+    @SuppressWarnings("unchecked")
     protected <C extends CallbackMsg> C verifyCallback() {
         ArgumentCaptor<CallbackMsg> callbackCaptor = ArgumentCaptor.forClass(CallbackMsg.class);
         verify(steamClient, atLeast(1)).postCallback(callbackCaptor.capture());
 
         CallbackMsg callback = callbackCaptor.getValue();
 
-        //noinspection unchecked
         return (C) callback;
     }
 
