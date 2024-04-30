@@ -1,71 +1,50 @@
-package in.dragonbra.javasteam.steam.handlers.steamuserstats.callback;
+package `in`.dragonbra.javasteam.steam.handlers.steamuserstats.callback
 
-import in.dragonbra.javasteam.enums.ELeaderboardDisplayType;
-import in.dragonbra.javasteam.enums.ELeaderboardSortMethod;
-import in.dragonbra.javasteam.enums.EResult;
-import in.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserverLbs.CMsgClientLBSFindOrCreateLBResponse;
-import in.dragonbra.javasteam.steam.handlers.steamuserstats.SteamUserStats;
-import in.dragonbra.javasteam.steam.steamclient.callbackmgr.CallbackMsg;
-import in.dragonbra.javasteam.types.JobID;
+import `in`.dragonbra.javasteam.enums.ELeaderboardDisplayType
+import `in`.dragonbra.javasteam.enums.ELeaderboardSortMethod
+import `in`.dragonbra.javasteam.enums.EResult
+import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserverLbs.CMsgClientLBSFindOrCreateLBResponse
+import `in`.dragonbra.javasteam.steam.handlers.steamuserstats.SteamUserStats
+import `in`.dragonbra.javasteam.steam.steamclient.callbackmgr.CallbackMsg
+import `in`.dragonbra.javasteam.types.JobID
 
 /**
- * This callback is fired in response to {@link SteamUserStats#findLeaderBoard(int, String)} and
- * {@link SteamUserStats#createLeaderboard(int, String, ELeaderboardSortMethod, ELeaderboardDisplayType)}.
+ * This callback is fired in response to [SteamUserStats.findLeaderBoard] and [SteamUserStats.createLeaderboard].
  */
-public class FindOrCreateLeaderboardCallback extends CallbackMsg {
-
-    private final EResult result;
-
-    private final int id;
-
-    private final int entryCount;
-
-    private final ELeaderboardSortMethod sortMethod;
-
-    private final ELeaderboardDisplayType displayType;
-
-    public FindOrCreateLeaderboardCallback(JobID jobID, CMsgClientLBSFindOrCreateLBResponse.Builder resp) {
-        setJobID(jobID);
-
-        result = EResult.from(resp.getEresult());
-        id = resp.getLeaderboardId();
-        entryCount = resp.getLeaderboardEntryCount();
-        sortMethod = ELeaderboardSortMethod.from(resp.getLeaderboardSortMethod());
-        displayType = ELeaderboardDisplayType.from(resp.getLeaderboardDisplayType());
-    }
+@Suppress("unused")
+class FindOrCreateLeaderboardCallback(jobID: JobID, resp: CMsgClientLBSFindOrCreateLBResponse.Builder) : CallbackMsg() {
 
     /**
-     * @return the result of the request by {@link EResult}.
+     * Gets the result of the request.
+     * @return the result of the request by [EResult].
      */
-    public EResult getResult() {
-        return result;
-    }
+    val result: EResult = EResult.from(resp.eresult)
 
     /**
+     * Gets the leaderboard ID.
      * @return the leaderboard ID.
      */
-    public int getId() {
-        return id;
-    }
+    val id: Int = resp.leaderboardId
 
     /**
+     * Gets how many entries there are for requested leaderboard.
      * @return how many entries there are for requested leaderboard.
      */
-    public int getEntryCount() {
-        return entryCount;
-    }
+    val entryCount: Int = resp.leaderboardEntryCount
 
     /**
-     * @return sort method to use for this leaderboard. See {@link ELeaderboardSortMethod}.
+     * Gets the sort method to use for this leaderboard.
+     * @return sort method to use for this leaderboard. See [ELeaderboardSortMethod].
      */
-    public ELeaderboardSortMethod getSortMethod() {
-        return sortMethod;
-    }
+    val sortMethod: ELeaderboardSortMethod = ELeaderboardSortMethod.from(resp.leaderboardSortMethod)
 
     /**
-     * @return display type for this leaderboard. See {@link ELeaderboardDisplayType}
+     * Gets the display type for this leaderboard.
+     * @return display type for this leaderboard. See [ELeaderboardDisplayType]
      */
-    public ELeaderboardDisplayType getDisplayType() {
-        return displayType;
+    val displayType: ELeaderboardDisplayType = ELeaderboardDisplayType.from(resp.leaderboardDisplayType)
+
+    init {
+        this.jobID = jobID
     }
 }

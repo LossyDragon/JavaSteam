@@ -1,84 +1,64 @@
-package in.dragonbra.javasteam.steam.handlers.steamuserstats;
+package `in`.dragonbra.javasteam.steam.handlers.steamuserstats
 
-import in.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserverLbs.CMsgClientLBSGetLBEntriesResponse;
-import in.dragonbra.javasteam.types.SteamID;
-import in.dragonbra.javasteam.types.UGCHandle;
-import in.dragonbra.javasteam.util.stream.BinaryReader;
-import in.dragonbra.javasteam.util.stream.MemoryStream;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
+import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserverLbs.CMsgClientLBSGetLBEntriesResponse
+import `in`.dragonbra.javasteam.types.SteamID
+import `in`.dragonbra.javasteam.types.UGCHandle
+import `in`.dragonbra.javasteam.util.stream.BinaryReader
+import `in`.dragonbra.javasteam.util.stream.MemoryStream
+import java.io.IOException
+import java.util.*
 
 /**
  * Represents a single package in this response.
  */
-public class LeaderboardEntry {
-
-    private final SteamID steamID;
-
-    private final int globalRank;
-
-    private final int score;
-
-    private final UGCHandle ugcId;
-
-    private List<Integer> details;
-
-    public LeaderboardEntry(CMsgClientLBSGetLBEntriesResponse.Entry entry) {
-        globalRank = entry.getGlobalRank();
-        score = entry.getScore();
-        steamID = new SteamID(entry.getSteamIdUser());
-        ugcId = new UGCHandle(entry.getUgcId());
-
-        details = new ArrayList<>();
-
-        MemoryStream ms = new MemoryStream(entry.getDetails().toByteArray());
-        BinaryReader br = new BinaryReader(ms);
-        try {
-            while (ms.getLength() - ms.getPosition() > 4) {
-                details.add(br.readInt());
-            }
-        } catch (IOException e) {
-            throw new IllegalArgumentException("failed to read details", e);
-        }
-
-        details = Collections.unmodifiableList(details);
-    }
+@Suppress("unused")
+class LeaderboardEntry(entry: CMsgClientLBSGetLBEntriesResponse.Entry) {
 
     /**
-     * @return the {@link SteamID} for this entry.
+     * Gets the [SteamID] for this entry.
+     * @return the [SteamID] for this entry.
      */
-    public SteamID getSteamID() {
-        return steamID;
-    }
+    val steamID: SteamID = SteamID(entry.steamIdUser)
 
     /**
+     * Gets the global rank for this entry.
      * @return the global rank for this entry.
      */
-    public int getGlobalRank() {
-        return globalRank;
-    }
+    val globalRank: Int = entry.globalRank
 
     /**
+     * Gets the score for this entry.
      * @return the score for this entry.
      */
-    public int getScore() {
-        return score;
-    }
+    val score: Int = entry.score
 
     /**
-     * @return the {@link UGCHandle} attached to this entry.
+     * Gets the [UGCHandle] attached to this entry.
+     * @return the [UGCHandle] attached to this entry.
      */
-    public UGCHandle getUgcId() {
-        return ugcId;
-    }
+    val ugcId: UGCHandle = UGCHandle(entry.ugcId)
 
     /**
+     * Extra game-defined information regarding how the user got that score.
      * @return extra game-defined information regarding how the user got that score.
      */
-    public List<Integer> getDetails() {
-        return details;
+    var details: MutableList<Int> = ArrayList()
+        private set
+
+    init {
+        if (entry.details != null) {
+            val ms = MemoryStream(entry.details.toByteArray())
+            val br = BinaryReader(ms)
+
+            try {
+                while (ms.length - ms.position > 4) {
+                    details.add(br.readInt())
+                }
+            } catch (e: IOException) {
+                throw IllegalArgumentException("failed to read details", e)
+            }
+
+            details = Collections.unmodifiableList(details)
+        }
     }
 }
