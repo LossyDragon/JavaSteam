@@ -1,89 +1,58 @@
-package in.dragonbra.javasteam.steam.handlers.steamworkshop.callback;
+package `in`.dragonbra.javasteam.steam.handlers.steamworkshop.callback
 
-import in.dragonbra.javasteam.enums.EResult;
-import in.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserverUcm.CMsgClientUCMEnumeratePublishedFilesByUserActionResponse;
-import in.dragonbra.javasteam.steam.handlers.steamworkshop.EnumerationUserDetails;
-import in.dragonbra.javasteam.steam.handlers.steamworkshop.SteamWorkshop;
-import in.dragonbra.javasteam.steam.steamclient.callbackmgr.CallbackMsg;
-import in.dragonbra.javasteam.types.JobID;
-
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Date;
-import java.util.List;
+import `in`.dragonbra.javasteam.enums.EResult
+import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserverUcm.CMsgClientUCMEnumeratePublishedFilesByUserActionResponse
+import `in`.dragonbra.javasteam.steam.handlers.steamworkshop.SteamWorkshop
+import `in`.dragonbra.javasteam.steam.steamclient.callbackmgr.CallbackMsg
+import `in`.dragonbra.javasteam.types.JobID
+import java.util.*
 
 /**
- * This callback is received in response to calling {@link SteamWorkshop#enumeratePublishedFilesByUserAction(EnumerationUserDetails)}.
+ * This callback is received in response to calling [SteamWorkshop.enumeratePublishedFilesByUserAction].
  */
-public class UserActionPublishedFilesCallback extends CallbackMsg {
-
-    private final EResult result;
-
-    private final List<File> files;
-
-    private final int totalResults;
-
-    public UserActionPublishedFilesCallback(JobID jobID, CMsgClientUCMEnumeratePublishedFilesByUserActionResponse.Builder msg) {
-        setJobID(jobID);
-
-        result = EResult.from(msg.getEresult());
-
-        List<File> fileList = new ArrayList<>();
-        for (CMsgClientUCMEnumeratePublishedFilesByUserActionResponse.PublishedFileId f : msg.getPublishedFilesList()) {
-            fileList.add(new File(f));
-        }
-        files = Collections.unmodifiableList(fileList);
-
-        totalResults = msg.getTotalResults();
-    }
+class UserActionPublishedFilesCallback(
+    jobID: JobID,
+    msg: CMsgClientUCMEnumeratePublishedFilesByUserActionResponse.Builder,
+) : CallbackMsg() {
 
     /**
-     * @return the result by {@link EResult}.
+     * Gets the result.
+     * @return the result.
      */
-    public EResult getResult() {
-        return result;
-    }
+    val result: EResult = EResult.from(msg.eresult)
 
     /**
+     * Gets the list of enumerated files.
      * @return the list of enumerated files.
      */
-    public List<File> getFiles() {
-        return files;
-    }
+    val files: List<File> = msg.publishedFilesList.map { File(it) }
 
     /**
+     * Gets the count of total results.
      * @return the count of total results.
      */
-    public int getTotalResults() {
-        return totalResults;
+    val totalResults: Int = msg.totalResults
+
+    init {
+        this.jobID = jobID
     }
 
     /**
      * Represents the details of a single published file.
      */
-    public static class File {
-
-        private final long fileID;
-
-        private final Date timestamp;
-
-        public File(CMsgClientUCMEnumeratePublishedFilesByUserActionResponse.PublishedFileId file) {
-            fileID = file.getPublishedFileId();
-            timestamp = new Date(file.getRtimeTimeStamp() * 1000L);
-        }
+    @Suppress("unused")
+    class File(file: CMsgClientUCMEnumeratePublishedFilesByUserActionResponse.PublishedFileId) {
 
         /**
+         * Gets the file ID.
          * @return the file ID.
          */
-        public long getFileID() {
-            return fileID;
-        }
+        val fileID: Long = file.publishedFileId
 
         /**
+         * Gets the timestamp of this file.
          * @return the timestamp of this file.
          */
-        public Date getTimestamp() {
-            return timestamp;
-        }
+        val timestamp: Date = Date(file.rtimeTimeStamp * 1000L)
     }
 }
