@@ -62,7 +62,7 @@ class PersonaState(friend: CMsgClientPersonaState.Friend) {
      * Gets the game server IP.
      * @return the game server IP.
      */
-    val gameServerIP: InetAddress = NetHelpers.getIPAddress(friend.gameServerIp)
+    val gameServerIP: InetAddress? = NetHelpers.getIPAddress(friend.gameServerIp)
 
     /**
      * Gets the game server port.

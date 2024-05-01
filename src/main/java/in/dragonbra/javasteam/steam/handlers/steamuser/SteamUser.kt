@@ -128,7 +128,7 @@ class SteamUser : ClientMsgHandler() {
             body.setClientPackageVersion(1771) // todo: determine if this is still required
             body.setSupportsRateLimitResponse(true)
             body.setMachineName(details.machineName)
-            body.setMachineId(ByteString.copyFrom(HardwareUtils.getMachineID()))
+            body.setMachineId(ByteString.copyFrom(HardwareUtils.machineID))
 
             // steam guard
             details.authCode?.let { body.setAuthCode(it) }
@@ -170,7 +170,7 @@ class SteamUser : ClientMsgHandler() {
                 body.setCellId(client.configuration.cellID)
             }
 
-            body.setMachineId(ByteString.copyFrom(HardwareUtils.getMachineID()))
+            body.setMachineId(ByteString.copyFrom(HardwareUtils.machineID))
         }.also(client::send)
     }
 

@@ -1,56 +1,57 @@
-package in.dragonbra.javasteam.util;
+package `in`.dragonbra.javasteam.util
 
-import org.apache.commons.validator.routines.InetAddressValidator;
-
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
-import java.net.UnknownHostException;
-import java.nio.ByteBuffer;
+import org.apache.commons.validator.routines.InetAddressValidator
+import java.net.InetAddress
+import java.net.InetSocketAddress
+import java.net.UnknownHostException
+import java.nio.ByteBuffer
 
 /**
  * @author lngtr
  * @since 2018-02-22
  */
-public class NetHelpers {
+object NetHelpers {
 
-    public static InetAddress getIPAddress(int ipAddr) {
-        ByteBuffer b = ByteBuffer.allocate(4);
-        b.putInt(ipAddr);
+    @JvmStatic
+    fun getIPAddress(ipAddr: Int): InetAddress? {
+        val b = ByteBuffer.allocate(4)
+        b.putInt(ipAddr)
 
-        byte[] result = b.array();
-
-        try {
-            return InetAddress.getByAddress(result);
-        } catch (UnknownHostException e) {
-            return null;
+        val addr = try {
+            InetAddress.getByAddress(b.array())
+        } catch (e: UnknownHostException) {
+            null
         }
+
+        return addr
     }
 
-    public static int getIPAddress(InetAddress ip) {
-        final ByteBuffer buff = ByteBuffer.wrap(ip.getAddress());
-        return (int) (buff.getInt() & 0xFFFFFFFFL);
+    @JvmStatic
+    fun getIPAddress(ip: InetAddress?): Int {
+        val buff = ByteBuffer.wrap(ip?.address).getInt().toLong()
+        return (buff and 0xFFFFFFFFL).toInt()
     }
 
-
-    public static InetSocketAddress tryParseIPEndPoint(String address) {
+    @JvmStatic
+    fun tryParseIPEndPoint(address: String?): InetSocketAddress? {
         if (address == null) {
-            return null;
+            return null
         }
 
-        String[] split = address.split(":");
+        val split = address.split(":")
 
         if (!InetAddressValidator.getInstance().isValidInet4Address(split[0])) {
-            return null;
+            return null
         }
 
         try {
-            if (split.length > 1) {
-                return new InetSocketAddress(split[0], Integer.parseInt(split[1]));
+            if (split.size > 1) {
+                return InetSocketAddress(split[0], split[1].toInt())
             }
-        } catch (IllegalArgumentException exception) {
+        } catch (exception: IllegalArgumentException) {
             // no-op
         }
 
-        return null;
+        return null
     }
 }

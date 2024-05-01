@@ -1,49 +1,41 @@
-package in.dragonbra.javasteam.util;
+@file:Suppress("unused")
 
-import java.math.BigInteger;
+package `in`.dragonbra.javasteam.util
+
+import java.math.BigInteger
 
 /**
  * @author lngtr
  * @since 2018-02-19
  */
-public class Strings {
+object Strings {
 
-    /**
-     * the constant 2^64
-     */
-    private static final BigInteger TWO_64 = BigInteger.ONE.shiftLeft(64);
+    // the constant 2^64
+    private val TWO_64: BigInteger = BigInteger.ONE.shiftLeft(64)
 
-    public static boolean isNullOrEmpty(String str) {
-        return str == null || str.isEmpty();
+    private val HEX_ARRAY = "0123456789ABCDEF".toCharArray()
+
+    @JvmStatic
+    fun asUnsignedDecimalString(l: Long): String =
+        (
+            if (BigInteger.valueOf(l).signum() < 0) {
+                BigInteger.valueOf(l)
+                    .add(TWO_64)
+            } else {
+                BigInteger.valueOf(l)
+            }
+            ).toString()
+
+    @JvmStatic
+    fun isNullOrEmpty(str: String?): Boolean = str.isNullOrEmpty()
+
+    @JvmStatic
+    fun toHex(bytes: ByteArray): String = bytes.joinToString(separator = "") {
+        "${HEX_ARRAY[it.toInt() and 0xF0 shr 4]}${HEX_ARRAY[it.toInt() and 0x0F]}"
     }
 
-    public String asUnsignedDecimalString(long l) {
-        BigInteger b = BigInteger.valueOf(l);
-        if (b.signum() < 0) {
-            b = b.add(TWO_64);
-        }
-        return b.toString();
-    }
-
-    private final static char[] HEX_ARRAY = "0123456789ABCDEF".toCharArray();
-
-    public static String toHex(byte[] bytes) {
-        char[] hexChars = new char[bytes.length * 2];
-        for (int j = 0; j < bytes.length; j++) {
-            int v = bytes[j] & 0xFF;
-            hexChars[j * 2] = HEX_ARRAY[v >>> 4];
-            hexChars[j * 2 + 1] = HEX_ARRAY[v & 0x0F];
-        }
-        return new String(hexChars);
-    }
-
-    public static byte[] decodeHex(String s) {
-        int len = s.length();
-        byte[] data = new byte[len / 2];
-        for (int i = 0; i < len; i += 2) {
-            data[i / 2] = (byte) ((Character.digit(s.charAt(i), 16) << 4)
-                    + Character.digit(s.charAt(i + 1), 16));
-        }
-        return data;
+    @JvmStatic
+    fun decodeHex(s: String): ByteArray = ByteArray(s.length / 2) { i ->
+        ((Character.digit(s[2 * i], 16) shl 4) + Character.digit(s[2 * i + 1], 16)).toByte()
     }
 }

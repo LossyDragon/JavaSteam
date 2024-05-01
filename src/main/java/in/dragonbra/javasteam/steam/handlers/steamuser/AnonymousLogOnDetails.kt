@@ -13,6 +13,6 @@ import `in`.dragonbra.javasteam.util.Utils
  */
 data class AnonymousLogOnDetails(
     var cellID: Int? = null,
-    var clientOSType: EOSType = Utils.getOSType(),
+    var clientOSType: EOSType = Utils.OSType,
     var clientLanguage: String = "english",
 )

@@ -1,187 +1,97 @@
-package in.dragonbra.javasteam.util;
+package `in`.dragonbra.javasteam.util
 
-import org.apache.commons.lang3.SystemUtils;
-
-import java.io.*;
-import java.util.Scanner;
+import org.apache.commons.lang3.SystemUtils
+import java.io.BufferedReader
+import java.io.IOException
+import java.io.InputStreamReader
 
 /**
  * @author lngtr
  * @since 2018-02-24
  */
-public class HardwareUtils {
+object HardwareUtils {
 
-    // Everything taken from here
+    // Everything referenced from here
     // https://stackoverflow.com/questions/1986732/how-to-get-a-unique-computer-identifier-in-java-like-disk-id-or-motherboard-id
-    private static String SERIAL_NUMBER;
+    private var serialNumber: String? = null
 
-    public static byte[] getMachineID() {
-        // the aug 25th 2015 CM update made well-formed machine MessageObjects required for logon
-        // this was flipped off shortly after the update rolled out, likely due to linux steamclients running on distros without a way to build a machineid
-        // so while a valid MO isn't currently (as of aug 25th) required, they could be in the future and we'll abide by The Valve Law now
+    @JvmStatic
+    val machineID: ByteArray
+        get() {
+            // the aug 25th 2015 CM update made well-formed machine MessageObjects required for logon
+            // this was flipped off shortly after the update rolled out, likely due to linux steamclients running on distros without a way to build a machineid
+            // so while a valid MO isn't currently (as of aug 25th) required, they could be in the future and we'll abide by The Valve Law now
 
-        if (SERIAL_NUMBER != null) {
-            return SERIAL_NUMBER.getBytes();
-        }
-
-        if (SystemUtils.IS_OS_WINDOWS) {
-            SERIAL_NUMBER = getSerialNumberWin();
-        }
-        if (SystemUtils.IS_OS_MAC) {
-            SERIAL_NUMBER = getSerialNumberMac();
-        }
-        if (SystemUtils.IS_OS_LINUX) {
-            SERIAL_NUMBER = getSerialNumberUnix();
-        }
-
-        // if SERIAL_NUMBER still was null
-        if (SERIAL_NUMBER == null) {
-            SERIAL_NUMBER = "JavaSteam-SerialNumber";
-        }
-
-        return SERIAL_NUMBER.getBytes();
-    }
-
-    private static String getSerialNumberWin() {
-        String sn = null;
-
-        Runtime runtime = Runtime.getRuntime();
-        Process process;
-        try {
-            process = runtime.exec(new String[]{"wmic", "bios", "get", "serialnumber"});
-        } catch (IOException e) {
-            return null;
-        }
-
-        OutputStream os = process.getOutputStream();
-
-        try {
-            os.close();
-        } catch (IOException ignored) {
-        }
-
-        try (Scanner sc = new Scanner(process.getInputStream())) {
-            while (sc.hasNext()) {
-                String next = sc.next();
-                if ("SerialNumber".equals(next)) {
-                    sn = sc.next().trim();
-                    break;
-                }
-            }
-        }
-
-        return sn;
-    }
-
-    private static String getSerialNumberMac() {
-        String sn = null;
-
-        Runtime runtime = Runtime.getRuntime();
-        Process process;
-        try {
-            process = runtime.exec(new String[]{"/usr/sbin/system_profiler", "SPHardwareDataType"});
-        } catch (IOException e) {
-            return null;
-        }
-
-        OutputStream os = process.getOutputStream();
-
-        try {
-            os.close();
-        } catch (IOException ignored) {
-        }
-
-        String line;
-        String marker = "Serial Number";
-        try (BufferedReader br = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-            while ((line = br.readLine()) != null) {
-                if (line.contains(marker)) {
-                    sn = line.split(":")[1].trim();
-                    break;
-                }
-            }
-        } catch (IOException e) {
-            return null;
-        }
-
-        return sn;
-    }
-
-    private static String getSerialNumberUnix() {
-        String sn = readDmidecode();
-
-        if (sn == null) {
-            sn = readLshal();
-        }
-
-        return sn;
-    }
-
-    private static BufferedReader read(String command) {
-
-        Runtime runtime = Runtime.getRuntime();
-        Process process;
-        try {
-            process = runtime.exec(command.split(" "));
-        } catch (IOException e) {
-            return null;
-        }
-
-        OutputStream os = process.getOutputStream();
-
-        try {
-            os.close();
-        } catch (IOException ignored) {
-        }
-
-        return new BufferedReader(new InputStreamReader(process.getInputStream()));
-    }
-
-    private static String readDmidecode() {
-
-        String sn = null;
-
-        String line;
-        String marker = "Serial Number:";
-
-        try (BufferedReader br = read("dmidecode -t system")) {
-            if (br == null) {
-                return null;
+            if (serialNumber != null) {
+                return serialNumber!!.toByteArray()
             }
 
-            while ((line = br.readLine()) != null) {
-                if (line.contains(marker)) {
-                    sn = line.split(marker)[1].trim();
-                    break;
-                }
+            serialNumber = when {
+                SystemUtils.IS_OS_WINDOWS -> getSerialNumber("wmic bios get serialnumber", "SerialNumber")
+                SystemUtils.IS_OS_MAC -> getSerialNumber("/usr/sbin/system_profiler", "SPHardwareDataType")
+                SystemUtils.IS_OS_LINUX -> getSerialNumberLinux()
+                else -> "Unknown-JavaSteam"
             }
-        } catch (IOException e) {
-            return null;
+
+            return serialNumber!!.toByteArray()
         }
 
-        return sn;
+    private fun getSerialNumber(command: String, marker: String): String? {
+        return try {
+            val process = Runtime.getRuntime().exec(command)
+            process.outputStream.close()
+            BufferedReader(InputStreamReader(process.inputStream)).useLines { line ->
+                line.mapNotNull {
+                    if (it.contains(marker)) {
+                        it.substringAfter(marker).trim()
+                    } else {
+                        null
+                    }
+                }.firstOrNull()
+            }
+        } catch (e: IOException) {
+            // Unable to get SN
+            null
+        }
     }
 
-    private static String readLshal() {
-        String sn = null;
+    // Could streamline this?
+    private fun getSerialNumberLinux(): String? {
+        return try {
+            var process = Runtime.getRuntime().exec("dmidecode -t system")
+            process.outputStream.close()
 
-        String line;
-        String marker = "system.hardware.serial =";
+            var sn = BufferedReader(InputStreamReader(process.inputStream))
+                .lineSequence()
+                .mapNotNull {
+                    val marker = "Serial Number:"
+                    if (it.contains(marker)) {
+                        it.substringAfter(marker).replace("(string)|(')".toRegex(), "").trim()
+                    } else {
+                        null
+                    }
+                }.firstOrNull()
 
-        try (BufferedReader br = read("lshal")) {
-            if (br == null) {
-                return null;
+            if (sn == null) {
+                process = Runtime.getRuntime().exec("lshal")
+                process.outputStream.close()
+
+                sn = BufferedReader(InputStreamReader(process.inputStream))
+                    .lineSequence()
+                    .mapNotNull {
+                        val marker = "system.hardware.serial ="
+                        if (it.contains(marker)) {
+                            it.substringAfter(marker).replace("(string)|(')".toRegex(), "").trim()
+                        } else {
+                            null
+                        }
+                    }.firstOrNull()
             }
-            while ((line = br.readLine()) != null) {
-                if (line.contains(marker)) {
-                    sn = line.split(marker)[1].replaceAll("\\(string\\)|(\\')", "").trim();
-                    break;
-                }
-            }
-        } catch (IOException e) {
-            return null;
+
+            sn
+        } catch (e: IOException) {
+            // Unable to get SN
+            null
         }
-
-        return sn;
     }
 }

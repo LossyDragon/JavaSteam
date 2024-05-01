@@ -66,9 +66,9 @@ class SteamGameServer : ClientMsgHandler() {
 
             body.setProtocolVersion(MsgClientLogon.CurrentProtocol)
 
-            body.setClientOsType(Utils.getOSType().code())
+            body.setClientOsType(Utils.OSType.code())
             body.setGameServerAppId(details.appID)
-            body.setMachineId(ByteString.copyFrom(HardwareUtils.getMachineID()))
+            body.setMachineId(ByteString.copyFrom(HardwareUtils.machineID))
 
             body.setGameServerToken(details.token)
         }.also(client::send)
@@ -101,9 +101,9 @@ class SteamGameServer : ClientMsgHandler() {
 
             body.setProtocolVersion(MsgClientLogon.CurrentProtocol)
 
-            body.setClientOsType(Utils.getOSType().code())
+            body.setClientOsType(Utils.OSType.code())
             body.setGameServerAppId(appId)
-            body.setMachineId(ByteString.copyFrom(HardwareUtils.getMachineID()))
+            body.setMachineId(ByteString.copyFrom(HardwareUtils.machineID))
         }.also(client::send)
     }
 

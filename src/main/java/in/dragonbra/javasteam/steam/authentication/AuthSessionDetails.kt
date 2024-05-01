@@ -38,7 +38,7 @@ class AuthSessionDetails {
      * Gets or Sets the client operating system type.
      */
     @JvmField
-    var clientOSType: EOSType = Utils.getOSType()
+    var clientOSType: EOSType = Utils.OSType
 
     /**
      * Gets or Sets the session persistence.
