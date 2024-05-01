@@ -282,7 +282,7 @@ class WebAPI(
         version: Int,
         parameters: Map<String, String>?,
     ): Request {
-        var params = parameters?.toMutableMap()
+        val params = parameters?.toMutableMap() ?: LinkedHashMap()
 
         require(
             !(
@@ -291,10 +291,6 @@ class WebAPI(
                 )
         ) {
             "only GET and POST is supported right now"
-        }
-
-        if (params == null) {
-            params = HashMap()
         }
 
         params["format"] = "vdf"

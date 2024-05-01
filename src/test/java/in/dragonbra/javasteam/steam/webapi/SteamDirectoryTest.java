@@ -49,7 +49,7 @@ public class SteamDirectoryTest extends TestBase {
             assertEquals(200, servers.size());
 
             RecordedRequest request = server.takeRequest();
-            assertEquals("/ISteamDirectory/GetCMList/v1?format=vdf&cellid=0", request.getPath());
+            assertEquals("/ISteamDirectory/GetCMList/v1?cellid=0&format=vdf", request.getPath());
             assertEquals("GET", request.getMethod());
 
             server.shutdown();
