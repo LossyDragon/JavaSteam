@@ -1,181 +1,151 @@
-package in.dragonbra.javasteam.steam.webapi;
+package `in`.dragonbra.javasteam.steam.webapi
 
-import in.dragonbra.javasteam.types.KeyValue;
-import in.dragonbra.javasteam.util.Versions;
-import in.dragonbra.javasteam.util.WebHelpers;
-import in.dragonbra.javasteam.util.compat.Consumer;
-import okhttp3.*;
-
-import java.io.IOException;
-import java.io.InputStream;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import `in`.dragonbra.javasteam.types.KeyValue
+import `in`.dragonbra.javasteam.util.Versions
+import `in`.dragonbra.javasteam.util.WebHelpers
+import `in`.dragonbra.javasteam.util.compat.Consumer
+import okhttp3.Call
+import okhttp3.Callback
+import okhttp3.FormBody
+import okhttp3.HttpUrl
+import okhttp3.HttpUrl.Companion.toHttpUrl
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.Response
+import java.io.IOException
 
 /**
  * Represents a single interface that exists within the Web API.
  */
-public class WebAPI {
-
-    public static final String DEFAULT_BASE_ADDRESS = "https://api.steampowered.com/";
-
-    private final OkHttpClient client;
-
-    private final HttpUrl baseAddress;
-
-    private final String _interface;
-
-    private final String webAPIKey;
-
-    public WebAPI(OkHttpClient httpClient, String baseAddress, String _interface, String webAPIKey) {
-        this.baseAddress = HttpUrl.parse(baseAddress);
-
-        if (this.baseAddress == null) {
-            throw new IllegalArgumentException();
-        }
-
-        this._interface = _interface;
-        this.webAPIKey = webAPIKey;
-        client = httpClient;
-    }
+class WebAPI(
+    private val client: OkHttpClient,
+    val baseAddress: String,
+    val `interface`: String,
+    val webAPIKey: String,
+) {
 
     /**
      * Manually calls the specified Web API function with the provided details. This method is synchronous.
-     *
      * @param httpMethod The http request method. Either "POST" or "GET".
      * @param function   The function name to call.
      * @param version    The version of the function to call.
      * @param parameters A map of string key value pairs representing arguments to be passed to the API.
-     * @return A {@link KeyValue} object representing the results of the Web API call.
+     * @return A [KeyValue] object representing the results of the Web API call.
      * @throws IOException            if the request could not be executed
      * @throws WebAPIRequestException the request was successful but returned a non success response code
      */
-    public KeyValue call(String httpMethod, String function, int version, Map<String, String> parameters)
-            throws IOException, WebAPIRequestException {
-        Request request = buildRequest(httpMethod, function, version, parameters);
-        Response response = client.newCall(request).execute();
+    @JvmOverloads
+    @Throws(IOException::class, WebAPIRequestException::class)
+    fun call(
+        httpMethod: String,
+        function: String,
+        version: Int = 1,
+        parameters: Map<String, String>? = null,
+    ): KeyValue {
+        val request = buildRequest(httpMethod, function, version, parameters)
+        val response = client.newCall(request).execute()
 
-        if (!response.isSuccessful()) {
-            throw new WebAPIRequestException(response);
+        if (!response.isSuccessful) {
+            throw WebAPIRequestException(response)
         }
 
-        return parseResponse(response);
+        return parseResponse(response)
     }
 
     /**
      * Manually calls the specified Web API function with the provided details. This method is synchronous.
-     *
      * @param function   The function name to call.
      * @param version    The version of the function to call.
      * @param parameters A map of string key value pairs representing arguments to be passed to the API.
-     * @return A {@link KeyValue} object representing the results of the Web API call.
+     * @return A [KeyValue] object representing the results of the Web API call.
      * @throws IOException if the request could not be executed
      */
-    public KeyValue call(String function, int version, Map<String, String> parameters) throws IOException {
-        return call("GET", function, version, parameters);
+    @Throws(IOException::class)
+    fun call(function: String, version: Int, parameters: Map<String, String>): KeyValue {
+        return call("GET", function, version, parameters)
     }
 
     /**
      * Manually calls the specified Web API function with the provided details. This method is synchronous.
-     *
      * @param httpMethod The http request method. Either "POST" or "GET".
      * @param function   The function name to call.
      * @param parameters A map of string key value pairs representing arguments to be passed to the API.
-     * @return A {@link KeyValue} object representing the results of the Web API call.
+     * @return A [KeyValue] object representing the results of the Web API call.
      * @throws IOException if the request could not be executed
      */
-    public KeyValue call(String httpMethod, String function, Map<String, String> parameters) throws IOException {
-        return call(httpMethod, function, 1, parameters);
+    @Throws(IOException::class)
+    fun call(httpMethod: String, function: String, parameters: Map<String, String>): KeyValue {
+        return call(httpMethod, function, 1, parameters)
     }
 
     /**
      * Manually calls the specified Web API function with the provided details. This method is synchronous.
-     *
      * @param function   The function name to call.
      * @param parameters A map of string key value pairs representing arguments to be passed to the API.
-     * @return A {@link KeyValue} object representing the results of the Web API call.
+     * @return A [KeyValue] object representing the results of the Web API call.
      * @throws IOException if the request could not be executed
      */
-    public KeyValue call(String function, Map<String, String> parameters) throws IOException {
-        return call("GET", function, 1, parameters);
+    @Throws(IOException::class)
+    fun call(function: String, parameters: Map<String, String>): KeyValue {
+        return call("GET", function, 1, parameters)
     }
 
     /**
      * Manually calls the specified Web API function with the provided details. This method is synchronous.
-     *
-     * @param httpMethod The http request method. Either "POST" or "GET".
-     * @param function   The function name to call.
-     * @param version    The version of the function to call.
-     * @return A {@link KeyValue} object representing the results of the Web API call.
-     * @throws IOException if the request could not be executed
-     */
-    public KeyValue call(String httpMethod, String function, int version) throws IOException {
-        return call(httpMethod, function, version, null);
-    }
-
-    /**
-     * Manually calls the specified Web API function with the provided details. This method is synchronous.
-     *
      * @param function The function name to call.
      * @param version  The version of the function to call.
-     * @return A {@link KeyValue} object representing the results of the Web API call.
+     * @return A [KeyValue] object representing the results of the Web API call.
      * @throws IOException if the request could not be executed
      */
-    public KeyValue call(String function, int version) throws IOException {
-        return call("GET", function, version, null);
+    @Throws(IOException::class)
+    fun call(function: String, version: Int): KeyValue {
+        return call("GET", function, version, null)
     }
 
     /**
      * Manually calls the specified Web API function with the provided details. This method is synchronous.
-     *
-     * @param httpMethod The http request method. Either "POST" or "GET".
-     * @param function   The function name to call.
-     * @return A {@link KeyValue} object representing the results of the Web API call.
-     * @throws IOException if the request could not be executed
-     */
-    public KeyValue call(String httpMethod, String function) throws IOException {
-        return call(httpMethod, function, 1, null);
-    }
-
-    /**
-     * Manually calls the specified Web API function with the provided details. This method is synchronous.
-     *
      * @param function The function name to call.
-     * @return A {@link KeyValue} object representing the results of the Web API call.
+     * @return A [KeyValue] object representing the results of the Web API call.
      * @throws IOException if the request could not be executed
      */
-    public KeyValue call(String function) throws IOException {
-        return call("GET", function, 1, null);
+    @Throws(IOException::class)
+    fun call(function: String): KeyValue {
+        return call("GET", function, 1, null)
     }
 
     /**
      * Manually calls the specified Web API function with the provided details. This method is asynchronous.
-     *
      * @param httpMethod The http request method. Either "POST" or "GET".
      * @param function   The function name to call.
      * @param version    The version of the function to call.
      * @param parameters A map of string key value pairs representing arguments to be passed to the API.
-     * @param callback   the callback that will be called with the resulting {@link KeyValue} object.
+     * @param callback   the callback that will be called with the resulting [KeyValue] object.
      * @param error      the callback for handling response errors.
      */
-    public void call(String httpMethod, String function, int version, Map<String, String> parameters,
-                     final Consumer<KeyValue> callback, final Consumer<WebAPIRequestException> error) {
-        Request request = buildRequest(httpMethod, function, version, parameters);
-        client.newCall(request).enqueue(new Callback() {
-            @Override
-            public void onFailure(Call call, IOException e) {
-                throw new IllegalStateException("request unsuccessful", e);
+    fun call(
+        httpMethod: String,
+        function: String,
+        version: Int,
+        parameters: Map<String, String>?,
+        callback: Consumer<KeyValue>,
+        error: Consumer<WebAPIRequestException>?,
+    ) {
+        val request = buildRequest(httpMethod, function, version, parameters)
+        val cb = object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                throw IllegalStateException("request unsuccessful", e)
             }
 
-            @Override
-            public void onResponse(Call call, Response response) {
-                if (!response.isSuccessful()) {
-                    error.accept(new WebAPIRequestException(response));
+            override fun onResponse(call: Call, response: Response) {
+                if (!response.isSuccessful) {
+                    error?.accept(WebAPIRequestException(response))
                 } else {
-                    callback.accept(parseResponse(response));
+                    callback.accept(parseResponse(response))
                 }
             }
-        });
+        }
+
+        client.newCall(request).enqueue(cb)
     }
 
     /**
@@ -184,13 +154,19 @@ public class WebAPI {
      * @param httpMethod The http request method. Either "POST" or "GET".
      * @param function   The function name to call.
      * @param version    The version of the function to call.
-     * @param callback   the callback that will be called with the resulting {@link KeyValue} object.
+     * @param callback   the callback that will be called with the resulting [KeyValue] object.
      * @param error      the callback for handling response errors.
      * @throws IOException if the request could not be executed
      */
-    public void call(String httpMethod, String function, int version, final Consumer<KeyValue> callback,
-                     final Consumer<WebAPIRequestException> error) throws IOException {
-        call(httpMethod, function, version, null, callback, error);
+    @Throws(IOException::class)
+    fun call(
+        httpMethod: String,
+        function: String,
+        version: Int,
+        callback: Consumer<KeyValue>,
+        error: Consumer<WebAPIRequestException>,
+    ) {
+        call(httpMethod, function, version, null, callback, error)
     }
 
     /**
@@ -199,13 +175,19 @@ public class WebAPI {
      * @param httpMethod The http request method. Either "POST" or "GET".
      * @param function   The function name to call.
      * @param parameters A map of string key value pairs representing arguments to be passed to the API.
-     * @param callback   the callback that will be called with the resulting {@link KeyValue} object.
+     * @param callback   the callback that will be called with the resulting [KeyValue] object.
      * @param error      the callback for handling response errors.
      * @throws IOException if the request could not be executed
      */
-    public void call(String httpMethod, String function, Map<String, String> parameters, final Consumer<KeyValue> callback,
-                     final Consumer<WebAPIRequestException> error) throws IOException {
-        call(httpMethod, function, 1, parameters, callback, error);
+    @Throws(IOException::class)
+    fun call(
+        httpMethod: String,
+        function: String,
+        parameters: Map<String, String>,
+        callback: Consumer<KeyValue>,
+        error: Consumer<WebAPIRequestException>,
+    ) {
+        call(httpMethod, function, 1, parameters, callback, error)
     }
 
     /**
@@ -213,13 +195,18 @@ public class WebAPI {
      *
      * @param httpMethod The http request method. Either "POST" or "GET".
      * @param function   The function name to call.
-     * @param callback   the callback that will be called with the resulting {@link KeyValue} object.
+     * @param callback   the callback that will be called with the resulting [KeyValue] object.
      * @param error      the callback for handling response errors.
      * @throws IOException if the request could not be executed
      */
-    public void call(String httpMethod, String function, final Consumer<KeyValue> callback,
-                     final Consumer<WebAPIRequestException> error) throws IOException {
-        call(httpMethod, function, 1, null, callback, error);
+    @Throws(IOException::class)
+    fun call(
+        httpMethod: String,
+        function: String,
+        callback: Consumer<KeyValue>,
+        error: Consumer<WebAPIRequestException>,
+    ) {
+        call(httpMethod, function, 1, null, callback, error)
     }
 
     /**
@@ -227,13 +214,18 @@ public class WebAPI {
      *
      * @param function The function name to call.
      * @param version  The version of the function to call.
-     * @param callback the callback that will be called with the resulting {@link KeyValue} object.
+     * @param callback the callback that will be called with the resulting [KeyValue] object.
      * @param error    the callback for handling response errors.
      * @throws IOException if the request could not be executed
      */
-    public void call(String function, int version, final Consumer<KeyValue> callback,
-                     final Consumer<WebAPIRequestException> error) throws IOException {
-        call("GET", function, version, null, callback, error);
+    @Throws(IOException::class)
+    fun call(
+        function: String,
+        version: Int,
+        callback: Consumer<KeyValue>,
+        error: Consumer<WebAPIRequestException>,
+    ) {
+        call("GET", function, version, null, callback, error)
     }
 
     /**
@@ -241,131 +233,120 @@ public class WebAPI {
      *
      * @param function   The function name to call.
      * @param parameters A map of string key value pairs representing arguments to be passed to the API.
-     * @param callback   the callback that will be called with the resulting {@link KeyValue} object.
+     * @param callback   the callback that will be called with the resulting [KeyValue] object.
      * @param error      the callback for handling response errors.
      * @throws IOException if the request could not be executed
      */
-    public void call(String function, Map<String, String> parameters, final Consumer<KeyValue> callback,
-                     final Consumer<WebAPIRequestException> error) throws IOException {
-        call("GET", function, 1, parameters, callback, error);
+    @Throws(IOException::class)
+    fun call(
+        function: String,
+        parameters: Map<String, String>,
+        callback: Consumer<KeyValue>,
+        error: Consumer<WebAPIRequestException>,
+    ) {
+        call("GET", function, 1, parameters, callback, error)
     }
 
     /**
      * Manually calls the specified Web API function with the provided details. This method is asynchronous.
      *
      * @param function The function name to call.
-     * @param callback the callback that will be called with the resulting {@link KeyValue} object.
+     * @param callback the callback that will be called with the resulting [KeyValue] object.
      * @param error    the callback for handling response errors.
      * @throws IOException if the request could not be executed
      */
-    public void call(String function, final Consumer<KeyValue> callback, final Consumer<WebAPIRequestException> error)
-            throws IOException {
-        call("GET", function, 1, null, callback, error);
+    @Throws(IOException::class)
+    fun call(function: String, callback: Consumer<KeyValue>, error: Consumer<WebAPIRequestException>?) {
+        call("GET", function, 1, null, callback, error)
     }
 
-    private KeyValue parseResponse(Response response) {
-        KeyValue kv = new KeyValue();
+    private fun parseResponse(response: Response): KeyValue {
+        val kv = KeyValue()
 
-        try (InputStream is = response.body().byteStream()) {
-            kv.readAsText(is);
-        } catch (Exception e) {
-            throw new IllegalStateException("An internal error occurred when attempting to parse the response from the WebAPI server. This can indicate a change in the VDF format.", e);
+        try {
+            response.body.byteStream().use(kv::readAsText)
+        } catch (e: Exception) {
+            throw IllegalStateException(
+                "An internal error occurred when attempting to parse the response from the WebAPI server. " +
+                    "This can indicate a change in the VDF format.",
+                e
+            )
         }
 
-        return kv;
+        return kv
     }
 
-    private Request buildRequest(String httpMethod, String function, int version, Map<String, String> parameters) {
-        if (httpMethod == null) {
-            throw new IllegalArgumentException("httpMethod is null");
-        }
-        if (!httpMethod.equalsIgnoreCase("GET") && !httpMethod.equalsIgnoreCase("POST")) {
-            throw new IllegalArgumentException("only GET and POST is supported right now");
-        }
-        if (function == null) {
-            throw new IllegalArgumentException("function is null");
-        }
-        if (parameters == null) {
-            parameters = new HashMap<>();
-        }
+    private fun buildRequest(
+        httpMethod: String,
+        function: String,
+        version: Int,
+        parameters: Map<String, String>?,
+    ): Request {
+        var params = parameters?.toMutableMap()
 
-        parameters.put("format", "vdf");
-
-        if (!webAPIKey.isEmpty()) {
-            parameters.put("key", webAPIKey);
+        require(
+            !(
+                !httpMethod.equals("GET", ignoreCase = true) &&
+                    !httpMethod.equals("POST", ignoreCase = true)
+                )
+        ) {
+            "only GET and POST is supported right now"
         }
 
-        Request.Builder builder = new Request.Builder();
-        builder.header("User-Agent", "JavaSteam-" + Versions.getVersion());
+        if (params == null) {
+            params = HashMap()
+        }
 
-        HttpUrl.Builder urlBuilder = baseAddress.newBuilder()
-                .addPathSegment(_interface)
-                .addPathSegment(function)
-                .addPathSegment("v" + version);
+        params["format"] = "vdf"
 
-        if (httpMethod.equalsIgnoreCase("GET")) {
-            for (Map.Entry<String, String> param : parameters.entrySet()) {
-                urlBuilder.addEncodedQueryParameter(WebHelpers.urlEncode(param.getKey()), param.getValue());
+        if (webAPIKey.isNotEmpty()) {
+            params["key"] = webAPIKey
+        }
+
+        val builder: Request.Builder = Request.Builder()
+            .header("User-Agent", "JavaSteam-${Versions.getVersion()}")
+
+        val urlBuilder: HttpUrl.Builder = baseAddress.toHttpUrl().newBuilder()
+            .addPathSegment(`interface`)
+            .addPathSegment(function)
+            .addPathSegment("v$version")
+
+        if (httpMethod.equals("GET", ignoreCase = true)) {
+            params.forEach { (key, value) ->
+                urlBuilder.addEncodedQueryParameter(WebHelpers.urlEncode(key), value)
             }
-            builder.get();
+            builder.get()
         } else {
-            FormBody.Builder bodyBuilder = new FormBody.Builder();
-            for (Map.Entry<String, String> param : parameters.entrySet()) {
-                bodyBuilder.addEncoded(WebHelpers.urlEncode(param.getKey()), param.getValue());
+            val bodyBuilder: FormBody.Builder = FormBody.Builder()
+            params.forEach { (key, value) ->
+                bodyBuilder.addEncoded(WebHelpers.urlEncode(key), value)
             }
-            builder.post(bodyBuilder.build());
+            builder.post(bodyBuilder.build())
         }
 
-        HttpUrl url = urlBuilder
-                .build();
+        val url: HttpUrl = urlBuilder.build()
 
-        return builder.url(url).build();
-    }
-
-    public HttpUrl getBaseAddress() {
-        return baseAddress;
-    }
-
-    public String getInterface() {
-        return _interface;
-    }
-
-    public String getWebAPIKey() {
-        return webAPIKey;
+        return builder.url(url).build()
     }
 
     /**
      * Thrown when WebAPI request fails (non success response code).
      */
-    public static class WebAPIRequestException extends IOException {
-
-        private final int statusCode;
-
-        private final Map<String, List<String>> headers;
+    class WebAPIRequestException internal constructor(response: Response) : IOException(response.message) {
+        /**
+         * Gets the status code of the response.
+         * @return the status code of the response.
+         */
+        val statusCode: Int = response.code
 
         /**
-         * Initializes a new instance of the {@link WebAPIRequestException} class.
-         *
-         * @param response the response object from the call
+         * Gets the headers of the response.
+         * @return headers of the response.
          */
-        WebAPIRequestException(Response response) {
-            super(response.message());
-            statusCode = response.code();
-            headers = response.headers().toMultimap();
-        }
+        val headers: Map<String, List<String>> = response.headers.toMultimap()
+    }
 
-        /**
-         * @return the status code of the response
-         */
-        public int getStatusCode() {
-            return statusCode;
-        }
-
-        /**
-         * @return headers of the response
-         */
-        public Map<String, List<String>> getHeaders() {
-            return headers;
-        }
+    companion object {
+        const val DEFAULT_BASE_ADDRESS: String = "https://api.steampowered.com/"
     }
 }

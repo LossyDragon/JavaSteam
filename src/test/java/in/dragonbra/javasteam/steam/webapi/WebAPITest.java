@@ -76,14 +76,14 @@ public class WebAPITest extends TestBase {
     @Test
     public void steamConfigWebApiInterface() {
         SteamConfiguration config = SteamConfiguration.create(b ->
-                b.withWebAPIBaseAddress("http://example.com/").withWebAPIKey("hello")
+                b.withWebAPIBaseAddress("https://example.com/").withWebAPIKey("hello")
         );
 
         WebAPI api = config.getWebAPI("TestInterface");
 
         assertEquals(api.getInterface(), "TestInterface");
         assertEquals(api.getWebAPIKey(), "hello");
-        assertEquals(api.getBaseAddress().toString(), "http://example.com/");
+        assertEquals(api.getBaseAddress(), "https://example.com/");
     }
 
     @Test
@@ -182,21 +182,5 @@ public class WebAPITest extends TestBase {
         assertEquals("/TestInterface/TestFunction/v1", request.getPath());
         assertEquals("POST", request.getMethod());
         assertEquals("key1=value1&key2=value2&format=vdf", request.getBody().readString(StandardCharsets.UTF_8));
-    }
-
-    @Test
-    public void testNullMethod() {
-        assertThrows(IllegalArgumentException.class, () -> {
-            WebAPI api = config.getWebAPI("TestInterface");
-            api.call(null, "TestFunction");
-        });
-    }
-
-    @Test
-    public void testNullFunction() {
-        assertThrows(IllegalArgumentException.class, () -> {
-            WebAPI api = config.getWebAPI("TestInterface");
-            api.call("GET", (String) null);
-        });
     }
 }
