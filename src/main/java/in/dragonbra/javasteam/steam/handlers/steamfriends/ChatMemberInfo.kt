@@ -31,7 +31,7 @@ class ChatMemberInfo : MessageObject {
      * Initializes a new instance of the [ChatMemberInfo] class.
      * @param keyValues The KeyValue backing store for this member info.
      */
-    constructor(keyValues: KeyValue?) : super(keyValues)
+    constructor(keyValues: KeyValue) : super(keyValues)
 
     /**
      * Initializes a new instance of the [ChatMemberInfo] class.

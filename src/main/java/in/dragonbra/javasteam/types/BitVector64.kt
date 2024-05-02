@@ -1,29 +1,21 @@
-package in.dragonbra.javasteam.types;
+package `in`.dragonbra.javasteam.types
 
-public class BitVector64 {
+@Suppress("unused")
+class BitVector64 {
 
-    private Long data;
+    var data: Long? = null
 
-    public BitVector64() {
+    constructor()
+
+    constructor(value: Long) {
+        data = value
     }
 
-    public BitVector64(long value) {
-        data = value;
+    fun getMask(bitOffset: Short, valueMask: Long): Long {
+        return data!! shr bitOffset.toInt() and valueMask
     }
 
-    public Long getData() {
-        return data;
-    }
-
-    public void setData(Long data) {
-        this.data = data;
-    }
-
-    public long getMask(short bitOffset, long valueMask) {
-        return data >> bitOffset & valueMask;
-    }
-
-    public void setMask(short bitOffset, long valueMask, long value) {
-        data = (data & ~(valueMask << bitOffset)) | ((value & valueMask) << bitOffset);
+    fun setMask(bitOffset: Short, valueMask: Long, value: Long) {
+        data = (data!! and (valueMask shl bitOffset.toInt()).inv()) or ((value and valueMask) shl bitOffset.toInt())
     }
 }

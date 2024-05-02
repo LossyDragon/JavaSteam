@@ -417,7 +417,7 @@ class SteamFriends : ClientMsgHandler() {
         val chatId = SteamID(steamID.convertToUInt64()) // copy the steamid so we don't modify it
         if (chatId.isClanAccount) {
             // this steamid is incorrect, so we'll fix it up
-            chatId.accountInstance = ChatInstanceFlags.CLAN.code()
+            chatId.accountInstance = ChatInstanceFlags.CLAN.code
             chatId.accountType = EAccountType.Chat
         }
 
@@ -447,7 +447,7 @@ class SteamFriends : ClientMsgHandler() {
         val chatId = SteamID(steamIdChat.convertToUInt64()) // copy the steamid so we don't modify it
         if (chatId.isClanAccount) {
             // this steamid is incorrect, so we'll fix it up
-            chatId.accountInstance = ChatInstanceFlags.CLAN.code()
+            chatId.accountInstance = ChatInstanceFlags.CLAN.code
             chatId.accountType = EAccountType.Chat
         }
 
@@ -474,7 +474,7 @@ class SteamFriends : ClientMsgHandler() {
         val chatId = SteamID(steamIdChat.convertToUInt64()) // copy the steamid so we don't modify it
         if (chatId.isClanAccount) {
             // this steamid is incorrect, so we'll fix it up
-            chatId.accountInstance = ChatInstanceFlags.CLAN.code()
+            chatId.accountInstance = ChatInstanceFlags.CLAN.code
             chatId.accountType = EAccountType.Chat
         }
 
@@ -499,7 +499,7 @@ class SteamFriends : ClientMsgHandler() {
         val chatId = SteamID(steamIdChat.convertToUInt64()) // copy the steamid so we don't modify it
         if (chatId.isClanAccount) {
             // this steamid is incorrect, so we'll fix it up
-            chatId.accountInstance = ChatInstanceFlags.CLAN.code()
+            chatId.accountInstance = ChatInstanceFlags.CLAN.code
             chatId.accountType = EAccountType.Chat
         }
 
@@ -519,7 +519,7 @@ class SteamFriends : ClientMsgHandler() {
         val chatId = SteamID(steamIdChat.convertToUInt64()) // copy the steamid so we don't modify it
         if (chatId.isClanAccount) {
             // this steamid is incorrect, so we'll fix it up
-            chatId.accountInstance = ChatInstanceFlags.CLAN.code()
+            chatId.accountInstance = ChatInstanceFlags.CLAN.code
             chatId.accountType = EAccountType.Chat
         }
 
@@ -539,7 +539,7 @@ class SteamFriends : ClientMsgHandler() {
         val chatId = SteamID(steamIdChat.convertToUInt64()) // copy the steamid so we don't modify it
         if (chatId.isClanAccount) {
             // this steamid is incorrect, so we'll fix it up
-            chatId.accountInstance = ChatInstanceFlags.CLAN.code()
+            chatId.accountInstance = ChatInstanceFlags.CLAN.code
             chatId.accountType = EAccountType.Chat
         }
 
