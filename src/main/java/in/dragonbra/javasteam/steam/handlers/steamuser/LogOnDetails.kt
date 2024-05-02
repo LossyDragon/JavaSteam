@@ -1,8 +1,8 @@
 package `in`.dragonbra.javasteam.steam.handlers.steamuser
 
 import `in`.dragonbra.javasteam.enums.EOSType
-import `in`.dragonbra.javasteam.steam.authentication.AuthSessionDetails
 import `in`.dragonbra.javasteam.steam.authentication.AuthPollResult
+import `in`.dragonbra.javasteam.steam.authentication.AuthSessionDetails
 import `in`.dragonbra.javasteam.types.SteamID
 import `in`.dragonbra.javasteam.util.Utils
 
