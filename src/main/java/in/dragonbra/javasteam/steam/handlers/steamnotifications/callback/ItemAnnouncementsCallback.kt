@@ -7,7 +7,6 @@ import `in`.dragonbra.javasteam.steam.steamclient.callbackmgr.CallbackMsg
 /**
  * Fired in response to calling [SteamNotifications.requestItemAnnouncements].
  */
-@Suppress("unused")
 class ItemAnnouncementsCallback(msg: CMsgClientItemAnnouncements.Builder) : CallbackMsg() {
 
     /**

@@ -20,7 +20,7 @@ abstract class Connection {
     /**
      * Occurs when the physical connection is established.
      */
-    val connected: Event<EventArgs> = Event<EventArgs>()
+    val connected: Event<EventArgs> = Event()
 
     /**
      * Occurs when the physical connection is broken.

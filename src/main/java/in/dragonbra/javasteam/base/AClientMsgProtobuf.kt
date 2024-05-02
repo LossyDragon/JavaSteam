@@ -75,6 +75,7 @@ open class AClientMsgProtobuf : MsgBase<MsgHdrProtoBuf> {
             logger.debug("ClientMsgProtobuf used for non-proto message!")
         }
 
+        // TODO: Calling non-final function deserialize in constructor
         deserialize(msg.data)
     }
 

@@ -9,6 +9,7 @@ import `in`.dragonbra.javasteam.types.SteamID
 /**
  * This callback is fired in response to chat member info being received.
  */
+@Suppress("MemberVisibilityCanBePrivate")
 class ChatMemberInfoCallback(msg: MsgClientChatMemberInfo, payload: ByteArray) : CallbackMsg() {
 
     /**

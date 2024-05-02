@@ -7,7 +7,6 @@ import `in`.dragonbra.javasteam.util.compat.ObjectsCompat
  * This 64bit structure represents an app, mod, shortcut, or p2p file on the Steam network.
  *
  * @constructor Initializes a new instance of the [GameID] class.
- * @param nAppId The 32bit app id to assign this GameID from.
  */
 @Suppress("unused", "MemberVisibilityCanBePrivate")
 class GameID(id: Long) {
@@ -16,6 +15,7 @@ class GameID(id: Long) {
 
     /**
      * Initializes a new instance of the [GameID] class.
+     * @param nAppId The 32bit app id to assign this GameID from.
      */
     @JvmOverloads
     constructor(nAppId: Int = 0) : this(nAppId.toLong())

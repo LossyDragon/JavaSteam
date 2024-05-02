@@ -9,7 +9,6 @@ import `in`.dragonbra.javasteam.types.JobID
 /**
  * This callback is received in response to calling [SteamApps.getLegacyGameKey].
  */
-@Suppress("unused")
 class LegacyGameKeyCallback(
     jobID: JobID,
     msg: MsgClientGetLegacyGameKeyResponse,

@@ -20,7 +20,7 @@ class SteamGameCoordinator : ClientMsgHandler() {
     private var dispatchMap: EnumMap<EMsg, Consumer<IPacketMsg>> = EnumMap(EMsg::class.java)
 
     init {
-        dispatchMap[EMsg.ClientFromGC] = Consumer<IPacketMsg>(::handleFromGC)
+        dispatchMap[EMsg.ClientFromGC] = Consumer(::handleFromGC)
     }
 
     /**

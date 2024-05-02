@@ -5,7 +5,6 @@ import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserver2
 /**
  * Represents a notification.
  */
-@Suppress("unused")
 class Notification(notification: CMsgClientUserNotifications.Notification) {
 
     /**

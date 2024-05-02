@@ -43,9 +43,9 @@ public class MyHandler extends ClientMsgHandler {
     @SuppressWarnings("unused")
     public void logOff(String user, String pass) {
         ClientMsgProtobuf<CMsgClientLogOff.Builder> logOffMessage = new ClientMsgProtobuf<>(CMsgClientLogOff.class, EMsg.ClientLogOff);
-        client.send(logOffMessage);
+        getClient().send(logOffMessage);
 
-        client.disconnect(); // JavaSteam edit here.
+        getClient().disconnect(); // JavaSteam edit here.
     }
 
     // some other useful function
@@ -87,6 +87,6 @@ public class MyHandler extends ClientMsgHandler {
         System.out.println("HandleLogonResponse: " + result);
 
         // post the callback to be consumed by user code
-        client.postCallback(new MyCallback(result));
+        getClient().postCallback(new MyCallback(result));
     }
 }

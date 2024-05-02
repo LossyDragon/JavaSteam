@@ -7,7 +7,6 @@ import `in`.dragonbra.javasteam.steam.steamclient.callbackmgr.CallbackMsg
 /**
  * Fired when the client receives user notifications.
  */
-@Suppress("unused")
 class UserNotificationsCallback(msg: CMsgClientUserNotifications.Builder) : CallbackMsg() {
 
     /**

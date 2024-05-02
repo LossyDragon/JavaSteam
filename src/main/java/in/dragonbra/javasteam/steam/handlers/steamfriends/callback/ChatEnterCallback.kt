@@ -10,7 +10,6 @@ import `in`.dragonbra.javasteam.util.stream.BinaryReader
 import java.io.ByteArrayInputStream
 import java.io.IOException
 import java.nio.charset.StandardCharsets
-import java.util.*
 
 /**
  * This callback is fired in response to attempting to join a chat.

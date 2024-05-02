@@ -21,7 +21,7 @@ class SteamMasterServer : ClientMsgHandler() {
     private var dispatchMap: EnumMap<EMsg, Consumer<IPacketMsg>> = EnumMap(EMsg::class.java)
 
     init {
-        dispatchMap[EMsg.GMSClientServerQueryResponse] = Consumer<IPacketMsg>(::handleServerQueryResponse)
+        dispatchMap[EMsg.GMSClientServerQueryResponse] = Consumer(::handleServerQueryResponse)
     }
 
     /**

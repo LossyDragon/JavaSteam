@@ -3,7 +3,6 @@ package `in`.dragonbra.javasteam.steam.handlers.steamfriends
 import `in`.dragonbra.javasteam.enums.EResult
 import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserver.CMsgClientAMGetPersonaNameHistoryResponse
 import `in`.dragonbra.javasteam.types.SteamID
-import java.util.*
 
 /**
  * Represents a name table of an account.

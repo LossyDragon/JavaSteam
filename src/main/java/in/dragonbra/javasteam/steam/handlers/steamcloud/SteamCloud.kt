@@ -27,12 +27,9 @@ class SteamCloud : ClientMsgHandler() {
     private var dispatchMap: EnumMap<EMsg, Consumer<IPacketMsg>> = EnumMap(EMsg::class.java)
 
     init {
-        dispatchMap[EMsg.ClientUFSGetUGCDetailsResponse] =
-            Consumer<IPacketMsg>(::handleUGCDetailsResponse)
-        dispatchMap[EMsg.ClientUFSGetSingleFileInfoResponse] =
-            Consumer<IPacketMsg>(::handleSingleFileInfoResponse)
-        dispatchMap[EMsg.ClientUFSShareFileResponse] =
-            Consumer<IPacketMsg>(::handleShareFileResponse)
+        dispatchMap[EMsg.ClientUFSGetUGCDetailsResponse] = Consumer(::handleUGCDetailsResponse)
+        dispatchMap[EMsg.ClientUFSGetSingleFileInfoResponse] = Consumer(::handleSingleFileInfoResponse)
+        dispatchMap[EMsg.ClientUFSShareFileResponse] = Consumer(::handleShareFileResponse)
     }
 
     /**

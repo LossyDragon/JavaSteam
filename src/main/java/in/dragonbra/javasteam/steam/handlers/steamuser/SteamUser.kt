@@ -48,26 +48,16 @@ class SteamUser : ClientMsgHandler() {
         get() = client.steamID
 
     init {
-        dispatchMap[EMsg.ClientLogOnResponse] =
-            Consumer<IPacketMsg>(::handleLogOnResponse)
-        dispatchMap[EMsg.ClientLoggedOff] =
-            Consumer<IPacketMsg>(::handleLoggedOff)
-        dispatchMap[EMsg.ClientSessionToken] =
-            Consumer<IPacketMsg>(::handleSessionToken)
-        dispatchMap[EMsg.ClientAccountInfo] =
-            Consumer<IPacketMsg>(::handleAccountInfo)
-        dispatchMap[EMsg.ClientEmailAddrInfo] =
-            Consumer<IPacketMsg>(::handleEmailAddrInfo)
-        dispatchMap[EMsg.ClientWalletInfoUpdate] =
-            Consumer<IPacketMsg>(::handleWalletInfo)
-        dispatchMap[EMsg.ClientRequestWebAPIAuthenticateUserNonceResponse] =
-            Consumer<IPacketMsg>(::handleWebAPIUserNonce)
-        dispatchMap[EMsg.ClientVanityURLChangedNotification] =
-            Consumer<IPacketMsg>(::handleVanityURLChangedNotification)
-        dispatchMap[EMsg.ClientMarketingMessageUpdate2] =
-            Consumer<IPacketMsg>(::handleMarketingMessageUpdate)
-        dispatchMap[EMsg.ClientPlayingSessionState] =
-            Consumer<IPacketMsg>(::handlePlayingSessionState)
+        dispatchMap[EMsg.ClientLogOnResponse] = Consumer(::handleLogOnResponse)
+        dispatchMap[EMsg.ClientLoggedOff] = Consumer(::handleLoggedOff)
+        dispatchMap[EMsg.ClientSessionToken] = Consumer(::handleSessionToken)
+        dispatchMap[EMsg.ClientAccountInfo] = Consumer(::handleAccountInfo)
+        dispatchMap[EMsg.ClientEmailAddrInfo] = Consumer(::handleEmailAddrInfo)
+        dispatchMap[EMsg.ClientWalletInfoUpdate] = Consumer(::handleWalletInfo)
+        dispatchMap[EMsg.ClientRequestWebAPIAuthenticateUserNonceResponse] = Consumer(::handleWebAPIUserNonce)
+        dispatchMap[EMsg.ClientVanityURLChangedNotification] = Consumer(::handleVanityURLChangedNotification)
+        dispatchMap[EMsg.ClientMarketingMessageUpdate2] = Consumer(::handleMarketingMessageUpdate)
+        dispatchMap[EMsg.ClientPlayingSessionState] = Consumer(::handlePlayingSessionState)
     }
 
     /**

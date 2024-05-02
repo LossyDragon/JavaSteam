@@ -23,7 +23,6 @@ import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
 import java.util.Date;
-import java.util.LinkedList;
 
 import static org.junit.jupiter.api.Assertions.*;
 

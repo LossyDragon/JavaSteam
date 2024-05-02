@@ -27,7 +27,7 @@ class SteamScreenshots : ClientMsgHandler() {
     private var dispatchMap: EnumMap<EMsg, Consumer<IPacketMsg>> = EnumMap(EMsg::class.java)
 
     init {
-        dispatchMap[EMsg.ClientUCMAddScreenshotResponse] = Consumer<IPacketMsg>(::handleUCMAddScreenshot)
+        dispatchMap[EMsg.ClientUCMAddScreenshotResponse] = Consumer(::handleUCMAddScreenshot)
     }
 
     /**

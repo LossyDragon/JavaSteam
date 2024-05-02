@@ -6,6 +6,7 @@ import java.util.*
  * @author lngtr
  * @since 2018-03-02
  */
+@Suppress("unused")
 object LogManager {
 
     @JvmField

@@ -328,6 +328,7 @@ class WebAPI(
     /**
      * Thrown when WebAPI request fails (non success response code).
      */
+    @Suppress("unused")
     class WebAPIRequestException internal constructor(response: Response) : IOException(response.message) {
         /**
          * Gets the status code of the response.

@@ -17,7 +17,7 @@ import java.util.*
 /**
  * This callback is returned in response to an attempt to log on to the Steam3 network through [SteamUser].
  */
-@Suppress("unused")
+@Suppress("MemberVisibilityCanBePrivate")
 class LoggedOnCallback : CallbackMsg {
 
     /**

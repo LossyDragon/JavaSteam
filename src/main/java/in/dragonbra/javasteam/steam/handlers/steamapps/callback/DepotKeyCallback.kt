@@ -9,7 +9,6 @@ import `in`.dragonbra.javasteam.types.JobID
 /**
  * This callback is received in response to calling [SteamApps.getDepotDecryptionKey]
  */
-@Suppress("unused")
 class DepotKeyCallback(jobID: JobID, msg: CMsgClientGetDepotDecryptionKeyResponse.Builder) : CallbackMsg() {
 
     /**

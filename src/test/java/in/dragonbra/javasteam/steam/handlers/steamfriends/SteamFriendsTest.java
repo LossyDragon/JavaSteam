@@ -536,13 +536,9 @@ public class SteamFriendsTest extends HandlerTestBase<SteamFriends> {
 
     @Test
     public void verifyInvalidPersonaStateFlag() {
-        assertThrows(IllegalArgumentException.class, () -> {
-            handler.setPersonaStateFlag(EPersonaStateFlag.Golden);
-        });
+        assertThrows(IllegalArgumentException.class, () -> handler.setPersonaStateFlag(EPersonaStateFlag.Golden));
 
-        assertThrows(IllegalArgumentException.class, () -> {
-            handler.setPersonaStateFlag(EPersonaStateFlag.LaunchTypeCompatTool);
-        });
+        assertThrows(IllegalArgumentException.class, () -> handler.setPersonaStateFlag(EPersonaStateFlag.LaunchTypeCompatTool));
     }
 
     @Test

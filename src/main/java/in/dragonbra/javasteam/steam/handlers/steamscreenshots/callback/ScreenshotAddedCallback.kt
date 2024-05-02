@@ -9,7 +9,7 @@ import `in`.dragonbra.javasteam.types.UGCHandle
 /**
  * This callback is fired when a new screenshot is added.
  */
-@Suppress("MemberVisibilityCanBePrivate", "unused")
+@Suppress("unused")
 class ScreenshotAddedCallback(jobID: JobID, msg: CMsgClientUCMAddScreenshotResponse.Builder) : CallbackMsg() {
 
     /**

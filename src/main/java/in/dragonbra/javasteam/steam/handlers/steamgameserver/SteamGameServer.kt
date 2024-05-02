@@ -33,8 +33,8 @@ class SteamGameServer : ClientMsgHandler() {
     private var dispatchMap: EnumMap<EMsg, Consumer<IPacketMsg>> = EnumMap(EMsg::class.java)
 
     init {
-        dispatchMap[EMsg.GSStatusReply] = Consumer<IPacketMsg>(::handleStatusReply)
-        dispatchMap[EMsg.ClientTicketAuthComplete] = Consumer<IPacketMsg>(::handleAuthComplete)
+        dispatchMap[EMsg.GSStatusReply] = Consumer(::handleStatusReply)
+        dispatchMap[EMsg.ClientTicketAuthComplete] = Consumer(::handleAuthComplete)
     }
 
     /**

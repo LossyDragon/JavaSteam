@@ -58,36 +58,21 @@ class SteamApps : ClientMsgHandler() {
     private var dispatchMap: EnumMap<EMsg, Consumer<IPacketMsg>> = EnumMap(EMsg::class.java)
 
     init {
-        dispatchMap[EMsg.ClientLicenseList] =
-            Consumer<IPacketMsg>(::handleLicenseList)
-        dispatchMap[EMsg.ClientRequestFreeLicenseResponse] =
-            Consumer<IPacketMsg>(::handleFreeLicense)
-        dispatchMap[EMsg.ClientPurchaseResponse] =
-            Consumer<IPacketMsg>(::handlePurchaseResponse)
-        dispatchMap[EMsg.ClientRedeemGuestPassResponse] =
-            Consumer<IPacketMsg>(::handleRedeemGuestPassResponse)
-        dispatchMap[EMsg.ClientGameConnectTokens] =
-            Consumer<IPacketMsg>(::handleGameConnectTokens)
-        dispatchMap[EMsg.ClientVACBanStatus] =
-            Consumer<IPacketMsg>(::handleVACBanStatus)
-        dispatchMap[EMsg.ClientGetAppOwnershipTicketResponse] =
-            Consumer<IPacketMsg>(::handleAppOwnershipTicketResponse)
-        dispatchMap[EMsg.ClientGetDepotDecryptionKeyResponse] =
-            Consumer<IPacketMsg>(::handleDepotKeyResponse)
-        dispatchMap[EMsg.ClientGetLegacyGameKeyResponse] =
-            Consumer<IPacketMsg>(::handleLegacyGameKeyResponse)
-        dispatchMap[EMsg.ClientPICSAccessTokenResponse] =
-            Consumer<IPacketMsg>(::handlePICSAccessTokenResponse)
-        dispatchMap[EMsg.ClientPICSChangesSinceResponse] =
-            Consumer<IPacketMsg>(::handlePICSChangesSinceResponse)
-        dispatchMap[EMsg.ClientPICSProductInfoResponse] =
-            Consumer<IPacketMsg>(::handlePICSProductInfoResponse)
-        dispatchMap[EMsg.ClientUpdateGuestPassesList] =
-            Consumer<IPacketMsg>(::handleGuestPassList)
-        dispatchMap[EMsg.ClientGetCDNAuthTokenResponse] =
-            Consumer<IPacketMsg>(::handleCDNAuthTokenResponse)
-        dispatchMap[EMsg.ClientCheckAppBetaPasswordResponse] =
-            Consumer<IPacketMsg>(::handleCheckAppBetaPasswordResponse)
+        dispatchMap[EMsg.ClientLicenseList] = Consumer(::handleLicenseList)
+        dispatchMap[EMsg.ClientRequestFreeLicenseResponse] = Consumer(::handleFreeLicense)
+        dispatchMap[EMsg.ClientPurchaseResponse] = Consumer(::handlePurchaseResponse)
+        dispatchMap[EMsg.ClientRedeemGuestPassResponse] = Consumer(::handleRedeemGuestPassResponse)
+        dispatchMap[EMsg.ClientGameConnectTokens] = Consumer(::handleGameConnectTokens)
+        dispatchMap[EMsg.ClientVACBanStatus] = Consumer(::handleVACBanStatus)
+        dispatchMap[EMsg.ClientGetAppOwnershipTicketResponse] = Consumer(::handleAppOwnershipTicketResponse)
+        dispatchMap[EMsg.ClientGetDepotDecryptionKeyResponse] = Consumer(::handleDepotKeyResponse)
+        dispatchMap[EMsg.ClientGetLegacyGameKeyResponse] = Consumer(::handleLegacyGameKeyResponse)
+        dispatchMap[EMsg.ClientPICSAccessTokenResponse] = Consumer(::handlePICSAccessTokenResponse)
+        dispatchMap[EMsg.ClientPICSChangesSinceResponse] = Consumer(::handlePICSChangesSinceResponse)
+        dispatchMap[EMsg.ClientPICSProductInfoResponse] = Consumer(::handlePICSProductInfoResponse)
+        dispatchMap[EMsg.ClientUpdateGuestPassesList] = Consumer(::handleGuestPassList)
+        dispatchMap[EMsg.ClientGetCDNAuthTokenResponse] = Consumer(::handleCDNAuthTokenResponse)
+        dispatchMap[EMsg.ClientCheckAppBetaPasswordResponse] = Consumer(::handleCheckAppBetaPasswordResponse)
     }
 
     /**

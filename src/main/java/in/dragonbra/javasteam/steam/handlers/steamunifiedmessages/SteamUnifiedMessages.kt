@@ -27,8 +27,8 @@ class SteamUnifiedMessages : ClientMsgHandler() {
     private var dispatchMap: EnumMap<EMsg, Consumer<IPacketMsg>> = EnumMap(EMsg::class.java)
 
     init {
-        dispatchMap[EMsg.ServiceMethodResponse] = Consumer<IPacketMsg>(::handleServiceMethodResponse)
-        dispatchMap[EMsg.ServiceMethod] = Consumer<IPacketMsg>(::handleServiceMethod)
+        dispatchMap[EMsg.ServiceMethodResponse] = Consumer(::handleServiceMethodResponse)
+        dispatchMap[EMsg.ServiceMethod] = Consumer(::handleServiceMethod)
     }
 
     override fun handleMsg(packetMsg: IPacketMsg) {

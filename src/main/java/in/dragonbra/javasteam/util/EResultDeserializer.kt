@@ -11,6 +11,7 @@ import java.lang.reflect.Type
  * @author lngtr
  * @since 2018-02-20
  */
+@Suppress("unused")
 class EResultDeserializer : JsonDeserializer<EResult> {
     @Throws(JsonParseException::class)
     override fun deserialize(json: JsonElement, typeOfT: Type, context: JsonDeserializationContext): EResult {

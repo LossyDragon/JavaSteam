@@ -28,12 +28,9 @@ class SteamUserStats : ClientMsgHandler() {
     private var dispatchMap: EnumMap<EMsg, Consumer<IPacketMsg>> = EnumMap(EMsg::class.java)
 
     init {
-        dispatchMap[EMsg.ClientGetNumberOfCurrentPlayersDPResponse] =
-            Consumer<IPacketMsg>(::handleNumberOfPlayersResponse)
-        dispatchMap[EMsg.ClientLBSFindOrCreateLBResponse] =
-            Consumer<IPacketMsg>(::handleFindOrCreateLBResponse)
-        dispatchMap[EMsg.ClientLBSGetLBEntriesResponse] =
-            Consumer<IPacketMsg>(::handleGetLBEntriesResponse)
+        dispatchMap[EMsg.ClientGetNumberOfCurrentPlayersDPResponse] = Consumer(::handleNumberOfPlayersResponse)
+        dispatchMap[EMsg.ClientLBSFindOrCreateLBResponse] = Consumer(::handleFindOrCreateLBResponse)
+        dispatchMap[EMsg.ClientLBSGetLBEntriesResponse] = Consumer(::handleGetLBEntriesResponse)
     }
 
     /**

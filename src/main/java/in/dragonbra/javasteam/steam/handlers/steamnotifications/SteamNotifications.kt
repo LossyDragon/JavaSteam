@@ -26,14 +26,10 @@ class SteamNotifications : ClientMsgHandler() {
     private var dispatchMap: EnumMap<EMsg, Consumer<IPacketMsg>> = EnumMap(EMsg::class.java)
 
     init {
-        dispatchMap[EMsg.ClientUserNotifications] =
-            Consumer<IPacketMsg>(::handleUserNotifications)
-        dispatchMap[EMsg.ClientChatOfflineMessageNotification] =
-            Consumer<IPacketMsg>(::handleOfflineMessageNotification)
-        dispatchMap[EMsg.ClientCommentNotifications] =
-            Consumer<IPacketMsg>(::handleCommentNotifications)
-        dispatchMap[EMsg.ClientItemAnnouncements] =
-            Consumer<IPacketMsg>(::handleItemAnnouncements)
+        dispatchMap[EMsg.ClientUserNotifications] = Consumer(::handleUserNotifications)
+        dispatchMap[EMsg.ClientChatOfflineMessageNotification] = Consumer(::handleOfflineMessageNotification)
+        dispatchMap[EMsg.ClientCommentNotifications] = Consumer(::handleCommentNotifications)
+        dispatchMap[EMsg.ClientItemAnnouncements] = Consumer(::handleItemAnnouncements)
     }
 
     /**

@@ -6,7 +6,6 @@ import `in`.dragonbra.javasteam.util.log.LogManager
 import `in`.dragonbra.javasteam.util.stream.BinaryReader
 import java.io.ByteArrayInputStream
 import java.io.IOException
-import java.util.*
 import kotlin.collections.ArrayList
 
 /**

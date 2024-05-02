@@ -7,6 +7,7 @@ import java.net.InetSocketAddress
 /**
  * Represents a single server.
  */
+@Suppress("unused")
 class Server(server: CMsgGMSClientServerQueryResponse.Server) {
 
     /**

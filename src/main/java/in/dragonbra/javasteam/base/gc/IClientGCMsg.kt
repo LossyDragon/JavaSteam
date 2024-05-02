@@ -5,7 +5,6 @@ import `in`.dragonbra.javasteam.types.JobID
 /**
  * Represents a unified interface into client messages.
  */
-@Suppress("unused")
 interface IClientGCMsg {
 
     /**

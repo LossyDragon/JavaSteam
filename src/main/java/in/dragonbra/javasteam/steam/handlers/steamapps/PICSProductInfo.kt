@@ -16,6 +16,7 @@ import java.util.*
 /**
  * Represents the information for a single app or package
  */
+@Suppress("MemberVisibilityCanBePrivate")
 class PICSProductInfo : CallbackMsg {
 
     /**

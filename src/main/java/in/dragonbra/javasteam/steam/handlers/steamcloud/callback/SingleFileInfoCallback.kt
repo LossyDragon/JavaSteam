@@ -10,6 +10,7 @@ import java.util.*
 /**
  * This callback is received in response to calling [SteamCloud.getSingleFileInfo].
  */
+@Suppress("unused")
 class SingleFileInfoCallback(jobID: JobID, msg: CMsgClientUFSGetSingleFileInfoResponse.Builder) : CallbackMsg() {
 
     /**

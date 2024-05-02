@@ -11,6 +11,7 @@ import `in`.dragonbra.javasteam.types.JobID
  *  While [isPlayingBlocked], sending [ClientGamesPlayed]
  *  message will log you off with [LoggedInElsewhere] result.
  */
+@Suppress("unused", "MemberVisibilityCanBePrivate")
 class PlayingSessionStateCallback(jobID: JobID, msg: CMsgClientPlayingSessionState.Builder) : CallbackMsg() {
 
     /**

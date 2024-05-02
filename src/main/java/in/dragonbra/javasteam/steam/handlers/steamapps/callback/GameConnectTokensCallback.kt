@@ -2,7 +2,6 @@ package `in`.dragonbra.javasteam.steam.handlers.steamapps.callback
 
 import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserver.CMsgClientGameConnectTokens
 import `in`.dragonbra.javasteam.steam.steamclient.callbackmgr.CallbackMsg
-import java.util.*
 
 /**
  * This callback is fired when the client receives a list of game connect tokens.

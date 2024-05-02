@@ -9,7 +9,7 @@ import `in`.dragonbra.javasteam.types.SteamID
 /**
  * This callback is fired when a chat action has completed.
  */
-@Suppress("unused")
+@Suppress("unused", "MemberVisibilityCanBePrivate")
 class ChatActionResultCallback : CallbackMsg {
 
     /**

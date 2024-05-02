@@ -7,7 +7,7 @@ import java.net.InetSocketAddress
  * @author lngtr
  * @since 2018-02-20
  */
-@Suppress("unused", "MemberVisibilityCanBePrivate")
+@Suppress("MemberVisibilityCanBePrivate")
 class NetMsgEventArgs(val data: ByteArray, val endPoint: InetSocketAddress) : EventArgs() {
     fun withData(data: ByteArray): NetMsgEventArgs {
         return NetMsgEventArgs(data, this.endPoint)

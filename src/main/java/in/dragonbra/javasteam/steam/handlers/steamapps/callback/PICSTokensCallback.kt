@@ -3,7 +3,6 @@ package `in`.dragonbra.javasteam.steam.handlers.steamapps.callback
 import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserverAppinfo.CMsgClientPICSAccessTokenResponse
 import `in`.dragonbra.javasteam.steam.steamclient.callbackmgr.CallbackMsg
 import `in`.dragonbra.javasteam.types.JobID
-import java.util.*
 
 /**
  * This callback is fired when the PICS returns access tokens for a list of appids and packageids

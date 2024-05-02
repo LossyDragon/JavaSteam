@@ -8,7 +8,7 @@ import `in`.dragonbra.javasteam.types.AsyncJobSingle
  * @author Lossy
  * @since 2023-01-04
  */
-@Suppress("unused", "MemberVisibilityCanBePrivate")
+@Suppress("MemberVisibilityCanBePrivate")
 abstract class UnifiedService(private val steamUnifiedMessages: SteamUnifiedMessages) {
 
     // private static final Logger logger = LogManager.getLogger(UnifiedService.class);

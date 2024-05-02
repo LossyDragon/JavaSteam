@@ -9,6 +9,7 @@ import `in`.dragonbra.javasteam.types.JobID
 /**
  * This callback is received in response to calling [SteamCloud.shareFile].
  */
+@Suppress("unused")
 class ShareFileCallback(jobID: JobID, msg: CMsgClientUFSShareFileResponse.Builder) : CallbackMsg() {
 
     /**

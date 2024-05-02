@@ -86,7 +86,7 @@ import java.util.EnumMap
 /**
  * This handler handles all interaction with other users on the Steam3 network.
  */
-@Suppress("unused", "MemberVisibilityCanBePrivate")
+@Suppress("unused")
 class SteamFriends : ClientMsgHandler() {
 
     private val friendList: MutableList<SteamID> = mutableListOf()

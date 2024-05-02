@@ -13,14 +13,13 @@ import java.util.*
 /**
  * This handler is used for requesting files published on the Steam Workshop.
  */
-@Suppress("unused")
 class SteamWorkshop : ClientMsgHandler() {
 
     private var dispatchMap: EnumMap<EMsg, Consumer<IPacketMsg>> = EnumMap(EMsg::class.java)
 
     init {
         dispatchMap[EMsg.ClientUCMEnumeratePublishedFilesByUserActionResponse] =
-            Consumer<IPacketMsg>(::handleEnumPublishedFilesByAction)
+            Consumer(::handleEnumPublishedFilesByAction)
     }
 
     /**

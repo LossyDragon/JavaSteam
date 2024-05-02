@@ -10,6 +10,7 @@ import `in`.dragonbra.javasteam.types.SteamID
 /**
  * This callback is received in response to calling [SteamCloud.requestUGCDetails].
  */
+@Suppress("unused")
 class UGCDetailsCallback(jobID: JobID, msg: CMsgClientUFSGetUGCDetailsResponse.Builder) : CallbackMsg() {
 
     /**

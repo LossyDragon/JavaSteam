@@ -19,8 +19,7 @@ class SteamNetworking : ClientMsgHandler() {
     private var dispatchMap: EnumMap<EMsg, Consumer<IPacketMsg>> = EnumMap(EMsg::class.java)
 
     init {
-        dispatchMap[EMsg.ClientNetworkingCertRequestResponse] =
-            Consumer<IPacketMsg>(::handleNetworkingCertRequestResponse)
+        dispatchMap[EMsg.ClientNetworkingCertRequestResponse] = Consumer(::handleNetworkingCertRequestResponse)
     }
 
     /**

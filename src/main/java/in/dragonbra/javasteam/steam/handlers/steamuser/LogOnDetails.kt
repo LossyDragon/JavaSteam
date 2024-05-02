@@ -2,6 +2,7 @@ package `in`.dragonbra.javasteam.steam.handlers.steamuser
 
 import `in`.dragonbra.javasteam.enums.EOSType
 import `in`.dragonbra.javasteam.steam.authentication.AuthSessionDetails
+import `in`.dragonbra.javasteam.steam.authentication.AuthPollResult
 import `in`.dragonbra.javasteam.types.SteamID
 import `in`.dragonbra.javasteam.util.Utils
 
@@ -23,7 +24,7 @@ import `in`.dragonbra.javasteam.util.Utils
  * @param twoFactorCode Gets or sets the 2-factor auth code used to log in. This is the code that can be received from the authenticator apps.
  * @param isShouldRememberPassword Gets or sets the 'Should Remember Password' flag. This is used in combination with the [accessToken] for password-less login.
  *  Set this to true when [AuthSessionDetails.persistentSession] is set to true.
- * @param accessToken  Gets or sets the access token used to log in. This a token that has been provided after a successful login using [Authentication].
+ * @param accessToken  Gets or sets the access token used to log in. This a token that has been provided after a successful login using [AuthPollResult].
  * @param accountInstance Gets or sets the account instance. 1 for the PC instance or 2 for the Console (PS3) instance.
  *  @see [SteamID.DESKTOP_INSTANCE]
  *  @see [SteamID.CONSOLE_INSTANCE]
@@ -35,7 +36,6 @@ import `in`.dragonbra.javasteam.util.Utils
  * @param clientLanguage Gets or sets the client language.
  * @param machineName Gets or sets the machine name.
  */
-@Suppress("unused")
 data class LogOnDetails(
     var username: String? = null,
     var password: String? = null,

@@ -24,9 +24,9 @@ class SteamTrading : ClientMsgHandler() {
     private var dispatchMap: EnumMap<EMsg, Consumer<IPacketMsg>> = EnumMap(EMsg::class.java)
 
     init {
-        dispatchMap[EMsg.EconTrading_InitiateTradeProposed] = Consumer<IPacketMsg>(::handleTradeProposed)
-        dispatchMap[EMsg.EconTrading_InitiateTradeResult] = Consumer<IPacketMsg>(::handleTradeResult)
-        dispatchMap[EMsg.EconTrading_StartSession] = Consumer<IPacketMsg>(::handleStartSession)
+        dispatchMap[EMsg.EconTrading_InitiateTradeProposed] = Consumer(::handleTradeProposed)
+        dispatchMap[EMsg.EconTrading_InitiateTradeResult] = Consumer(::handleTradeResult)
+        dispatchMap[EMsg.EconTrading_StartSession] = Consumer(::handleStartSession)
     }
 
     /**

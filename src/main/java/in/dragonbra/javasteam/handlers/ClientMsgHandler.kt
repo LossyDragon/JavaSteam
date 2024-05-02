@@ -7,14 +7,13 @@ import `in`.dragonbra.javasteam.steam.steamclient.callbacks.DisconnectedCallback
 /**
  * This class implements the base requirements every message handler should inherit from.
  */
-@Suppress("unused")
 abstract class ClientMsgHandler {
 
     /**
      * @return the underlying [SteamClient] for use in sending replies.
      */
     lateinit var client: SteamClient
-        protected set
+        private set
 
     /**
      * Gets whether the related [SteamClient] should imminently expect the server to close the connection.
