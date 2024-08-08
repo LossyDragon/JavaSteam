@@ -16,6 +16,7 @@ import in.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserverLbs
 import in.dragonbra.javasteam.steam.handlers.steamuserstats.callback.FindOrCreateLeaderboardCallback;
 import in.dragonbra.javasteam.steam.handlers.steamuserstats.callback.LeaderboardEntriesCallback;
 import in.dragonbra.javasteam.steam.handlers.steamuserstats.callback.NumberOfPlayersCallback;
+import in.dragonbra.javasteam.steam.steamclient.callbackmgr.CallbackMsg;
 import in.dragonbra.javasteam.types.AsyncJobSingle;
 import in.dragonbra.javasteam.types.JobID;
 import in.dragonbra.javasteam.util.compat.Consumer;
@@ -29,17 +30,20 @@ import java.util.Map;
  */
 public class SteamUserStats extends ClientMsgHandler {
 
-    private Map<EMsg, Consumer<IPacketMsg>> dispatchMap;
 
-    public SteamUserStats() {
-        dispatchMap = new HashMap<>();
-
-        dispatchMap.put(EMsg.ClientGetNumberOfCurrentPlayersDPResponse, this::handleNumberOfPlayersResponse);
-        dispatchMap.put(EMsg.ClientLBSFindOrCreateLBResponse, this::handleFindOrCreateLBResponse);
-        dispatchMap.put(EMsg.ClientLBSGetLBEntriesResponse, this::handleGetLBEntriesResponse);
-
-        dispatchMap = Collections.unmodifiableMap(dispatchMap);
+    private static CallbackMsg getCallback(IPacketMsg packetMsg) {
+        switch (packetMsg.getMsgType()) {
+            case ClientGetNumberOfCurrentPlayersDPResponse:
+                return new NumberOfPlayersCallback(packetMsg);
+            case ClientLBSFindOrCreateLBResponse:
+                return new FindOrCreateLeaderboardCallback(packetMsg);
+            case ClientLBSGetLBEntriesResponse:
+                return new LeaderboardEntriesCallback(packetMsg);
+            default:
+                return null;
+        }
     }
+
 
     /**
      * Retrieves the number of current players for a given app id.
@@ -150,34 +154,13 @@ public class SteamUserStats extends ClientMsgHandler {
 
     @Override
     public void handleMsg(IPacketMsg packetMsg) {
-        if (packetMsg == null) {
-            throw new IllegalArgumentException("packetMsg is null");
+        var callback = getCallback(packetMsg);
+
+        if (callback == null) {
+            // ignore messages that we don't have a handler function for
+            return;
         }
 
-        Consumer<IPacketMsg> dispatcher = dispatchMap.get(packetMsg.getMsgType());
-        if (dispatcher != null) {
-            dispatcher.accept(packetMsg);
-        }
-    }
-
-    private void handleNumberOfPlayersResponse(IPacketMsg packetMsg) {
-        ClientMsgProtobuf<CMsgDPGetNumberOfCurrentPlayersResponse.Builder> msg =
-                new ClientMsgProtobuf<>(CMsgDPGetNumberOfCurrentPlayersResponse.class, packetMsg);
-
-        client.postCallback(new NumberOfPlayersCallback(msg.getTargetJobID(), msg.getBody()));
-    }
-
-    private void handleFindOrCreateLBResponse(IPacketMsg packetMsg) {
-        ClientMsgProtobuf<CMsgClientLBSFindOrCreateLBResponse.Builder> msg =
-                new ClientMsgProtobuf<>(CMsgClientLBSFindOrCreateLBResponse.class, packetMsg);
-
-        client.postCallback(new FindOrCreateLeaderboardCallback(msg.getTargetJobID(), msg.getBody()));
-    }
-
-    private void handleGetLBEntriesResponse(IPacketMsg packetMsg) {
-        ClientMsgProtobuf<CMsgClientLBSGetLBEntriesResponse.Builder> msg =
-                new ClientMsgProtobuf<>(CMsgClientLBSGetLBEntriesResponse.class, packetMsg);
-
-        client.postCallback(new LeaderboardEntriesCallback(msg.getTargetJobID(), msg.getBody()));
+        client.postCallback(callback);
     }
 }

@@ -1,5 +1,7 @@
 package in.dragonbra.javasteam.steam.handlers.steamuserstats.callback;
 
+import in.dragonbra.javasteam.base.ClientMsgProtobuf;
+import in.dragonbra.javasteam.base.IPacketMsg;
 import in.dragonbra.javasteam.enums.ELeaderboardDataRequest;
 import in.dragonbra.javasteam.enums.EResult;
 import in.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserverLbs.CMsgClientLBSGetLBEntriesResponse;
@@ -23,8 +25,12 @@ public class LeaderboardEntriesCallback extends CallbackMsg {
 
     private final List<LeaderboardEntry> entries;
 
-    public LeaderboardEntriesCallback(JobID jobID, CMsgClientLBSGetLBEntriesResponse.Builder resp) {
-        setJobID(jobID);
+    public LeaderboardEntriesCallback(IPacketMsg packetMsg) {
+        var msg = new ClientMsgProtobuf<CMsgClientLBSGetLBEntriesResponse.Builder>(
+                CMsgClientLBSGetLBEntriesResponse.class, packetMsg);
+        var resp = msg.getBody();
+
+        setJobID(msg.getTargetJobID());
 
         result = EResult.from(resp.getEresult());
         entryCount = resp.getLeaderboardEntryCount();

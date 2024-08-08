@@ -7,6 +7,7 @@ import in.dragonbra.javasteam.handlers.ClientMsgHandler;
 import in.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserverUcm.CMsgClientUCMEnumeratePublishedFilesByUserAction;
 import in.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserverUcm.CMsgClientUCMEnumeratePublishedFilesByUserActionResponse;
 import in.dragonbra.javasteam.steam.handlers.steamworkshop.callback.UserActionPublishedFilesCallback;
+import in.dragonbra.javasteam.steam.steamclient.callbackmgr.CallbackMsg;
 import in.dragonbra.javasteam.types.AsyncJobSingle;
 import in.dragonbra.javasteam.types.JobID;
 import in.dragonbra.javasteam.util.compat.Consumer;
@@ -20,14 +21,14 @@ import java.util.Map;
  */
 public class SteamWorkshop extends ClientMsgHandler {
 
-    private Map<EMsg, Consumer<IPacketMsg>> dispatchMap;
-
-    public SteamWorkshop() {
-        dispatchMap = new HashMap<>();
-
-        dispatchMap.put(EMsg.ClientUCMEnumeratePublishedFilesByUserActionResponse, this::handleEnumPublishedFilesByAction);
-
-        dispatchMap = Collections.unmodifiableMap(dispatchMap);
+    @SuppressWarnings("SwitchStatementWithTooFewBranches")
+    private static CallbackMsg getCallback(IPacketMsg packetMsg) {
+        switch (packetMsg.getMsgType()) {
+            case ClientUCMEnumeratePublishedFilesByUserActionResponse:
+                return new UserActionPublishedFilesCallback(packetMsg);
+            default:
+                return null;
+        }
     }
 
     /**
@@ -59,20 +60,13 @@ public class SteamWorkshop extends ClientMsgHandler {
 
     @Override
     public void handleMsg(IPacketMsg packetMsg) {
-        if (packetMsg == null) {
-            throw new IllegalArgumentException("packetMsg is null");
+        var callback = getCallback(packetMsg);
+
+        if (callback == null) {
+            // ignore messages that we don't have a handler function for
+            return;
         }
 
-        Consumer<IPacketMsg> dispatcher = dispatchMap.get(packetMsg.getMsgType());
-        if (dispatcher != null) {
-            dispatcher.accept(packetMsg);
-        }
-    }
-
-    private void handleEnumPublishedFilesByAction(IPacketMsg packetMsg) {
-        ClientMsgProtobuf<CMsgClientUCMEnumeratePublishedFilesByUserActionResponse.Builder> response =
-                new ClientMsgProtobuf<>(CMsgClientUCMEnumeratePublishedFilesByUserActionResponse.class, packetMsg);
-
-        client.postCallback(new UserActionPublishedFilesCallback(response.getTargetJobID(), response.getBody()));
+        client.postCallback(callback);
     }
 }

@@ -1,5 +1,7 @@
 package in.dragonbra.javasteam.steam.handlers.steamworkshop.callback;
 
+import in.dragonbra.javasteam.base.ClientMsgProtobuf;
+import in.dragonbra.javasteam.base.IPacketMsg;
 import in.dragonbra.javasteam.enums.EResult;
 import in.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserverUcm.CMsgClientUCMEnumeratePublishedFilesByUserActionResponse;
 import in.dragonbra.javasteam.steam.handlers.steamworkshop.EnumerationUserDetails;
@@ -23,8 +25,13 @@ public class UserActionPublishedFilesCallback extends CallbackMsg {
 
     private final int totalResults;
 
-    public UserActionPublishedFilesCallback(JobID jobID, CMsgClientUCMEnumeratePublishedFilesByUserActionResponse.Builder msg) {
-        setJobID(jobID);
+    public UserActionPublishedFilesCallback(IPacketMsg packetMsg) {
+        var response = new ClientMsgProtobuf<CMsgClientUCMEnumeratePublishedFilesByUserActionResponse.Builder>(
+                CMsgClientUCMEnumeratePublishedFilesByUserActionResponse.class, packetMsg);
+
+        var msg = response.getBody();
+
+        setJobID(response.getTargetJobID());
 
         result = EResult.from(msg.getEresult());
 

@@ -1,5 +1,7 @@
 package in.dragonbra.javasteam.steam.handlers.steamuserstats.callback;
 
+import in.dragonbra.javasteam.base.ClientMsgProtobuf;
+import in.dragonbra.javasteam.base.IPacketMsg;
 import in.dragonbra.javasteam.enums.EResult;
 import in.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientserver2.CMsgDPGetNumberOfCurrentPlayersResponse;
 import in.dragonbra.javasteam.steam.handlers.steamuserstats.SteamUserStats;
@@ -15,8 +17,12 @@ public class NumberOfPlayersCallback extends CallbackMsg {
 
     private final int numPlayers;
 
-    public NumberOfPlayersCallback(JobID jobID, CMsgDPGetNumberOfCurrentPlayersResponse.Builder resp) {
-        setJobID(jobID);
+    public NumberOfPlayersCallback(IPacketMsg packetMsg) {
+        var msg = new ClientMsgProtobuf<CMsgDPGetNumberOfCurrentPlayersResponse.Builder>(
+                CMsgDPGetNumberOfCurrentPlayersResponse.class, packetMsg);
+        var resp = msg.getBody();
+
+        setJobID(msg.getTargetJobID());
         result = EResult.from(resp.getEresult());
         numPlayers = resp.getPlayerCount();
     }

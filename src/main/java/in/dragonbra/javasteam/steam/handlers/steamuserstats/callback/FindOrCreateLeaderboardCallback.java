@@ -1,5 +1,7 @@
 package in.dragonbra.javasteam.steam.handlers.steamuserstats.callback;
 
+import in.dragonbra.javasteam.base.ClientMsgProtobuf;
+import in.dragonbra.javasteam.base.IPacketMsg;
 import in.dragonbra.javasteam.enums.ELeaderboardDisplayType;
 import in.dragonbra.javasteam.enums.ELeaderboardSortMethod;
 import in.dragonbra.javasteam.enums.EResult;
@@ -24,8 +26,12 @@ public class FindOrCreateLeaderboardCallback extends CallbackMsg {
 
     private final ELeaderboardDisplayType displayType;
 
-    public FindOrCreateLeaderboardCallback(JobID jobID, CMsgClientLBSFindOrCreateLBResponse.Builder resp) {
-        setJobID(jobID);
+    public FindOrCreateLeaderboardCallback(IPacketMsg packetMsg) {
+        var msg = new ClientMsgProtobuf<CMsgClientLBSFindOrCreateLBResponse.Builder>(
+                CMsgClientLBSFindOrCreateLBResponse.class, packetMsg);
+        var resp = msg.getBody();
+
+        setJobID(msg.getTargetJobID());
 
         result = EResult.from(resp.getEresult());
         id = resp.getLeaderboardId();
