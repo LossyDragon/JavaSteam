@@ -50,7 +50,7 @@ class SteamScreenshots : ClientMsgHandler() {
 
     /**
      * Handles a client message. This should not be called directly.
-     * The packet message that contains the data.
+     * @param packetMsg The packet message that contains the data.
      */
     override fun handleMsg(packetMsg: IPacketMsg) {
         // ignore messages that we don't have a handler function for

@@ -40,7 +40,6 @@ class SteamWorkshop : ClientMsgHandler() {
 
     /**
      * Handles a client message. This should not be called directly.
-     *
      * @param packetMsg The packet message that contains the data.
      */
     override fun handleMsg(packetMsg: IPacketMsg) {
