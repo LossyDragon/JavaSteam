@@ -11,7 +11,6 @@ import `in`.dragonbra.javasteam.steam.handlers.steamunifiedmessages.callback.Ser
 import `in`.dragonbra.javasteam.steam.handlers.steamunifiedmessages.callback.ServiceMethodResponse
 import `in`.dragonbra.javasteam.types.AsyncJobSingle
 import `in`.dragonbra.javasteam.types.JobID
-import `in`.dragonbra.javasteam.util.Strings
 import `in`.dragonbra.javasteam.util.log.LogManager
 import `in`.dragonbra.javasteam.util.log.Logger
 import java.lang.reflect.Method
@@ -39,20 +38,23 @@ class SteamUnifiedMessages : ClientMsgHandler() {
 
     /**
      * Sends a message.
-     * Results are returned in a [in.dragonbra.javasteam.steam.handlers.steamunifiedmessages.callback.ServiceMethodResponse].
+     * Results are returned in a [ServiceMethodResponse].
      *
      * @param rpcName Name of the RPC endpoint. Takes the format ServiceName.RpcName
      * @param message The message to send.
      * @param TRequest The type of protobuf object.
-     * @return The JobID of the request. This can be used to find the appropriate [in.dragonbra.javasteam.steam.handlers.steamunifiedmessages.callback.ServiceMethodResponse].
+     * @return The JobID of the request. This can be used to find the appropriate [ServiceMethodResponse].
      */
     fun <TRequest : GeneratedMessage.Builder<TRequest>> sendMessage(
         rpcName: String,
-        message: GeneratedMessage
+        message: GeneratedMessage,
     ): AsyncJobSingle<ServiceMethodResponse> {
         val jobID: JobID = client.getNextJobID()
-        val eMsg = if (client.steamID == null)
-            EMsg.ServiceMethodCallFromClientNonAuthed else EMsg.ServiceMethodCallFromClient
+        val eMsg = if (client.steamID == null) {
+            EMsg.ServiceMethodCallFromClientNonAuthed
+        } else {
+            EMsg.ServiceMethodCallFromClient
+        }
 
         ClientMsgProtobuf<TRequest>(message.javaClass, eMsg).apply {
             setSourceJobID(jobID)
@@ -72,10 +74,13 @@ class SteamUnifiedMessages : ClientMsgHandler() {
      */
     fun <TRequest : GeneratedMessage.Builder<TRequest>> sendNotification(
         rpcName: String,
-        message: GeneratedMessage
+        message: GeneratedMessage,
     ) {
-        val eMsg = if (client.steamID == null)
-            EMsg.ServiceMethodCallFromClientNonAuthed else EMsg.ServiceMethodCallFromClient
+        val eMsg = if (client.steamID == null) {
+            EMsg.ServiceMethodCallFromClientNonAuthed
+        } else {
+            EMsg.ServiceMethodCallFromClient
+        }
 
         ClientMsgProtobuf<TRequest>(message.javaClass, eMsg).apply {
             header.proto.setTargetJobName(rpcName)
@@ -86,7 +91,7 @@ class SteamUnifiedMessages : ClientMsgHandler() {
     private fun handleServiceMethodResponse(packetMsg: IPacketMsg) {
         require(packetMsg is PacketClientMsgProtobuf) { "Packet message is expected to be protobuf." }
 
-        val callback = ServiceMethodNotification(packetMsg)
+        val callback = ServiceMethodResponse(packetMsg)
         client.postCallback(callback)
     }
 

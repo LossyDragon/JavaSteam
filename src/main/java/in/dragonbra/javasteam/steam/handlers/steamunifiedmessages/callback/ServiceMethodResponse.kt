@@ -6,6 +6,7 @@ import `in`.dragonbra.javasteam.base.ClientMsgProtobuf
 import `in`.dragonbra.javasteam.base.PacketClientMsgProtobuf
 import `in`.dragonbra.javasteam.enums.EResult
 import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesBase
+import `in`.dragonbra.javasteam.steam.handlers.steamunifiedmessages.SteamUnifiedMessages
 import `in`.dragonbra.javasteam.steam.steamclient.callbackmgr.CallbackMsg
 import `in`.dragonbra.javasteam.types.JobID
 
@@ -13,9 +14,7 @@ import `in`.dragonbra.javasteam.types.JobID
  * @author Lossy
  * @since 2023-01-04
  *
- *
- * This callback is returned in response to a service method sent through
- * [in.dragonbra.javasteam.steam.handlers.steamunifiedmessages.SteamUnifiedMessages].
+ * This callback is returned in response to a service method sent through [SteamUnifiedMessages].
  */
 @Suppress("unused", "MemberVisibilityCanBePrivate")
 class ServiceMethodResponse(packetMsg: PacketClientMsgProtobuf) : CallbackMsg() {
@@ -68,7 +67,7 @@ class ServiceMethodResponse(packetMsg: PacketClientMsgProtobuf) : CallbackMsg() 
      *
      * @param clazz The message class, type erasure.
      * @param T Protobuf type of the response message.
-     * @return The response to the message sent through [in.dragonbra.javasteam.steam.handlers.steamunifiedmessages.SteamUnifiedMessages].
+     * @return The response to the message sent through [SteamUnifiedMessages].
      */
     fun <T : GeneratedMessage.Builder<T>> getDeserializedResponse(clazz: Class<out AbstractMessage>): T =
         ClientMsgProtobuf<T>(clazz, packetMsg).body

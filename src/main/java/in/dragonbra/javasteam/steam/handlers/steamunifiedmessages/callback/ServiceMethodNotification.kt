@@ -4,6 +4,7 @@ import com.google.protobuf.AbstractMessage
 import `in`.dragonbra.javasteam.base.ClientMsgProtobuf
 import `in`.dragonbra.javasteam.base.IPacketMsg
 import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesBase
+import `in`.dragonbra.javasteam.steam.handlers.steamunifiedmessages.SteamUnifiedMessages
 import `in`.dragonbra.javasteam.steam.steamclient.callbackmgr.CallbackMsg
 
 /**
@@ -11,8 +12,7 @@ import `in`.dragonbra.javasteam.steam.steamclient.callbackmgr.CallbackMsg
  * @since 2023-01-04
  *
  *
- * This callback represents a service notification received though
- * [in.dragonbra.javasteam.steam.handlers.steamunifiedmessages.SteamUnifiedMessages].
+ * This callback represents a service notification received though [SteamUnifiedMessages].
  */
 @Suppress("unused", "MemberVisibilityCanBePrivate")
 class ServiceMethodNotification(messageType: Class<out AbstractMessage>, packetMsg: IPacketMsg) : CallbackMsg() {
@@ -45,7 +45,7 @@ class ServiceMethodNotification(messageType: Class<out AbstractMessage>, packetM
     /**
      * Gets the client message, See [ClientMsgProtobuf]
      */
-    val clientMsg: ClientMsgProtobuf<*> = ClientMsgProtobuf(messageType, packetMsg)
+    val clientMsg: ClientMsgProtobuf<*> = ClientMsgProtobuf(messageType, packetMsg) // Bounce into generic-land.
 
     /**
      * Gets the Proto Header, See [SteammessagesBase.CMsgProtoBufHeader]
@@ -53,8 +53,6 @@ class ServiceMethodNotification(messageType: Class<out AbstractMessage>, packetM
     val protoHeader: SteammessagesBase.CMsgProtoBufHeader = clientMsg.header.proto.build()
 
     init {
-        // Bounce into generic-land.
-
         // Note: JobID will be -1
         methodName = clientMsg.header.proto.getTargetJobName()
         body = clientMsg.body.build()
