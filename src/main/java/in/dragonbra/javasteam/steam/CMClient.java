@@ -292,7 +292,7 @@ public abstract class CMClient {
         if (protocol.contains(ProtocolTypes.WEB_SOCKET)) {
             return new WebSocketConnection();
         } else if (protocol.contains(ProtocolTypes.TCP)) {
-            return new EnvelopeEncryptedConnection(new TcpConnection(), getUniverse());
+            return new EnvelopeEncryptedConnection(new TcpConnectionKt(), getUniverse());
         } else if (protocol.contains(ProtocolTypes.UDP)) {
             return new EnvelopeEncryptedConnection(new UdpConnection(), getUniverse());
         }
