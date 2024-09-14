@@ -119,13 +119,12 @@ dependencies {
     implementation(libs.kotlin.stdib)
     implementation(libs.okHttp)
     implementation(libs.protobuf.java)
-    implementation(libs.webSocket)
 
     val ktorVersion = "2.3.12"
     implementation("io.ktor:ktor-client-core:$ktorVersion")
     implementation("io.ktor:ktor-client-cio:$ktorVersion")
     implementation("io.ktor:ktor-network:$ktorVersion")
-    implementation("io.ktor:ktor-server-websockets:$ktorVersion")
+    implementation("io.ktor:ktor-client-websockets:$ktorVersion")
 
     testImplementation(libs.bundles.testing)
 }
