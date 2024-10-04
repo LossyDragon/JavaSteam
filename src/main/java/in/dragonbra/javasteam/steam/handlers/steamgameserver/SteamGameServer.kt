@@ -51,8 +51,8 @@ class SteamGameServer : ClientMsgHandler() {
         logon.protoHeader.setClientSessionid(0)
         logon.protoHeader.setSteamid(gsId.convertToUInt64())
 
-        val localIp: Int = NetHelpers.getIPAddress(client.localIP)
-        logon.body.setDeprecatedObfustucatedPrivateIp(localIp xor MsgClientLogon.ObfuscationMask) // TODO: Using deprecated method.
+        val cMsgIPAddr = NetHelpers.getMsgIPAddress(client.localIP)
+        logon.body.obfuscatedPrivateIp = NetHelpers.obfuscatePrivateIP(cMsgIPAddr)
 
         logon.body.setProtocolVersion(MsgClientLogon.CurrentProtocol)
 
@@ -86,8 +86,8 @@ class SteamGameServer : ClientMsgHandler() {
         logon.protoHeader.setClientSessionid(0)
         logon.protoHeader.setSteamid(gsId.convertToUInt64())
 
-        val localIp: Int = NetHelpers.getIPAddress(client.localIP)
-        logon.body.setDeprecatedObfustucatedPrivateIp(localIp xor MsgClientLogon.ObfuscationMask) // TODO: Using deprecated method.
+        val cMsgIPAddr = NetHelpers.getMsgIPAddress(client.localIP)
+        logon.body.obfuscatedPrivateIp = NetHelpers.obfuscatePrivateIP(cMsgIPAddr)
 
         logon.body.setProtocolVersion(MsgClientLogon.CurrentProtocol)
 
@@ -129,7 +129,7 @@ class SteamGameServer : ClientMsgHandler() {
         status.body.setGameVersion(details.version)
 
         details.address?.let {
-            status.body.setDeprecatedGameIpAddress(NetHelpers.getIPAddress(it)) // TODO: Using deprecated method.
+            status.body.deprecatedGameIpAddress = NetHelpers.getIPAddressAsLong(it).toInt()
         }
 
         client.send(status)

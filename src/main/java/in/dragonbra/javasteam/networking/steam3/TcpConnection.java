@@ -1,5 +1,6 @@
 package in.dragonbra.javasteam.networking.steam3;
 
+import in.dragonbra.javasteam.util.NetHelpers;
 import in.dragonbra.javasteam.util.log.LogManager;
 import in.dragonbra.javasteam.util.log.Logger;
 import in.dragonbra.javasteam.util.stream.BinaryReader;
@@ -173,7 +174,7 @@ public class TcpConnection extends Connection {
                 return null;
             }
 
-            return socket.getLocalAddress();
+            return NetHelpers.getLocalIP(socket);
         }
     }
 

@@ -70,13 +70,12 @@ class SteamUser : ClientMsgHandler() {
 
         if (details.loginID != null) {
             // TODO: Support IPv6 login ids?
-            CMsgIPAddress.newBuilder().apply {
+            logon.body.obfuscatedPrivateIp = CMsgIPAddress.newBuilder().apply {
                 v4 = details.loginID!!
-            }.build().also(logon.body::setObfuscatedPrivateIp)
+            }.build()
         } else {
-            CMsgIPAddress.newBuilder().apply {
-                v4 = NetHelpers.getIPAddress(client.localIP) xor MsgClientLogon.ObfuscationMask
-            }.build().also(logon.body::setObfuscatedPrivateIp)
+            val cMsgIpAddr = NetHelpers.getMsgIPAddress(client.localIP)
+            logon.body.obfuscatedPrivateIp = NetHelpers.obfuscatePrivateIP(cMsgIpAddr)
         }
 
         // Legacy field, Steam client still sets it
