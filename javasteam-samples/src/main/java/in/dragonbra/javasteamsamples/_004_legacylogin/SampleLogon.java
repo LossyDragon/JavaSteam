@@ -12,26 +12,24 @@ import in.dragonbra.javasteam.steam.steamclient.callbacks.DisconnectedCallback;
 import in.dragonbra.javasteam.util.log.DefaultLogListener;
 import in.dragonbra.javasteam.util.log.LogManager;
 
-//
-// Sample 1: Logon
-//
-// the first act of business before being able to use steamkit2's features is to
-// log on to the steam network
-//
-// interaction with steamkit is done through client message handlers and the results
-// come back through a callback queue controlled by a steamclient instance
-//
-// your code must create a CallbackMgr, and instances of Callback<T>. Callback<T> maps a specific
-// callback type to a function, whilst CallbackMgr routes the callback objects to the functions that
-// you have specified. a Callback<T> is bound to a specific callback manager.
-//
-// WARNING!
-// This the old login flow, we keep this sample around because it still currently works
-// for simple cases where you do not need to remember password.
-// See SampleLogonAuthentication for the new flow.
-//
-
 /**
+ * Sample [Logon]
+ * <p>
+ * The first act of business before being able to use JavaSteam's features is to log on to the steam network.
+ * <p>
+ * Interaction with JavaSteam is done through client message handlers and the results
+ * come back through a callback queue controlled by a {@link SteamClient} instance
+ * <p>
+ * Your code must create a CallbackMgr, and instances of Callback<T>. Callback<T> maps a specific
+ * callback type to a function, whilst CallbackMgr routes the callback objects to the functions that
+ * you have specified. a Callback<T> is bound to a specific callback manager.
+ * <p>
+ * <p>
+ * <b>WARNING!</b>
+ * This the old login flow, we keep this sample around because it still currently works
+ * for simple cases where you do not need to remember password.
+ * See {@link in.dragonbra.javasteamsamples._000_authentication.SampleLogonAuthentication} for the new flow.
+ *
  * @author lngtr
  * @since 2018-02-23
  */

@@ -20,13 +20,12 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.util.Scanner;
 
-//
-// Sample 7: ServerList
-//
-// this sample will give an example of how the server list can be used to
-// optimize your chance of a successful connection.
-
 /**
+ * Sample [ServerList]
+ * <p>
+ * This sample will give an example of how the server list can be used to
+ * optimize your chance of a successful connection.
+ *
  * @author lngtr
  * @since 2021-10-11
  */

@@ -22,18 +22,18 @@ import in.dragonbra.javasteam.util.log.DefaultLogListener;
 import in.dragonbra.javasteam.util.log.LogManager;
 
 /**
- * @author Lossy
- * @since 2023-01-04
+ * Sample [Unified Messages]
  * <p>
- * Sample 8: Unified Messages
+ * This sample introduces the usage of the unified service API
  * <p>
- * this sample introduces the usage of the unified service API
- * <p>
- * unified services are a type of webapi service that can be accessed with either
+ * Unified services are a type of webapi service that can be accessed with either
  * HTTP requests or through the Steam network
  * <p>
- * in this case, this sample will demonstrate using the IPlayer unified service
+ * In this case, this sample will demonstrate using the IPlayer unified service
  * through the connection to steam
+ *
+ * @author Lossy
+ * @since 2023-01-04
  */
 @SuppressWarnings({"resource", "FieldCanBeLocal"})
 public class SampleUnifiedMessages implements Runnable {

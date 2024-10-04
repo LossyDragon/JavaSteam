@@ -1,6 +1,7 @@
 package in.dragonbra.javasteamsamples._010_extending;
 
 import in.dragonbra.javasteam.enums.EResult;
+import in.dragonbra.javasteam.steam.handlers.ClientMsgHandler;
 import in.dragonbra.javasteam.steam.handlers.steamuser.LogOnDetails;
 import in.dragonbra.javasteam.steam.handlers.steamuser.SteamUser;
 import in.dragonbra.javasteam.steam.handlers.steamuser.callback.LoggedOffCallback;
@@ -12,18 +13,16 @@ import in.dragonbra.javasteam.steam.steamclient.callbacks.DisconnectedCallback;
 import in.dragonbra.javasteam.util.log.DefaultLogListener;
 import in.dragonbra.javasteam.util.log.LogManager;
 
-//
-// Sample 2: Extending SteamKit2
-//
-// this sample introduces the method through which SK2 can be extended
-// with custom message handling and additional features
-//
-// this sample extends Sample 1 by making use of a custom handler and a custom callback
-//
-// of interest are the calls to SteamClient.AddHandler and the MyHandler.java file
-//
-
 /**
+ * Sample [Extending]
+ * <p>
+ * This sample introduces the method through which SK2 can be extended
+ * with custom message handling and additional features
+ * <p>
+ * This sample extends Sample 1 by making use of a custom handler and a custom callback
+ * <p>
+ * Of interest are the calls to {@link SteamClient#addHandler(ClientMsgHandler)} and the {@link MyHandler} file
+ *
  * @author lngtr
  * @since 2021-10-11
  */
@@ -161,6 +160,6 @@ public class SampleExtending implements Runnable {
         System.out.println("onMyCallback: " + callback.getResult());
 
         // for this sample we'll just log off
-        myHandler.logOff("", "");
+        myHandler.logOff();
     }
 }

@@ -21,14 +21,11 @@ import in.dragonbra.javasteam.types.SteamID;
 import in.dragonbra.javasteam.util.log.DefaultLogListener;
 import in.dragonbra.javasteam.util.log.LogManager;
 
-//
-// Sample 4: Friends
-//
-// this sample expands upon sample 1 and adds basic interaction
-// with the client's persona state and friends list
-//
-
 /**
+ * Sample 4: Friends
+ * <p>
+ * This sample expands upon sample 1 and adds basic interaction with the client's persona state and friends list
+ *
  * @author lngtr
  * @since 2018-02-28
  */

@@ -19,17 +19,15 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-//
-// Sample 6: WebAPI
-//
-// this sample will give an example of how the WebAPI utilities can be used to
-// interact with the Steam Web APIs
-//
-// the Steam Web APIs are structured as a set of "interfaces" with methods,
-// similar to classes in OO languages.
-// as such, the API for interacting with the WebAPI follows a similar methodology
-
 /**
+ * Sample [WebAPI]
+ * <p>
+ * This sample will give an example of how the WebAPI utilities can be used to
+ * interact with the Steam Web APIs
+ * <p>
+ * The Steam Web APIs are structured as a set of "interfaces" with methods, similar to classes in OO languages.
+ * As such, the API for interacting with the WebAPI follows a similar methodology
+ *
  * @author lngtr
  * @since 2021-10-11
  */

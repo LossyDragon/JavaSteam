@@ -12,29 +12,26 @@ import in.dragonbra.javasteam.steam.steamclient.callbacks.DisconnectedCallback;
 import in.dragonbra.javasteam.util.log.LogListener;
 import in.dragonbra.javasteam.util.log.LogManager;
 
-//
-// Sample 3: DebugLog
-//
-// sometimes is may be necessary to peek under the hood of SteamKit2
-// to debug or diagnose some issues
-//
-// to help with this, SK2 includes a component named the DebugLog
-//
-// internal SK2 components will occasionally make use of the DebugLog
-// to share diagnostic information
-//
-// in order to use the DebugLog, a listener must first be registered with it
-//
-// by default, SK2 does not install any listeners, user code must install one
-//
-// additionally, the DebugLog is disabled by default in release builds,
-// but it may be enabled with the DebugLog.Enabled member
-//
-// you'll note that while this sample project is relatively similar to
-// Sample 1, the console output becomes very verbose
-//
-
 /**
+ * Sample [DebugLog]
+ * <p>
+ * Sometimes is may be necessary to peek under the hood of JavaSteam to debug or diagnose some issues
+ * <p>
+ * To help with this, JavaSteam includes a component named the DebugLog
+ * <p>
+ * Internal JavaSteam components will occasionally make use of the DebugLog
+ * to share diagnostic information
+ * <p>
+ * In order to use the DebugLog, a listener must first be registered with it
+ * <p>
+ * By default, JavaSteam does not install any listeners, user code must install one
+ * <p>
+ * Additionally, the DebugLog is disabled by default in release builds,
+ * but it may be enabled with the DebugLog.Enabled member
+ * <p>
+ * You'll note that while this sample project is relatively similar to
+ * Sample 1, the console output becomes very verbose
+ *
  * @author lngtr
  * @since 2021-10-11
  */
