@@ -1,187 +1,93 @@
-package in.dragonbra.javasteam.util;
+package `in`.dragonbra.javasteam.util
 
-import org.apache.commons.lang3.SystemUtils;
-
-import java.io.*;
-import java.util.Scanner;
+import org.apache.commons.lang3.SystemUtils
+import java.io.BufferedReader
+import java.io.IOException
+import java.io.InputStreamReader
 
 /**
  * @author lngtr
  * @since 2018-02-24
  */
-public class HardwareUtils {
+object HardwareUtils {
 
     // Everything taken from here
     // https://stackoverflow.com/questions/1986732/how-to-get-a-unique-computer-identifier-in-java-like-disk-id-or-motherboard-id
-    private static String SERIAL_NUMBER;
+    private var serialNumber: String? = null
 
-    public static byte[] getMachineID() {
+    @JvmStatic
+    fun getMachineID(): ByteArray? {
         // the aug 25th 2015 CM update made well-formed machine MessageObjects required for logon
         // this was flipped off shortly after the update rolled out, likely due to linux steamclients running on distros without a way to build a machineid
         // so while a valid MO isn't currently (as of aug 25th) required, they could be in the future and we'll abide by The Valve Law now
 
-        if (SERIAL_NUMBER != null) {
-            return SERIAL_NUMBER.getBytes();
+        if (serialNumber != null) {
+            return serialNumber!!.toByteArray()
         }
 
-        if (SystemUtils.IS_OS_WINDOWS) {
-            SERIAL_NUMBER = getSerialNumberWin();
-        }
-        if (SystemUtils.IS_OS_MAC) {
-            SERIAL_NUMBER = getSerialNumberMac();
-        }
-        if (SystemUtils.IS_OS_LINUX) {
-            SERIAL_NUMBER = getSerialNumberUnix();
+        serialNumber = when {
+            SystemUtils.IS_OS_WINDOWS -> getSerialNumberWin()
+            SystemUtils.IS_OS_MAC -> getSerialNumberMac()
+            SystemUtils.IS_OS_LINUX -> getSerialNumberUnix()
+            else -> "JavaSteam-SerialNumber"
         }
 
-        // if SERIAL_NUMBER still was null
-        if (SERIAL_NUMBER == null) {
-            SERIAL_NUMBER = "JavaSteam-SerialNumber";
-        }
-
-        return SERIAL_NUMBER.getBytes();
+        return serialNumber!!.toByteArray()
     }
 
-    private static String getSerialNumberWin() {
-        String sn = null;
-
-        Runtime runtime = Runtime.getRuntime();
-        Process process;
-        try {
-            process = runtime.exec(new String[]{"wmic", "bios", "get", "serialnumber"});
-        } catch (IOException e) {
-            return null;
+    private fun getSerialNumberWin(): String? =
+        executeCommand(arrayOf("wmic", "bios", "get", "serialnumber")) { reader ->
+            reader.lineSequence()
+                .map { it.trim() }
+                .filter { it.isNotEmpty() && it != "SerialNumber" }
+                .firstOrNull()
         }
 
-        OutputStream os = process.getOutputStream();
-
-        try {
-            os.close();
-        } catch (IOException ignored) {
+    private fun getSerialNumberMac(): String? {
+        val marker = "Serial Number"
+        return executeCommand(arrayOf("/usr/sbin/system_profiler", "SPHardwareDataType")) { reader ->
+            reader.lineSequence().firstOrNull { it.contains(marker) }
+                ?.split(":")
+                ?.getOrNull(1)?.trim()
         }
-
-        try (Scanner sc = new Scanner(process.getInputStream())) {
-            while (sc.hasNext()) {
-                String next = sc.next();
-                if ("SerialNumber".equals(next)) {
-                    sn = sc.next().trim();
-                    break;
-                }
-            }
-        }
-
-        return sn;
     }
 
-    private static String getSerialNumberMac() {
-        String sn = null;
+    private fun getSerialNumberUnix(): String? = readDmidecode() ?: readLshal()
 
-        Runtime runtime = Runtime.getRuntime();
-        Process process;
-        try {
-            process = runtime.exec(new String[]{"/usr/sbin/system_profiler", "SPHardwareDataType"});
-        } catch (IOException e) {
-            return null;
+    private fun readDmidecode(): String? {
+        val marker = "Serial Number:"
+        return executeCommand(arrayOf("dmidecode", "-t", "system")) { reader ->
+            reader.lineSequence()
+                .firstOrNull { it.contains(marker) }
+                ?.split(marker)
+                ?.getOrNull(1)
+                ?.trim()
         }
-
-        OutputStream os = process.getOutputStream();
-
-        try {
-            os.close();
-        } catch (IOException ignored) {
-        }
-
-        String line;
-        String marker = "Serial Number";
-        try (BufferedReader br = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-            while ((line = br.readLine()) != null) {
-                if (line.contains(marker)) {
-                    sn = line.split(":")[1].trim();
-                    break;
-                }
-            }
-        } catch (IOException e) {
-            return null;
-        }
-
-        return sn;
     }
 
-    private static String getSerialNumberUnix() {
-        String sn = readDmidecode();
-
-        if (sn == null) {
-            sn = readLshal();
+    // is lshal still a thing?
+    private fun readLshal(): String? {
+        val marker = "system.hardware.serial ="
+        return executeCommand(arrayOf("lshal")) { reader ->
+            reader.lineSequence()
+                .firstOrNull { it.contains(marker) }
+                ?.split(marker)
+                ?.getOrNull(1)
+                ?.replace(Regex("\\(string\\)|'"), "")
+                ?.trim()
         }
-
-        return sn;
     }
 
-    private static BufferedReader read(String command) {
-
-        Runtime runtime = Runtime.getRuntime();
-        Process process;
-        try {
-            process = runtime.exec(command.split(" "));
-        } catch (IOException e) {
-            return null;
+    private fun executeCommand(command: Array<String>, processOutput: (BufferedReader) -> String?): String? {
+        val process: Process = try {
+            Runtime.getRuntime().exec(command)
+        } catch (_: IOException) {
+            return null
         }
 
-        OutputStream os = process.getOutputStream();
+        process.outputStream.close()
 
-        try {
-            os.close();
-        } catch (IOException ignored) {
-        }
-
-        return new BufferedReader(new InputStreamReader(process.getInputStream()));
-    }
-
-    private static String readDmidecode() {
-
-        String sn = null;
-
-        String line;
-        String marker = "Serial Number:";
-
-        try (BufferedReader br = read("dmidecode -t system")) {
-            if (br == null) {
-                return null;
-            }
-
-            while ((line = br.readLine()) != null) {
-                if (line.contains(marker)) {
-                    sn = line.split(marker)[1].trim();
-                    break;
-                }
-            }
-        } catch (IOException e) {
-            return null;
-        }
-
-        return sn;
-    }
-
-    private static String readLshal() {
-        String sn = null;
-
-        String line;
-        String marker = "system.hardware.serial =";
-
-        try (BufferedReader br = read("lshal")) {
-            if (br == null) {
-                return null;
-            }
-            while ((line = br.readLine()) != null) {
-                if (line.contains(marker)) {
-                    sn = line.split(marker)[1].replaceAll("\\(string\\)|(\\')", "").trim();
-                    break;
-                }
-            }
-        } catch (IOException e) {
-            return null;
-        }
-
-        return sn;
+        val inStream = InputStreamReader(process.inputStream)
+        return BufferedReader(inStream).use { processOutput(it) }
     }
 }
