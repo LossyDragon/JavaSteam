@@ -18,30 +18,4 @@ public class UtilsTest {
         long result = Utils.crc32("test_string");
         Assertions.assertEquals(0x0967B587, result);
     }
-
-    @Test
-    public void toHex() {
-        byte[] byteArray = {(byte) 0xDE, (byte) 0xAD, (byte) 0xBE, (byte) 0xEF};
-        Assertions.assertEquals("deadbeef", Strings.toHex(byteArray));
-    }
-
-    @Test
-    public void decodeHex() {
-        byte[] byteArray = {(byte) 0xDE, (byte) 0xAD, (byte) 0xBE, (byte) 0xEF};
-        Assertions.assertArrayEquals(byteArray, Strings.decodeHex("deadbeef"));
-    }
-
-    @Test
-    public void invalid_decodeHex() {
-        Assertions.assertThrows(IllegalArgumentException.class, () -> Strings.decodeHex("odd"));
-    }
-
-    @Test
-    public void isNullOrEmpty() {
-        Assertions.assertTrue(Strings.isNullOrEmpty(null));
-
-        Assertions.assertTrue(Strings.isNullOrEmpty(""));
-
-        Assertions.assertFalse(Strings.isNullOrEmpty("Hello World!"));
-    }
 }
