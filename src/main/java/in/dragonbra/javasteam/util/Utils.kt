@@ -84,11 +84,13 @@ object Utils {
     fun getOSType(): EOSType {
         // Windows
         if (SystemUtils.IS_OS_WINDOWS) {
+            // still works Oct 5 2024, Windows 11
             return WIN_OS_MAP.entries.find { it.key }?.value ?: EOSType.WinUnknown
         }
 
         // Mac OS
         if (SystemUtils.IS_OS_MAC) {
+            // still works Oct 5 2024, macOS 15 (Sequoia).
             return OSX_OS_MAP.entries.find { it.key }?.value ?: EOSType.MacOSUnknown
         }
 

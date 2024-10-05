@@ -35,6 +35,7 @@ object HardwareUtils {
         return serialNumber!!.toByteArray()
     }
 
+    // still works Oct 5 2024, Windows 11
     private fun getSerialNumberWin(): String? =
         executeCommand(arrayOf("wmic", "bios", "get", "serialnumber")) { reader ->
             reader.lineSequence()
@@ -43,6 +44,7 @@ object HardwareUtils {
                 .firstOrNull()
         }
 
+    // still works Oct 5 2024, macOS 15 (Sequoia).
     private fun getSerialNumberMac(): String? {
         val marker = "Serial Number"
         return executeCommand(arrayOf("/usr/sbin/system_profiler", "SPHardwareDataType")) { reader ->
