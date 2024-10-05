@@ -53,6 +53,7 @@ public class MsgUtil {
      * @param protobuf if set to <b>true</b>, the message is protobuf flagged.
      * @return A crafted EMsg, flagged if requested
      */
+    @SuppressWarnings("JavaExistingMethodCanBeUsed")
     public static int makeGCMsg(int msg, boolean protobuf) {
         if (protobuf) {
             return msg | PROTO_MASK;
