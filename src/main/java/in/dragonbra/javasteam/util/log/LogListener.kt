@@ -1,11 +1,11 @@
-package in.dragonbra.javasteam.util.log;
+package `in`.dragonbra.javasteam.util.log
 
 /**
  * @author lngtr
  * @since 2018-03-02
  */
-public interface LogListener {
-    void onLog(Class<?> clazz, String message, Throwable throwable);
+interface LogListener {
+    fun onLog(clazz: Class<*>, message: String?, throwable: Throwable?)
 
-    void onError(Class<?> clazz, String message, Throwable throwable);
+    fun onError(clazz: Class<*>, message: String?, throwable: Throwable?)
 }
