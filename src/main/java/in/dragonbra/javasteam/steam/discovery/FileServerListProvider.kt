@@ -10,6 +10,7 @@ import java.io.FileInputStream
 import java.io.FileNotFoundException
 import java.io.FileOutputStream
 import java.io.IOException
+import java.time.Instant
 
 /**
  * Server provider that stores servers in a file using protobuf.
@@ -29,6 +30,17 @@ class FileServerListProvider(private val file: File) : IServerListProvider {
         }
     }
 
+    // TODO validate, above may cause conflict since we will make it during init if it doesnt exist.
+    /**
+     * Returns the last time the file was written on disk
+     */
+    override val lastServerListRefresh: Instant
+        get() = Instant.ofEpochMilli(file.lastModified())
+
+    /**
+     * Read the stored list of servers from the file
+     * @return List of servers if persisted, otherwise an empty list
+     */
     override fun fetchServerList(): List<ServerRecord> = try {
         FileInputStream(file).use { fis ->
             val serverList = BasicServerList.parseFrom(fis)
@@ -49,6 +61,10 @@ class FileServerListProvider(private val file: File) : IServerListProvider {
         emptyList()
     }
 
+    /**
+     * Writes the supplied list of servers to persistent storage
+     * @param endpoints List of server endpoints
+     */
     override fun updateServerList(endpoints: List<ServerRecord>) {
         val builder = BasicServerList.newBuilder().apply {
             endpoints.forEach { endpoint ->
