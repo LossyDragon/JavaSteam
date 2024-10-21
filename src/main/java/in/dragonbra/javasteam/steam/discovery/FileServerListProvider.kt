@@ -6,22 +6,25 @@ import `in`.dragonbra.javasteam.protobufs.steam.discovery.BasicServerListProtos.
 import `in`.dragonbra.javasteam.util.log.LogManager
 import `in`.dragonbra.javasteam.util.log.Logger
 import java.io.File
-import java.io.FileInputStream
 import java.io.FileNotFoundException
-import java.io.FileOutputStream
 import java.io.IOException
+import java.nio.file.Files
+import java.nio.file.Path
 import java.time.Instant
 
 /**
  * Server provider that stores servers in a file using protobuf.
+ *
+ * @constructor Initialize a new instance of FileStorageServerListProvider
+ * @param file the filename that will store the servers
  */
-class FileServerListProvider(private val file: File) : IServerListProvider {
+class FileServerListProvider(private val file: Path) : IServerListProvider {
 
     /**
      * Instantiates a [FileServerListProvider] object.
      * @param file the file that will store the servers
      */
-    init {
+    constructor(file: File) : this(file.toPath()) {
         try {
             file.absoluteFile.parentFile?.mkdirs()
             file.createNewFile()
@@ -30,19 +33,22 @@ class FileServerListProvider(private val file: File) : IServerListProvider {
         }
     }
 
-    // TODO validate, above may cause conflict since we will make it during init if it doesnt exist.
+    init {
+        require(file.fileName.toString().isNotBlank()) { "FileName must not be blank" }
+    }
+
     /**
      * Returns the last time the file was written on disk
      */
     override val lastServerListRefresh: Instant
-        get() = Instant.ofEpochMilli(file.lastModified())
+        get() = Files.getLastModifiedTime(file).toInstant()
 
     /**
      * Read the stored list of servers from the file
      * @return List of servers if persisted, otherwise an empty list
      */
-    override fun fetchServerList(): List<ServerRecord> = try {
-        FileInputStream(file).use { fis ->
+    override fun fetchServerList(): List<ServerRecord> = runCatching {
+        Files.newInputStream(file).use { fis ->
             val serverList = BasicServerList.parseFrom(fis)
             List(serverList.serversCount) { i ->
                 val server: BasicServer = serverList.getServers(i)
@@ -53,13 +59,18 @@ class FileServerListProvider(private val file: File) : IServerListProvider {
                 )
             }
         }
-    } catch (e: FileNotFoundException) {
-        logger.error("servers list file not found", e)
-        emptyList()
-    } catch (e: IOException) {
-        logger.error("Failed to read server list file ${file.absolutePath}", e)
-        emptyList()
-    }
+    }.fold(
+        onSuccess = { it },
+        onFailure = { error ->
+            val message = when (error) {
+                is FileNotFoundException -> "servers list file not found"
+                is IOException -> "Failed to read server list file ${file.fileName}"
+                else -> "Unknown error occurred"
+            }
+            logger.error(message, error)
+            emptyList()
+        }
+    )
 
     /**
      * Writes the supplied list of servers to persistent storage
@@ -79,12 +90,11 @@ class FileServerListProvider(private val file: File) : IServerListProvider {
         }
 
         try {
-            FileOutputStream(file, false).use { fos ->
+            Files.newOutputStream(file).use { fos ->
                 builder.build().writeTo(fos)
-                fos.flush()
             }
         } catch (e: IOException) {
-            logger.error("Failed to write servers to file ${file.absolutePath}", e)
+            logger.error("Failed to write servers to file ${file.fileName}", e)
         }
     }
 

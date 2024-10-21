@@ -6,8 +6,6 @@ import `in`.dragonbra.javasteam.steam.webapi.SteamDirectory
 import `in`.dragonbra.javasteam.util.log.LogManager
 import `in`.dragonbra.javasteam.util.log.Logger
 import java.io.IOException
-import java.net.Inet4Address
-import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.time.Duration
 import java.time.Instant
@@ -28,7 +26,7 @@ class SmartCMServerList(private val configuration: SteamConfiguration) {
          * [Issue Tracker](https://github.com/Longi94/JavaSteam/issues)
          */
         @JvmStatic
-        var defaultServerWebSocket = "cmp1-ord1.steamserver.net"
+        var defaultServerWebSocket = "cmp1-sea1.steamserver.net:443"
 
         /**
          * The default fallback TCP/UDP server to attempt connecting to if fetching server list through other means fails.
@@ -36,23 +34,23 @@ class SmartCMServerList(private val configuration: SteamConfiguration) {
          * [Issue Tracker](https://github.com/Longi94/JavaSteam/issues)
          */
         @JvmStatic
-        var defaultServerNetFilter = "ext1-ord1.steamserver.net"
+        var defaultServerNetFilter = "ext1-sea1.steamserver.net:27017"
     }
 
     private val servers: MutableList<ServerInfo> = mutableListOf()
     private var serversLastRefresh: Instant = Instant.MIN
 
     /**
-     * Determines how long a server's bad connection state is remembered for.
-     */
-    @Suppress("MemberVisibilityCanBePrivate")
-    var badConnectionMemoryTimeSpan: Duration = Duration.ofMinutes(5)
-
-    /**
      * Determines how long the server list cache is used as-is before attempting to refresh from the Steam Directory.
      */
     @Suppress("MemberVisibilityCanBePrivate")
     var serverListBeforeRefreshTimeSpan: Duration = Duration.ofDays(7)
+
+    /**
+     * Determines how long a server's bad connection state is remembered for.
+     */
+    @Suppress("MemberVisibilityCanBePrivate")
+    var badConnectionMemoryTimeSpan: Duration = Duration.ofMinutes(5)
 
     @Throws(IOException::class)
     private fun startFetchingServers() {
@@ -132,19 +130,12 @@ class SmartCMServerList(private val configuration: SteamConfiguration) {
         }
 
         // This is a last effort to attempt any valid connection to Steam
-        logger.debug("Server list provider had no entries, `SteamDirectory` failed, falling back to default server $defaultServerNetFilter")
+        logger.debug("Server list provider had no entries, `SteamDirectory` failed, falling back to default servers")
 
-        val resolved = InetAddress.getAllByName(defaultServerNetFilter).filterIsInstance<Inet4Address>()
-
-        if (resolved.isEmpty()) {
-            logger.debug("Failed to resolve default server $defaultServerNetFilter to any address")
-            replaceList(listOf(), writeProvider = false, Instant.now())
-            return
-        }
-
-        endpointList = resolved.map { ipAddr ->
-            ServerRecord.createSocketServer(InetSocketAddress(ipAddr, 27017))
-        }.plus(ServerRecord.createWebSocketServer(defaultServerWebSocket)).toList()
+        endpointList = listOfNotNull(
+            ServerRecord.createWebSocketServer(defaultServerWebSocket),
+            ServerRecord.tryCreateSocketServer(defaultServerNetFilter), // TODO 'tryCreateSocketServer' can return null
+        )
 
         replaceList(endpointList, writeProvider = false, Instant.MIN)
     }
@@ -271,13 +262,17 @@ class SmartCMServerList(private val configuration: SteamConfiguration) {
      * @return An [ServerRecord], or null if the list is empty.
      */
     fun getNextServerCandidate(supportedProtocolTypes: EnumSet<ProtocolTypes>): ServerRecord? {
-        try {
+        return runCatching {
             startFetchingServers()
-        } catch (e: IOException) {
-            return null
-        }
-
-        return getNextServerCandidateInternal(supportedProtocolTypes)
+        }.fold(
+            onSuccess = {
+                getNextServerCandidateInternal(supportedProtocolTypes)
+            },
+            onFailure = { error ->
+                logger.error("Error while fetching servers", error)
+                return null
+            }
+        )
     }
 
     /**
@@ -291,25 +286,30 @@ class SmartCMServerList(private val configuration: SteamConfiguration) {
 
     /**
      * Gets the [ServerRecords][ServerRecord] of all servers in the server list.
-     *
-     * @return An [List] array contains the [ServerRecords][ServerRecord] of the servers in the list
+     * @return An [List] array contains the [InetSocketAddress] of the servers in the list
      */
-    fun getAllEndPoints(): List<ServerRecord?> {
-        runCatching {
-            startFetchingServers()
-        }.onFailure { return emptyList() }
+    fun getAllEndPoints(): List<ServerRecord> = runCatching {
+        startFetchingServers()
+    }.fold(
+        onSuccess = { servers.map { s -> s.record }.distinct() },
+        onFailure = { error ->
+            logger.error("Failed to fetch end points", error)
+            emptyList()
+        }
+    )
 
-        val endPoints = servers.map { s -> s.record }.distinct()
-
-        return endPoints
-    }
-
-    // TODO maybe return a completion result
     /**
      * Force refresh the server list. If directory fetch is allowed, it will refresh from the API first,
      * and then fallback to the server list provider.
+     * @return whether the refresh was successful or not.
      **/
-    fun forceRefreshServerList() {
-        resolveServerList(true)
-    }
+    fun forceRefreshServerList(): Boolean = runCatching {
+        resolveServerList(forceRefresh = true)
+    }.fold(
+        onSuccess = { true },
+        onFailure = { error ->
+            logger.error(error)
+            false
+        }
+    )
 }

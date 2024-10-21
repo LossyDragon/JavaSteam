@@ -62,7 +62,7 @@ class ServerRecord private constructor(
          */
         @JvmStatic
         fun createServer(host: String, port: Int, protocolTypes: ProtocolTypes): ServerRecord =
-            createServer(host, port, EnumSet.of<ProtocolTypes>(protocolTypes))
+            createServer(host, port, EnumSet.of(protocolTypes))
 
         /**
          * Creates a server record for a given endpoint.
@@ -82,7 +82,7 @@ class ServerRecord private constructor(
          */
         @JvmStatic
         fun createSocketServer(endpoint: InetSocketAddress): ServerRecord =
-            ServerRecord(endpoint, EnumSet.of<ProtocolTypes>(ProtocolTypes.TCP, ProtocolTypes.UDP))
+            ServerRecord(endpoint, EnumSet.of(ProtocolTypes.TCP, ProtocolTypes.UDP))
 
         /**
          * Creates a Socket server given an IP endpoint.
@@ -91,9 +91,9 @@ class ServerRecord private constructor(
          */
         @JvmStatic
         fun tryCreateSocketServer(address: String): ServerRecord? {
-            var endpoint = NetHelpers.tryParseIPEndPoint(address) ?: return null
+            val endpoint = NetHelpers.tryParseIPEndPoint(address) ?: return null
 
-            return ServerRecord(endpoint, EnumSet.of<ProtocolTypes>(ProtocolTypes.TCP, ProtocolTypes.UDP))
+            return ServerRecord(endpoint, EnumSet.of(ProtocolTypes.TCP, ProtocolTypes.UDP))
         }
 
         /**
@@ -106,7 +106,7 @@ class ServerRecord private constructor(
             val defaultPort = 443
 
             val split = address.split(":".toRegex()).dropLastWhile { it.isEmpty() }.toTypedArray()
-            var endpoint = if (split.size > 1) {
+            val endpoint = if (split.size > 1) {
                 InetSocketAddress(split[0], split[1].toInt())
             } else {
                 InetSocketAddress(address, defaultPort)
