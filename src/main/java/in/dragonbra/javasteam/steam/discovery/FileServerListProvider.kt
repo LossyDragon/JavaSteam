@@ -6,9 +6,9 @@ import `in`.dragonbra.javasteam.protobufs.steam.discovery.BasicServerListProtos.
 import `in`.dragonbra.javasteam.util.log.LogManager
 import `in`.dragonbra.javasteam.util.log.Logger
 import java.io.File
-import java.io.FileNotFoundException
 import java.io.IOException
 import java.nio.file.Files
+import java.nio.file.NoSuchFileException
 import java.nio.file.Path
 import java.time.Instant
 
@@ -18,20 +18,19 @@ import java.time.Instant
  * @constructor Initialize a new instance of FileStorageServerListProvider
  * @param file the filename that will store the servers
  */
-class FileServerListProvider(private val file: Path) : IServerListProvider {
+class FileServerListProvider(val file: Path) : IServerListProvider {
 
     /**
      * Instantiates a [FileServerListProvider] object.
      * @param file the file that will store the servers
      */
-    constructor(file: File) : this(file.toPath()) {
-        try {
-            file.absoluteFile.parentFile?.mkdirs()
-            file.createNewFile()
-        } catch (e: IOException) {
-            logger.error(e)
-        }
-    }
+    constructor(file: File) : this(file.toPath())
+
+    /**
+     * Instantiates a [FileServerListProvider] object.
+     * @param filename the filename that will store the servers.
+     */
+    constructor(filename: String) : this(Path.of(filename))
 
     init {
         require(file.fileName.toString().isNotBlank()) { "FileName must not be blank" }
@@ -62,12 +61,11 @@ class FileServerListProvider(private val file: Path) : IServerListProvider {
     }.fold(
         onSuccess = { it },
         onFailure = { error ->
-            val message = when (error) {
-                is FileNotFoundException -> "servers list file not found"
-                is IOException -> "Failed to read server list file ${file.fileName}"
-                else -> "Unknown error occurred"
+            when (error) {
+                is NoSuchFileException -> logger.debug("File doesn't exist")
+                else -> logger.error("Unknown error occurred", error)
             }
-            logger.error(message, error)
+
             emptyList()
         }
     )
@@ -78,15 +76,15 @@ class FileServerListProvider(private val file: Path) : IServerListProvider {
      */
     override fun updateServerList(endpoints: List<ServerRecord>) {
         val builder = BasicServerList.newBuilder().apply {
-            endpoints.forEach { endpoint ->
-                addServers(
-                    BasicServer.newBuilder().apply {
-                        address = endpoint.host
-                        port = endpoint.port
-                        protocol = ProtocolTypes.code(endpoint.protocolTypes)
-                    }
-                )
-            }
+            addAllServers(
+                endpoints.map { endpoint ->
+                    BasicServer.newBuilder()
+                        .setAddress(endpoint.host)
+                        .setPort(endpoint.port)
+                        .setProtocol(ProtocolTypes.code(endpoint.protocolTypes))
+                        .build()
+                }
+            )
         }
 
         try {
