@@ -2,6 +2,7 @@ package `in`.dragonbra.javasteam.steam.discovery
 
 import `in`.dragonbra.javasteam.networking.steam3.ProtocolTypes
 import `in`.dragonbra.javasteam.util.NetHelpers
+import `in`.dragonbra.javasteam.util.log.LogManager
 import java.net.InetSocketAddress
 import java.util.EnumSet
 
@@ -53,6 +54,8 @@ class ServerRecord private constructor(
     override fun hashCode(): Int = endpoint.hashCode() xor protocolTypes.hashCode()
 
     companion object {
+        private val logger = LogManager.getLogger(ServerRecord::class.java)
+
         /**
          * Creates a server record for a given endpoint.
          * @param host The host to connect to.
@@ -91,7 +94,12 @@ class ServerRecord private constructor(
          */
         @JvmStatic
         fun tryCreateSocketServer(address: String): ServerRecord? {
-            val endpoint = NetHelpers.tryParseIPEndPoint(address) ?: return null
+            val endpoint = NetHelpers.tryParseIPEndPoint(address)
+
+            if (endpoint == null) {
+                logger.error("Unable to create socket server for: $address")
+                return null
+            }
 
             return ServerRecord(endpoint, EnumSet.of(ProtocolTypes.TCP, ProtocolTypes.UDP))
         }
