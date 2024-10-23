@@ -151,7 +151,7 @@ class SteamUnifiedMessages : ClientMsgHandler() {
 
     internal fun <TService : GeneratedMessage.Builder<TService>> handleResponseMsg(
         serviceClass: Class<out AbstractMessage>,
-        packetMsg: PacketClientMsgProtobuf
+        packetMsg: PacketClientMsgProtobuf,
     ) {
         val callback = ServiceMethodResponse<TService>(serviceClass, packetMsg)
         client.postCallback(callback)
@@ -159,7 +159,7 @@ class SteamUnifiedMessages : ClientMsgHandler() {
 
     internal fun <TService : GeneratedMessage.Builder<TService>> handleNotificationMsg(
         serviceClass: Class<out AbstractMessage>,
-        packetMsg: PacketClientMsgProtobuf
+        packetMsg: PacketClientMsgProtobuf,
     ) {
         val callback = ServiceMethodNotification<TService>(serviceClass, packetMsg)
         client.postCallback(callback)
