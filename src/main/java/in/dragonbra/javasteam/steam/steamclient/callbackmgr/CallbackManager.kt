@@ -1,5 +1,9 @@
 package `in`.dragonbra.javasteam.steam.steamclient.callbackmgr
 
+import com.google.protobuf.GeneratedMessage
+import `in`.dragonbra.javasteam.steam.handlers.steamunifiedmessages.SteamUnifiedMessages
+import `in`.dragonbra.javasteam.steam.handlers.steamunifiedmessages.UnifiedService
+import `in`.dragonbra.javasteam.steam.handlers.steamunifiedmessages.callback.ServiceMethodNotification
 import `in`.dragonbra.javasteam.steam.steamclient.SteamClient
 import `in`.dragonbra.javasteam.types.JobID
 import `in`.dragonbra.javasteam.util.compat.Consumer
@@ -18,6 +22,12 @@ import java.util.concurrent.ConcurrentHashMap
 class CallbackManager(private val steamClient: SteamClient) : ICallbackMgrInternals {
 
     private val registeredCallbacks: MutableSet<CallbackBase> = Collections.newSetFromMap(ConcurrentHashMap())
+
+    private var steamUnifiedMessages: SteamUnifiedMessages? = null
+
+    init {
+        steamUnifiedMessages = steamClient.getHandler(SteamUnifiedMessages::class.java)
+    }
 
     /**
      * Runs a single queued callback.
@@ -111,6 +121,35 @@ class CallbackManager(private val steamClient: SteamClient) : ICallbackMgrIntern
         callbackType: Class<out TCallback>,
         callbackFunc: Consumer<TCallback>,
     ): Closeable = subscribe(callbackType, JobID.INVALID, callbackFunc)
+
+    /**
+     * TODO kDoc
+     */
+    fun <TService : UnifiedService, TNotification : GeneratedMessage.Builder<TNotification>> subscribeServiceNotification(
+        serviceClass: Class<TService>,
+        notificationClass: Class<TNotification>,
+        callbackFunc: Consumer<ServiceMethodNotification<TNotification>>
+    ): Closeable {
+        steamUnifiedMessages?.createService(serviceClass)
+
+        // TODO
+        val callback = Callback(
+            ServiceMethodNotification::class.java as Class<out ServiceMethodNotification<TNotification>>,
+            callbackFunc,
+            this,
+            JobID.INVALID
+        )
+        return Subscription(this, callback)
+    }
+
+    /**
+     * kDoc
+     */
+    fun <TService, TNotification> subscribeServiceResponse(
+
+    ): Closeable {
+        TODO()
+    }
 
     override fun register(callback: CallbackBase) {
         if (registeredCallbacks.contains(callback)) {

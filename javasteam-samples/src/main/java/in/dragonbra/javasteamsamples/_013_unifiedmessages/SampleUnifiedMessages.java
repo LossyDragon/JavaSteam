@@ -3,7 +3,9 @@ package in.dragonbra.javasteamsamples._013_unifiedmessages;
 import in.dragonbra.javasteam.enums.EResult;
 import in.dragonbra.javasteam.enums.EUIMode;
 import in.dragonbra.javasteam.protobufs.steamclient.SteammessagesFriendmessagesSteamclient.CFriendMessages_IncomingMessage_Notification;
+import in.dragonbra.javasteam.protobufs.steamclient.SteammessagesGamenotificationsSteamclient.CGameNotifications_OnNotificationsRequested_Notification;
 import in.dragonbra.javasteam.protobufs.steamclient.SteammessagesPlayerSteamclient.*;
+import in.dragonbra.javasteam.rpc.service.GameNotificationsClient;
 import in.dragonbra.javasteam.rpc.service.Player;
 import in.dragonbra.javasteam.steam.handlers.steamunifiedmessages.SteamUnifiedMessages;
 import in.dragonbra.javasteam.steam.handlers.steamunifiedmessages.callback.ServiceMethodNotification;
@@ -45,6 +47,8 @@ public class SampleUnifiedMessages implements Runnable {
     private SteamUser steamUser;
 
     private SteamUnifiedMessages steamUnifiedMessages;
+
+    private Player playerService;
 
     private boolean isRunning;
 
@@ -93,6 +97,9 @@ public class SampleUnifiedMessages implements Runnable {
         // The SteamUnifiedMessages handler can be removed if it's not needed.
         // steamClient.removeHandler(SteamUnifiedMessages.class);
 
+        // we also want to create our local service interface, which will help us build requests to the unified api
+        playerService = steamUnifiedMessages.createService(Player.class);
+
         // register a few callbacks we're interested in
         // these are registered upon creation to a callback manager, which will then route the callbacks
         // to the functions specified
@@ -104,6 +111,13 @@ public class SampleUnifiedMessages implements Runnable {
 
         manager.subscribe(ServiceMethodResponse.class, this::onMethodResponse);
         manager.subscribe(ServiceMethodNotification.class, this::onMethodNotification);
+
+        // subscribe to incoming messages from the GameNotificationsClient service
+        manager.subscribeServiceNotification(
+                GameNotificationsClient.class,
+                CGameNotifications_OnNotificationsRequested_Notification.Builder.class,
+                this::onGameStartedNotification
+        );
 
         isRunning = true;
 
@@ -261,5 +275,12 @@ public class SampleUnifiedMessages implements Runnable {
             System.out.println("SteamID: " + message.getAccountid());
             System.out.println("NickName: " + message.getPreferences().getNickname());
         }
+    }
+
+    private void onGameStartedNotification(
+            ServiceMethodNotification<CGameNotifications_OnNotificationsRequested_Notification.Builder> notification) {
+
+        System.out.println("User with id " + notification.getBody().getSteamid() + " started the game:");
+        System.out.println(notification.getBody().getAppid());
     }
 }
