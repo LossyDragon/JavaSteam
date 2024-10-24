@@ -18,6 +18,14 @@ class ServiceMethodNotification<T : GeneratedMessage.Builder<T>>(
     packetMsg: PacketClientMsgProtobuf,
 ) : CallbackMsg() {
 
+    companion object {
+        @JvmStatic
+        fun <T : GeneratedMessage.Builder<T>> create(
+            clazz: Class<out AbstractMessage>,
+            packetMsg: PacketClientMsgProtobuf,
+        ): ServiceMethodNotification<T> = ServiceMethodNotification(clazz, packetMsg)
+    }
+
     /**
      * The name of the job, in the format Service.Method#Version.
      */

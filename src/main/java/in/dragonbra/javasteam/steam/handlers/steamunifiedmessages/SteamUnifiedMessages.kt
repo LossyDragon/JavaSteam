@@ -11,6 +11,7 @@ import `in`.dragonbra.javasteam.steam.handlers.steamunifiedmessages.callback.Ser
 import `in`.dragonbra.javasteam.steam.handlers.steamunifiedmessages.callback.ServiceMethodResponse
 import `in`.dragonbra.javasteam.types.AsyncJobSingle
 import `in`.dragonbra.javasteam.util.log.LogManager
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * @author Lossy
@@ -24,7 +25,16 @@ class SteamUnifiedMessages : ClientMsgHandler() {
         private val logger = LogManager.getLogger(SteamUnifiedMessages::class.java)
     }
 
-    internal val handlers: MutableMap<String, UnifiedService> = mutableMapOf()
+    internal val handlers = ConcurrentHashMap<String, UnifiedService>()
+
+    /**
+     * Creates a service that can be used to send messages and receive notifications via Steamworks unified messaging.
+     * @param TService The type of the service to create.
+     * @return The instance to create requests from.
+     */
+    // Kotlin Compat
+    @JvmSynthetic
+    inline fun <reified TService : UnifiedService> createService(): TService = createService(TService::class.java)
 
     /**
      * Creates a service that can be used to send messages and receive notifications via Steamworks unified messaging.
@@ -32,12 +42,23 @@ class SteamUnifiedMessages : ClientMsgHandler() {
      * @param serviceClass The type of the service to create.
      * @return The instance to create requests.
      */
-    fun <TService : UnifiedService> createService(serviceClass: Class<TService>): TService {
-        val service = serviceClass.getDeclaredConstructor(SteamUnifiedMessages::class.java)
+    // Java Compat
+    @Suppress("UNCHECKED_CAST")
+    fun <TService : UnifiedService> createService(serviceClass: Class<TService>): TService =
+        serviceClass.getDeclaredConstructor(SteamUnifiedMessages::class.java)
             .newInstance(this@SteamUnifiedMessages)
+            .let { service ->
+                handlers.getOrPut(service.serviceName) { service } as TService
+            }
 
-        @Suppress("UNCHECKED_CAST")
-        return handlers.getOrPut(service.serviceName) { service } as TService
+    /**
+     * Removes a service so it no longer can be used to send messages or receive notifications.
+     * @param TService The type of the service to remove.
+     */
+    // Kotlin Compat
+    @JvmSynthetic
+    inline fun <reified TService : UnifiedService> removeService() {
+        removeService(TService::class.java)
     }
 
     /**
@@ -46,8 +67,9 @@ class SteamUnifiedMessages : ClientMsgHandler() {
      * @param serviceClass The type of the service to remove.
      */
     fun <TService : UnifiedService> removeService(serviceClass: Class<TService>) {
-        val constructor = serviceClass.getDeclaredConstructor(SteamUnifiedMessages::class.java)
-        val serviceName = constructor.newInstance(null).serviceName
+        val serviceName = serviceClass.getDeclaredConstructor(SteamUnifiedMessages::class.java)
+            .newInstance(null)
+            .serviceName
         handlers.remove(serviceName)
     }
 
@@ -61,7 +83,7 @@ class SteamUnifiedMessages : ClientMsgHandler() {
      * @param message The message to send.
      * @return The JobID of the request. This can be used to find the appropriate [ServiceMethodResponse].
      */
-    @Suppress("unused")
+    @Suppress("UNUSED_PARAMETER")
     fun <TRequest : GeneratedMessage.Builder<TRequest>, TResult : GeneratedMessage.Builder<TResult>> sendMessage(
         responseClass: Class<out TResult>, // Type Casting
         name: String,
@@ -121,21 +143,15 @@ class SteamUnifiedMessages : ClientMsgHandler() {
         }
 
         val jobName = packetMsgProto.header.proto.targetJobName
-        if (jobName.isEmpty()) {
-            logger.debug("incoming unified message has empty jobName")
-            return
-        }
+        if (jobName.isEmpty()) return
 
         // format: Service.Method#Version
         val dot = jobName.indexOf('.')
         val hash = jobName.lastIndexOf('#')
-        if (dot < 0 || hash < 0) {
-            return
-        }
+        if (dot < 0 || hash < 0) return
 
         val serviceName = jobName.substring(0, dot)
         val handler = handlers[serviceName] ?: return
-
         val methodName = jobName.substring(dot + 1, hash)
 
         // TODO something around here confuses Unified handlers.

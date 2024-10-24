@@ -40,7 +40,7 @@ class SteamAuthentication(private val steamClient: SteamClient) {
         val unifiedMessages = steamClient.getHandler(SteamUnifiedMessages::class.java)
             ?: throw NullPointerException("Unable to get SteamUnifiedMessages handler")
 
-        authenticationService = unifiedMessages.createService(Authentication::class.java)
+        authenticationService = unifiedMessages.createService<Authentication>()
     }
 
     /**

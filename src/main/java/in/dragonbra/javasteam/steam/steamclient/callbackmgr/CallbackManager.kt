@@ -23,11 +23,7 @@ class CallbackManager(private val steamClient: SteamClient) : ICallbackMgrIntern
 
     private val registeredCallbacks: MutableSet<CallbackBase> = Collections.newSetFromMap(ConcurrentHashMap())
 
-    private var steamUnifiedMessages: SteamUnifiedMessages? = null
-
-    init {
-        steamUnifiedMessages = steamClient.getHandler(SteamUnifiedMessages::class.java)
-    }
+    private var steamUnifiedMessages: SteamUnifiedMessages = steamClient.getHandler(SteamUnifiedMessages::class.java)!!
 
     /**
      * Runs a single queued callback.
@@ -36,7 +32,7 @@ class CallbackManager(private val steamClient: SteamClient) : ICallbackMgrIntern
      * @return true if a callback has been run, false otherwise.
      */
     fun runCallbacks(): Boolean {
-        val call: ICallbackMsg = steamClient.getCallback() ?: return false
+        val call = steamClient.getCallback() ?: return false
 
         handle(call)
         return true
@@ -50,7 +46,7 @@ class CallbackManager(private val steamClient: SteamClient) : ICallbackMgrIntern
      * @return true if a callback has been run, false otherwise.
      */
     fun runWaitCallbacks(timeout: Long): Boolean {
-        val call: ICallbackMsg = steamClient.waitForCallback(timeout) ?: return false
+        val call = steamClient.waitForCallback(timeout) ?: return false
 
         handle(call)
         return true
@@ -83,8 +79,9 @@ class CallbackManager(private val steamClient: SteamClient) : ICallbackMgrIntern
     }
 
     /**
-     *
+     * TODO kDoc
      */
+    @Suppress("unused")
     suspend fun runWaitCallbackAsync() {
         val call = steamClient.waitForCallbackAsync()
         handle(call)
@@ -92,15 +89,28 @@ class CallbackManager(private val steamClient: SteamClient) : ICallbackMgrIntern
 
     /**
      * Registers the provided [Consumer] to receive callbacks of type [TCallback]
-     *
-     * @param TCallback  The type of callback to subscribe to.
-     *  If this is [JobID.INVALID],  all callbacks of type [TCallback]  will be received.
+     * @param TCallback  The type of callback to subscribe to. If this is [JobID.INVALID],  all callbacks of type [TCallback] will be received.
+     * @param jobID The [JobID]  of the callbacks that should be subscribed to.
+     * @param callbackFunc The function to invoke with the callback.
+     * @return An [Closeable]. Disposing of the return value will unsubscribe the callbackFunc .
+     */
+    // Kotlin Compat
+    @JvmSynthetic
+    inline fun <reified TCallback : CallbackMsg> subscribe(
+        jobID: JobID = JobID.INVALID,
+        noinline callbackFunc: (TCallback) -> Unit,
+    ): Closeable = subscribe(TCallback::class.java, jobID, callbackFunc)
+
+    /**
+     * Registers the provided [Consumer] to receive callbacks of type [TCallback]
+     * @param TCallback  The type of callback to subscribe to. If this is [JobID.INVALID],  all callbacks of type [TCallback]  will be received.
      * @param callbackType The type of the callback
      * @param jobID The [JobID]  of the callbacks that should be subscribed to.
      * @param callbackFunc The function to invoke with the callback.
      * @return An [Closeable]. Disposing of the return value will unsubscribe the callbackFunc .
      */
-    fun <TCallback : ICallbackMsg> subscribe(
+    // Java Compat
+    fun <TCallback : CallbackMsg> subscribe(
         callbackType: Class<out TCallback>,
         jobID: JobID,
         callbackFunc: Consumer<TCallback>,
@@ -117,7 +127,7 @@ class CallbackManager(private val steamClient: SteamClient) : ICallbackMgrIntern
      * @param callbackFunc The function to invoke with the callback.
      * @return An [Closeable]. Disposing of the return value will unsubscribe the callbackFunc.
      */
-    fun <TCallback : ICallbackMsg> subscribe(
+    fun <TCallback : CallbackMsg> subscribe(
         callbackType: Class<out TCallback>,
         callbackFunc: Consumer<TCallback>,
     ): Closeable = subscribe(callbackType, JobID.INVALID, callbackFunc)
@@ -125,14 +135,33 @@ class CallbackManager(private val steamClient: SteamClient) : ICallbackMgrIntern
     /**
      * TODO kDoc
      */
-    fun <TService : UnifiedService, TNotification : GeneratedMessage.Builder<TNotification>> subscribeServiceNotification(
-        serviceClass: Class<out TService>,
-        callbackFunc: Consumer<ServiceMethodNotification<TNotification>>,
-    ): Closeable {
-        steamUnifiedMessages?.createService(serviceClass) ?: throw IllegalArgumentException("Unable to create service ${serviceClass::class.java}")
+    // Kotlin Compat
+    @JvmSynthetic
+    @Suppress("unused")
+    inline fun <reified TService : UnifiedService, reified TNotification : GeneratedMessage.Builder<TNotification>> subscribeServiceNotification(
+        noinline callback: (ServiceMethodNotification<TNotification>) -> Unit,
+    ): Closeable = subscribeServiceNotification(
+        TService::class.java,
+        TNotification::class.java,
+        callback
+    )
 
-        val callback = Callback<ServiceMethodNotification<TNotification>>(
-            callbackType = ServiceMethodNotification::class.java as Class<out ServiceMethodNotification<TNotification>>,
+    /**
+     * TODO kDoc
+     */
+    // Java Compat
+    @Suppress("UNUSED_PARAMETER")
+    fun <TService, TNotification> subscribeServiceNotification(
+        serviceClass: Class<TService>,
+        notificationClass: Class<TNotification>,
+        callbackFunc: Consumer<ServiceMethodNotification<TNotification>>,
+    ): Closeable where TService : UnifiedService, TNotification : GeneratedMessage.Builder<TNotification> {
+        steamUnifiedMessages.createService(serviceClass)
+            ?: throw IllegalArgumentException("Unable to create service ${serviceClass::class.java}")
+
+        @Suppress("UNCHECKED_CAST")
+        val callback = Callback(
+            callbackClass = ServiceMethodNotification::class.java as Class<ServiceMethodNotification<TNotification>>,
             func = callbackFunc,
             mgr = this,
             jobID = JobID.INVALID
@@ -160,11 +189,12 @@ class CallbackManager(private val steamClient: SteamClient) : ICallbackMgrIntern
         registeredCallbacks.remove(callback)
     }
 
-    private fun handle(call: ICallbackMsg) {
+    private fun handle(call: CallbackMsg) {
+        val callbacks = registeredCallbacks
         val type = call.javaClass
 
         // find handlers interested in this callback
-        registeredCallbacks.forEach { callback ->
+        callbacks.forEach { callback ->
             if (callback.callbackType.isAssignableFrom(type)) {
                 callback.run(call)
             }

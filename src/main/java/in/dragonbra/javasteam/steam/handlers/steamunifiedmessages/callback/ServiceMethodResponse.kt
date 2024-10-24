@@ -19,6 +19,14 @@ class ServiceMethodResponse<T : GeneratedMessage.Builder<T>>(
     packetMsg: PacketClientMsgProtobuf,
 ) : CallbackMsg() {
 
+    companion object {
+        @JvmStatic
+        fun <T : GeneratedMessage.Builder<T>> create(
+            clazz: Class<out AbstractMessage>,
+            packetMsg: PacketClientMsgProtobuf,
+        ): ServiceMethodResponse<T> = ServiceMethodResponse(clazz, packetMsg)
+    }
+
     /**
      * The result of the message.
      */
@@ -33,6 +41,6 @@ class ServiceMethodResponse<T : GeneratedMessage.Builder<T>>(
         val protoHeader = packetMsg.header.proto
         jobID = JobID(protoHeader.jobidTarget)
         result = EResult.from(protoHeader.eresult)
-        body = ClientMsgProtobuf<T>(clazz, packetMsg).body as T
+        body = ClientMsgProtobuf<T>(clazz, packetMsg).body
     }
 }
