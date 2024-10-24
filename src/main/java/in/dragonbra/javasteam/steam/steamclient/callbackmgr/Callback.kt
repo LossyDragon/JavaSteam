@@ -30,11 +30,9 @@ class Callback<TCall : ICallbackMsg> @JvmOverloads constructor(
 
     @Suppress("UNCHECKED_CAST")
     override fun run(callback: Any) {
-        if (callbackType.isAssignableFrom(callback.javaClass)) {
-            val cb = callback as TCall
-            if ((cb.jobID == jobID || jobID == JobID.INVALID) && onRun != null) {
-                onRun.accept(cb)
-            }
+        val cb = callback as? TCall
+        if (cb != null && (cb.jobID == jobID || jobID == JobID.INVALID)) {
+            onRun?.accept(cb)
         }
     }
 }

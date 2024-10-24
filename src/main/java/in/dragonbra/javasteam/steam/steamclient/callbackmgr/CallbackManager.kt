@@ -126,28 +126,25 @@ class CallbackManager(private val steamClient: SteamClient) : ICallbackMgrIntern
      * TODO kDoc
      */
     fun <TService : UnifiedService, TNotification : GeneratedMessage.Builder<TNotification>> subscribeServiceNotification(
-        serviceClass: Class<TService>,
-        notificationClass: Class<TNotification>,
-        callbackFunc: Consumer<ServiceMethodNotification<TNotification>>
+        serviceClass: Class<out TService>,
+        callbackFunc: Consumer<ServiceMethodNotification<TNotification>>,
     ): Closeable {
         steamUnifiedMessages?.createService(serviceClass)
 
-        // TODO
-        val callback = Callback(
-            ServiceMethodNotification::class.java as Class<out ServiceMethodNotification<TNotification>>,
-            callbackFunc,
-            this,
-            JobID.INVALID
+        val callback = Callback<ServiceMethodNotification<TNotification>>(
+            callbackType = ServiceMethodNotification::class.java as Class<out ServiceMethodNotification<TNotification>>,
+            func = callbackFunc,
+            mgr = this,
+            jobID = JobID.INVALID
         )
+
         return Subscription(this, callback)
     }
 
     /**
      * kDoc
      */
-    fun <TService, TNotification> subscribeServiceResponse(
-
-    ): Closeable {
+    fun <TService, TNotification> subscribeServiceResponse(): Closeable {
         TODO()
     }
 

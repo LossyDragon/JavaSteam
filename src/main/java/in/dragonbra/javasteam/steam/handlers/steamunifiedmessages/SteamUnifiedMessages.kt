@@ -33,11 +33,11 @@ class SteamUnifiedMessages : ClientMsgHandler() {
      * @return The instance to create requests.
      */
     fun <TService : UnifiedService> createService(serviceClass: Class<TService>): TService {
-        val constructor = serviceClass.getDeclaredConstructor(SteamUnifiedMessages::class.java)
-        val service = constructor.newInstance(this)
+        val service = serviceClass.getDeclaredConstructor(SteamUnifiedMessages::class.java)
+            .newInstance(this@SteamUnifiedMessages)
 
-        handlers[service.serviceName] = service
-        return service
+        @Suppress("UNCHECKED_CAST")
+        return handlers.getOrPut(service.serviceName) { service } as TService
     }
 
     /**
@@ -61,7 +61,9 @@ class SteamUnifiedMessages : ClientMsgHandler() {
      * @param message The message to send.
      * @return The JobID of the request. This can be used to find the appropriate [ServiceMethodResponse].
      */
+    @Suppress("unused")
     fun <TRequest : GeneratedMessage.Builder<TRequest>, TResult : GeneratedMessage.Builder<TResult>> sendMessage(
+        responseClass: Class<out TResult>, // Type Casting
         name: String,
         message: GeneratedMessage,
     ): AsyncJobSingle<ServiceMethodResponse<TResult>> {
@@ -70,15 +72,18 @@ class SteamUnifiedMessages : ClientMsgHandler() {
         } else {
             EMsg.ServiceMethodCallFromClient
         }
-        val msg = ClientMsgProtobuf<TRequest>(message.javaClass, eMsg).apply {
-            sourceJobID = client.getNextJobID()
 
+        System.out.println("31");
+        val msg = ClientMsgProtobuf<TRequest>(message::class.java, eMsg).apply {
+            sourceJobID = client.getNextJobID()
             header.proto.targetJobName = name
             body.mergeFrom(message)
         }
 
+        System.out.println("32");
         client.send(msg)
 
+        System.out.println("33");
         return AsyncJobSingle(client, msg.sourceJobID)
     }
 
@@ -99,7 +104,7 @@ class SteamUnifiedMessages : ClientMsgHandler() {
         } else {
             EMsg.ServiceMethodCallFromClient
         }
-        val msg = ClientMsgProtobuf<TRequest>(message.javaClass, eMsg).apply {
+        val msg = ClientMsgProtobuf<TRequest>(message::class.java, eMsg).apply {
             header.proto.targetJobName = name
             body.mergeFrom(message)
         }
@@ -114,8 +119,7 @@ class SteamUnifiedMessages : ClientMsgHandler() {
     override fun handleMsg(packetMsg: IPacketMsg) {
         val packetMsgProto = packetMsg as? PacketClientMsgProtobuf ?: return
 
-        if (packetMsgProto.msgType !in listOf(EMsg.ServiceMethod, EMsg.ServiceMethodResponse)) {
-            logger.debug("packetMsgPro is not ServiceMethod or ServiceMethodResponse")
+        if (packetMsg.msgType != EMsg.ServiceMethod && packetMsg.msgType != EMsg.ServiceMethodResponse) {
             return
         }
 
@@ -142,6 +146,7 @@ class SteamUnifiedMessages : ClientMsgHandler() {
 
         val methodName = jobName.substring(dot + 1, hash)
 
+        println("Handling: $jobName")
         when (packetMsgProto.msgType) {
             EMsg.ServiceMethodResponse -> handler.handleResponseMsg(methodName, packetMsgProto)
             EMsg.ServiceMethod -> handler.handleNotificationMsg(methodName, packetMsgProto)
@@ -153,6 +158,7 @@ class SteamUnifiedMessages : ClientMsgHandler() {
         serviceClass: Class<out AbstractMessage>,
         packetMsg: PacketClientMsgProtobuf,
     ) {
+        logger.debug("handleResponseMsg")
         val callback = ServiceMethodResponse<TService>(serviceClass, packetMsg)
         client.postCallback(callback)
     }
@@ -161,6 +167,7 @@ class SteamUnifiedMessages : ClientMsgHandler() {
         serviceClass: Class<out AbstractMessage>,
         packetMsg: PacketClientMsgProtobuf,
     ) {
+        logger.debug("handleNotificationMsg")
         val callback = ServiceMethodNotification<TService>(serviceClass, packetMsg)
         client.postCallback(callback)
     }

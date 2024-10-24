@@ -87,15 +87,25 @@ class ProtoParser(private val outputDir: File) {
         val protoFileName = transformProtoFileName(file.name)
 
         // Class Builder
+        val steamUnifiedMessagesClassName = ClassName(
+            "in.dragonbra.javasteam.steam.handlers.steamunifiedmessages",
+            "SteamUnifiedMessages"
+        )
         val cBuilder = TypeSpec
             .classBuilder(service.name)
             .addAnnotation(suppressAnnotation)
-            .addKdoc(RpcGenTask.kDocClass)
+            .addKdoc("This class is auto-generated")
             .superclass(
                 ClassName(
                     packageName = "in.dragonbra.javasteam.steam.handlers.steamunifiedmessages",
                     "UnifiedService"
                 )
+            )
+            .addFunction(
+                FunSpec.constructorBuilder()
+                    .addParameter("unifiedMessages", steamUnifiedMessagesClassName)
+                    .callSuperConstructor("unifiedMessages")
+                    .build()
             )
 
         // override val serviceName: String
@@ -105,7 +115,6 @@ class ProtoParser(private val outputDir: File) {
         val serviceNameProperty = PropertySpec.builder("serviceName", String::class).apply {
             addModifiers(KModifier.OVERRIDE)
             getter(serviceNameGetter)
-            addKdoc("Gets the service name.")
         }.build()
         cBuilder.addProperty(serviceNameProperty)
 
@@ -117,19 +126,25 @@ class ProtoParser(private val outputDir: File) {
         responseBlock.beginControlFlow("when (methodName)")
         notificationBlock.beginControlFlow("when (methodName)")
         service.methods.forEach { method ->
-            val className = ClassName(
-                packageName = "in.dragonbra.javasteam.protobufs.steamclient.$protoFileName",
-                method.requestType
-            )
             if (method.responseType != "NoResponse") {
+                // HAS Response
                 numResponse++
+                val className = ClassName(
+                    packageName = "in.dragonbra.javasteam.protobufs.steamclient.$protoFileName",
+                    method.responseType
+                )
                 responseBlock.addStatement(
                     "\"${method.methodName}\" -> unifiedMessages!!.handleResponseMsg<%T.Builder>(\n%T::class.java,\npacketMsg\n)",
                     className,
                     className
                 )
             } else {
+                // NO Response
                 numNotification++
+                val className = ClassName(
+                    packageName = "in.dragonbra.javasteam.protobufs.steamclient.$protoFileName",
+                    method.requestType
+                )
                 notificationBlock.addStatement(
                     "\"${method.methodName}\" -> unifiedMessages!!.handleNotificationMsg<%T.Builder>(\n%T::class.java,\npacketMsg\n)",
                     className,
@@ -197,11 +212,7 @@ class ProtoParser(private val outputDir: File) {
                     )
                 )
                 funcBuilder.addStatement(
-                    format = "return unifiedMessages!!.sendMessage<%T.Builder, %T.Builder>(\n%S,\nrequest\n)",
-                    ClassName(
-                        packageName = "in.dragonbra.javasteam.protobufs.steamclient.$protoFileName",
-                        method.requestType
-                    ),
+                    format = "return unifiedMessages!!.sendMessage(\n%T.Builder::class.java,\n%S,\nrequest\n)",
                     ClassName(
                         packageName = "in.dragonbra.javasteam.protobufs.steamclient.$protoFileName",
                         method.responseType
