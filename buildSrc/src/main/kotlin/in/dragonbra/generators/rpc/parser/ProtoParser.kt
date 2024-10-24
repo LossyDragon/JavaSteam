@@ -152,6 +152,11 @@ class ProtoParser(private val outputDir: File) {
                 )
             }
         }
+
+        // TODO remove this
+        responseBlock.add("else -> println(\"\$serviceName -> \$methodName not found\")\n")
+        notificationBlock.add("else -> println(\"\$serviceName -> \$methodName not found\")\n")
+
         responseBlock.endControlFlow()
         notificationBlock.endControlFlow()
 
@@ -160,6 +165,7 @@ class ProtoParser(private val outputDir: File) {
             addModifiers(KModifier.OVERRIDE)
             addParameter("methodName", String::class)
             addParameter("packetMsg", ClassName("in.dragonbra.javasteam.base", "PacketClientMsgProtobuf"))
+            addCode("println(\"\$serviceName is looking for: \$methodName\")\n") // TODO remove
             if (numResponse > 0) {
                 addCode(responseBlock.build())
             }

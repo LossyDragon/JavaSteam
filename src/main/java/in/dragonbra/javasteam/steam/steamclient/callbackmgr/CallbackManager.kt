@@ -129,7 +129,7 @@ class CallbackManager(private val steamClient: SteamClient) : ICallbackMgrIntern
         serviceClass: Class<out TService>,
         callbackFunc: Consumer<ServiceMethodNotification<TNotification>>,
     ): Closeable {
-        steamUnifiedMessages?.createService(serviceClass)
+        steamUnifiedMessages?.createService(serviceClass) ?: throw IllegalArgumentException("Unable to create service ${serviceClass::class.java}")
 
         val callback = Callback<ServiceMethodNotification<TNotification>>(
             callbackType = ServiceMethodNotification::class.java as Class<out ServiceMethodNotification<TNotification>>,

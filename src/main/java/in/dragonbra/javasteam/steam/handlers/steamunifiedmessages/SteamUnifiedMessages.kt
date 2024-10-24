@@ -73,17 +73,14 @@ class SteamUnifiedMessages : ClientMsgHandler() {
             EMsg.ServiceMethodCallFromClient
         }
 
-        System.out.println("31");
         val msg = ClientMsgProtobuf<TRequest>(message::class.java, eMsg).apply {
             sourceJobID = client.getNextJobID()
             header.proto.targetJobName = name
             body.mergeFrom(message)
         }
 
-        System.out.println("32");
         client.send(msg)
 
-        System.out.println("33");
         return AsyncJobSingle(client, msg.sourceJobID)
     }
 
@@ -137,16 +134,18 @@ class SteamUnifiedMessages : ClientMsgHandler() {
         }
 
         val serviceName = jobName.substring(0, dot)
-        val handler = handlers[serviceName]
-
-        if (handler == null) {
-            logger.debug("Unable to find unified handler for $serviceName ($jobName)")
-            return
-        }
+        val handler = handlers[serviceName] ?: return
 
         val methodName = jobName.substring(dot + 1, hash)
 
-        println("Handling: $jobName")
+        // TODO something around here confuses Unified handlers.
+        //  Exception in thread "main" java.lang.ClassCastException: class in.dragonbra.javasteam.protobufs.steamclient.SteammessagesFriendmessagesSteamclient$CFriendMessages_IncomingMessage_Notification$Builder cannot be cast to class in.dragonbra.javasteam.protobufs.steamclient.SteammessagesGamenotificationsSteamclient$CGameNotifications_OnNotificationsRequested_Notification$Builder (in.dragonbra.javasteam.protobufs.steamclient.SteammessagesFriendmessagesSteamclient$CFriendMessages_IncomingMessage_Notification$Builder and in.dragonbra.javasteam.protobufs.steamclient.SteammessagesGamenotificationsSteamclient$CGameNotifications_OnNotificationsRequested_Notification$Builder are in unnamed module of loader 'app')
+
+        // But we get:
+        // Handling: FriendMessagesClient / in.dragonbra.javasteam.rpc.service.FriendMessagesClient / IncomingMessage
+        // 02:06:50.150 [OkHttp htt] in.dragonbra.javasteam.steam.handlers.steamunifiedmessages.SteamUnifiedMessages - handleNotificationMsg
+
+        println("Handling: ${handler.serviceName} / ${handler.javaClass.name} / $methodName")
         when (packetMsgProto.msgType) {
             EMsg.ServiceMethodResponse -> handler.handleResponseMsg(methodName, packetMsgProto)
             EMsg.ServiceMethod -> handler.handleNotificationMsg(methodName, packetMsgProto)
