@@ -14,6 +14,7 @@ import `in`.dragonbra.javasteam.steam.handlers.steamunifiedmessages.SteamUnified
 import `in`.dragonbra.javasteam.steam.steamclient.SteamClient
 import `in`.dragonbra.javasteam.types.SteamID
 import `in`.dragonbra.javasteam.util.crypto.CryptoHelper
+import kotlinx.coroutines.runBlocking
 import java.math.BigInteger
 import java.nio.charset.StandardCharsets
 import java.security.KeyFactory
@@ -46,18 +47,20 @@ class SteamAuthentication(private val steamClient: SteamClient) {
      * @throws AuthenticationException if getting the public key failed.
      */
     @Throws(AuthenticationException::class)
-    private fun getPasswordRSAPublicKey(accountName: String): CAuthentication_GetPasswordRSAPublicKey_Response.Builder {
+    private fun getPasswordRSAPublicKey(
+        accountName: String,
+    ): CAuthentication_GetPasswordRSAPublicKey_Response.Builder = runBlocking {
         val request = CAuthentication_GetPasswordRSAPublicKey_Request.newBuilder().apply {
             this.accountName = accountName
         }
 
-        val response = authenticationService.getPasswordRSAPublicKey(request.build()).runBlock()
+        val response = authenticationService.getPasswordRSAPublicKey(request.build()).await()
 
         if (response.result != EResult.OK) {
             throw AuthenticationException("Failed to get password public key", response.result)
         }
 
-        return response.body
+        return@runBlocking response.body
     }
 
     /**
@@ -73,7 +76,7 @@ class SteamAuthentication(private val steamClient: SteamClient) {
         steamID: SteamID,
         refreshToken: String,
         allowRenewal: Boolean = false,
-    ): AccessTokenGenerateResult {
+    ): AccessTokenGenerateResult = runBlocking {
         val request = CAuthentication_AccessToken_GenerateForApp_Request.newBuilder().apply {
             this.refreshToken = refreshToken
             this.steamid = steamID.convertToUInt64()
@@ -83,13 +86,13 @@ class SteamAuthentication(private val steamClient: SteamClient) {
             }
         }
 
-        val response = authenticationService.generateAccessTokenForApp(request.build()).runBlock()
+        val response = authenticationService.generateAccessTokenForApp(request.build()).await()
 
         if (response.result != EResult.OK) {
             throw IllegalArgumentException("Failed to generate token ${response.result}")
         }
 
-        return AccessTokenGenerateResult(response.body)
+        return@runBlocking AccessTokenGenerateResult(response.body)
     }
 
     /**
@@ -99,7 +102,7 @@ class SteamAuthentication(private val steamClient: SteamClient) {
      * @throws AuthenticationException if the session failed to start.
      */
     @Throws(AuthenticationException::class, CancellationException::class)
-    fun beginAuthSessionViaQR(authSessionDetails: AuthSessionDetails): QrAuthSession {
+    fun beginAuthSessionViaQR(authSessionDetails: AuthSessionDetails): QrAuthSession = runBlocking {
         if (!steamClient.isConnected) {
             throw IllegalArgumentException("The SteamClient instance must be connected.")
         }
@@ -115,13 +118,13 @@ class SteamAuthentication(private val steamClient: SteamClient) {
             this.deviceDetails = deviceDetails.build()
         }
 
-        val response = authenticationService.beginAuthSessionViaQR(request.build()).runBlock()
+        val response = authenticationService.beginAuthSessionViaQR(request.build()).await()
 
         if (response.result != EResult.OK) {
             throw AuthenticationException("Failed to begin QR auth session", response.result)
         }
 
-        return QrAuthSession(this, authSessionDetails.authenticator, response.body)
+        QrAuthSession(this@SteamAuthentication, authSessionDetails.authenticator, response.body)
     }
 
     /**
@@ -130,7 +133,7 @@ class SteamAuthentication(private val steamClient: SteamClient) {
      * @return [CredentialsAuthSession]
      */
     @Throws(AuthenticationException::class)
-    fun beginAuthSessionViaCredentials(authSessionDetails: AuthSessionDetails): CredentialsAuthSession {
+    fun beginAuthSessionViaCredentials(authSessionDetails: AuthSessionDetails): CredentialsAuthSession = runBlocking {
         if (authSessionDetails.username.isNullOrEmpty() || authSessionDetails.password.isNullOrEmpty()) {
             throw IllegalArgumentException(
                 "BeginAuthSessionViaCredentials requires a username and password to be set in authSessionDetails."
@@ -184,12 +187,12 @@ class SteamAuthentication(private val steamClient: SteamClient) {
             request.guardData = authSessionDetails.guardData
         }
 
-        val response = authenticationService.beginAuthSessionViaCredentials(request.build()).runBlock()
+        val response = authenticationService.beginAuthSessionViaCredentials(request.build()).await()
 
         if (response.result != EResult.OK) {
             throw AuthenticationException("Authentication failed", response.result)
         }
 
-        return CredentialsAuthSession(this, authSessionDetails.authenticator, response.body)
+        CredentialsAuthSession(this@SteamAuthentication, authSessionDetails.authenticator, response.body)
     }
 }

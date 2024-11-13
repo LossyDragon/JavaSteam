@@ -3,19 +3,43 @@ package `in`.dragonbra.javasteam.types
 import `in`.dragonbra.javasteam.steam.steamclient.AsyncJobFailedException
 import `in`.dragonbra.javasteam.steam.steamclient.SteamClient
 import `in`.dragonbra.javasteam.steam.steamclient.callbackmgr.CallbackMsg
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.*
+import kotlinx.coroutines.test.*
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
 
 // Note: await() is kotlin only.
 // Note: Deferred is an alternative to C#'s Task<>; however, when a deferred is completed exceptionally,
 // it's not considered cancelled. Also, there is no "isFaulted" state too.
 class AsyncJobTest {
 
-    internal class Callback : CallbackMsg() {
-        var isFinished: Boolean? = null
+    internal class Callback(var isFinished: Boolean = false) : CallbackMsg()
+
+    @Test
+    fun asyncJobCompletesOnCallback() = runTest {
+        val client = SteamClient()
+        val asyncJob = AsyncJobSingle<Callback>(client, JobID(123))
+        val asyncTask = asyncJob.asDeferred()
+
+        client.postCallback(Callback().apply { jobID = JobID(123) })
+
+        Assertions.assertTrue(asyncTask.isCompleted, "Async job should be completed after callback is posted")
+        Assertions.assertFalse(asyncTask.isCancelled, "Async job should not be canceled after callback is posted")
+    }
+
+    @Test
+    fun asyncJobGivesBackCallback() = runTest {
+        val client = SteamClient()
+        val asyncJob = AsyncJobSingle<Callback>(client, JobID(123))
+        val asyncTask = asyncJob.asDeferred()
+
+        val ourCallback = Callback().apply { jobID = JobID(123) }
+        client.postCallback(ourCallback)
+
+        Assertions.assertSame(asyncTask.await(), ourCallback)
     }
 
     @Test
@@ -35,26 +59,11 @@ class AsyncJobTest {
     }
 
     @Test
-    fun asyncJobCompletesOnCallback() {
-        val client = SteamClient()
-        val asyncJob = AsyncJobSingle<Callback>(client, JobID(123))
-        val asyncTask = asyncJob.toDeferred()
-
-        val callback = Callback()
-        callback.jobID = JobID(123)
-        client.postCallback(callback)
-
-        Assertions.assertTrue(asyncTask.isCompleted, "Async job should be completed after callback is posted")
-        Assertions.assertFalse(asyncTask.isCancelled, "Async job should not be canceled after callback is posted")
-    }
-
-    @Test
-    fun asyncJobClearsOnCompletion() {
+    fun asyncJobClearsOnCompletion() = runTest {
         val client = SteamClient()
         val asyncJob = AsyncJobSingle<Callback>(client, JobID(123))
 
-        val callback = Callback()
-        callback.jobID = JobID(123)
+        val callback = Callback().apply { jobID = JobID(123) }
         client.postCallback(callback)
 
         Assertions.assertFalse(
@@ -67,16 +76,17 @@ class AsyncJobTest {
         )
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     @Test
-    fun asyncJobClearsOnTimeout() {
-        val client = SteamClient().apply {
-            jobManager.setTimeoutsEnabled(true)
+    fun asyncJobClearsOnTimeout() = runTest {
+        val client = SteamClient()
+
+        val asyncJob = AsyncJobSingle<Callback>(client, JobID(123)).apply {
+            timeout = 50.milliseconds
         }
 
-        val asyncJob = AsyncJobSingle<Callback>(client, JobID(123))
-        asyncJob.timeout = 1000
-
-        Thread.sleep(5000)
+        advanceTimeBy(70.milliseconds)
+        client.jobManager.cancelPendingJobs()
 
         Assertions.assertFalse(
             client.jobManager.asyncJobs.containsKey(asyncJob.jobID),
@@ -89,78 +99,56 @@ class AsyncJobTest {
     }
 
     @Test
-    fun asyncJobCancelsOnSetFailedTimeout() {
+    fun asyncJobCancelsOnSetFailedTimeout() = runTest {
         val client = SteamClient()
         val asyncJob = AsyncJobSingle<Callback>(client, JobID(123))
 
-        val asyncTask = asyncJob.toDeferred()
+        val asyncTask = asyncJob.asDeferred()
         asyncJob.setFailed(false)
 
         Assertions.assertTrue(asyncTask.isCompleted, "Async job should be completed on message timeout")
         Assertions.assertTrue(asyncTask.isCancelled, "Async job should be canceled on message timeout")
-        Assertions.assertThrows(CancellationException::class.java) { runBlocking { asyncTask.await() } }
+        assertThrows<CancellationException> { asyncJob.await() }
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     @Test
-    fun asyncJobGivesBackCallback() {
+    fun asyncJobTimesOut() = runTest {
         val client = SteamClient()
-        val asyncJob = AsyncJobSingle<Callback>(client, JobID(123))
-
-        val asyncTask = asyncJob.toDeferred()
-        val ourCallback = Callback().apply {
-            jobID = JobID(123)
-        }
-
-        client.postCallback(ourCallback)
-
-        runBlocking {
-            Assertions.assertSame(asyncTask.await(), ourCallback)
-        }
-    }
-
-    @Test
-    fun asyncJobTimesOut() {
-        val client = SteamClient().apply {
-            jobManager.setTimeoutsEnabled(true)
-        }
 
         val asyncJob = AsyncJobSingle<Callback>(client, JobID(123)).apply {
-            timeout = 1000
+            timeout = 50.milliseconds
         }
-        val asyncTask = asyncJob.toDeferred()
+        val asyncTask = asyncJob.asDeferred()
 
-        Thread.sleep(5000L)
+        advanceTimeBy(70.milliseconds)
+        client.jobManager.cancelPendingJobs()
 
-        Assertions.assertTrue(
-            asyncTask.isCompleted,
-            "Async job should be completed after 5 seconds of a 1 second job timeout"
-        )
-        Assertions.assertTrue(
-            asyncTask.isCancelled,
-            "Async job should be canceled after 5 seconds of a 1 second job timeout"
-        )
-        Assertions.assertThrows(CancellationException::class.java) { runBlocking { asyncTask.await() } }
+        Assertions.assertTrue(asyncTask.isCompleted, "Async job should be completed yet")
+        Assertions.assertTrue(asyncTask.isCancelled, "Async job should be canceled yet")
+        assertThrows<CancellationException> { asyncTask.await() }
     }
 
     @Test
-    fun asyncJobThrowsFailureExceptionOnFailure() {
+    fun asyncJobThrowsFailureExceptionOnFailure() = runTest {
         val client = SteamClient()
 
         val asyncJob = AsyncJobSingle<Callback>(client, JobID(123))
-        val asyncTask = asyncJob.toDeferred()
+        val asyncTask = asyncJob.asDeferred()
 
         asyncJob.setFailed(true)
 
         Assertions.assertTrue(asyncTask.isCompleted, "Async job should be completed after job failure")
-        Assertions.assertThrows(AsyncJobFailedException::class.java) { runBlocking { asyncTask.await() } }
+        Assertions.assertFalse(asyncTask.isCancelled, "Async job should not be canceled after job failure")
+        assertThrows<AsyncJobFailedException> { asyncTask.await() }
     }
 
     @Test
-    fun asyncJobMultipleFinishedOnEmptyPredicate() {
+    fun asyncJobMultipleFinishedOnEmptyPredicate() = runTest {
         val client = SteamClient()
 
         val asyncJob = AsyncJobMultiple<Callback>(client, JobID(123)) { _ -> true }
-        val asyncTask = asyncJob.toDeferred()
+        val asyncTask = asyncJob.asDeferred()
 
         val jobFinished = asyncJob.addResult(Callback().apply { jobID = JobID(123) })
 
@@ -179,11 +167,11 @@ class AsyncJobTest {
     }
 
     @Test
-    fun asyncJobMultipleFinishedOnPredicate() {
+    fun asyncJobMultipleFinishedOnPredicate() = runTest {
         val client = SteamClient()
 
         val asyncJob = AsyncJobMultiple<Callback>(client, JobID(123)) { call -> call.isFinished }
-        val asyncTask = asyncJob.toDeferred()
+        val asyncTask = asyncJob.asDeferred()
 
         var jobFinished = asyncJob.addResult(
             Callback().apply {
@@ -227,7 +215,7 @@ class AsyncJobTest {
     }
 
     @Test
-    fun asyncJobMultipleClearsOnCompletion() {
+    fun asyncJobMultipleClearsOnCompletion() = runTest {
         val client = SteamClient()
 
         val asyncJob = AsyncJobMultiple<Callback>(client, JobID(123)) { call -> call.isFinished }
@@ -249,16 +237,16 @@ class AsyncJobTest {
         )
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     @Test
-    fun asyncJobMultipleClearsOnTimeout() {
-        val client = SteamClient().apply {
-            jobManager.setTimeoutsEnabled(true)
-        }
+    fun asyncJobMultipleClearsOnTimeout() = runTest {
+        val client = SteamClient()
 
         val asyncJob = AsyncJobMultiple<Callback>(client, JobID(123)) { _ -> true }
-        asyncJob.timeout = 1000
+        asyncJob.timeout = 50.milliseconds
 
-        runBlocking { delay(5000) }
+        advanceTimeBy(70.milliseconds)
+        client.jobManager.cancelPendingJobs()
 
         Assertions.assertFalse(
             client.jobManager.asyncJobs.containsKey(asyncJob.jobID),
@@ -270,28 +258,19 @@ class AsyncJobTest {
         )
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     @Test
-    fun asyncJobMultipleExtendsTimeoutOnMessage() {
-        val client = SteamClient().apply {
-            jobManager.setTimeoutsEnabled(true)
-        }
+    fun asyncJobMultipleExtendsTimeoutOnMessage() = runTest {
+        val client = SteamClient()
 
         val asyncJob = AsyncJobMultiple<Callback>(client, JobID(123)) { call -> call.isFinished }
-        asyncJob.timeout = 5000
+        asyncJob.timeout = 50.milliseconds
 
-        val asyncTask = asyncJob.toDeferred()
+        val asyncTask = asyncJob.asDeferred()
 
-        // wait 3 seconds before we post any results to this job at all
-        runBlocking { delay(3000) }
-
-        Assertions.assertFalse(
-            asyncTask.isCompleted,
-            "AsyncJobMultiple should not be completed after 3 seconds of 5 second timeout"
-        )
-        Assertions.assertFalse(
-            asyncTask.isCancelled,
-            "AsyncJobMultiple should not be canceled after 3 seconds of 5 second timeout"
-        )
+        // we should not be completed or canceled yet
+        Assertions.assertFalse(asyncTask.isCompleted, "AsyncJobMultiple should not be completed yet")
+        Assertions.assertFalse(asyncTask.isCancelled, "AsyncJobMultiple should not be canceled yet")
 
         // give result 1 of 2
         asyncJob.addResult(
@@ -302,16 +281,18 @@ class AsyncJobTest {
         )
 
         // delay for what the original timeout would have been
-        runBlocking { delay(5000) }
+        advanceTimeBy(70.milliseconds)
+
+        client.jobManager.cancelPendingJobs()
 
         // we still shouldn't be completed or canceled (timed out)
         Assertions.assertFalse(
             asyncTask.isCompleted,
-            "AsyncJobMultiple should not be completed 5 seconds after a result was added (result should extend timeout)"
+            "AsyncJobMultiple should not be completed yet after result was added (result should extend timeout)"
         )
         Assertions.assertFalse(
             asyncTask.isCancelled,
-            "AsyncJobMultiple should not be canceled 5 seconds after a result was added (result should extend timeout)"
+            "AsyncJobMultiple should not be canceled yet after result was added (result should extend timeout)"
         )
 
         asyncJob.addResult(
@@ -332,21 +313,19 @@ class AsyncJobTest {
         )
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     @Test
-    fun asyncJobMultipleTimesOut() {
-        val client = SteamClient().apply {
-            jobManager.setTimeoutsEnabled(true)
-        }
+    fun asyncJobMultipleTimesOut() = runTest {
+        val client = SteamClient()
 
         val asyncJob = AsyncJobMultiple<Callback>(client, JobID(123)) { _ -> false }.apply {
-            timeout = 1000
+            timeout = 50.milliseconds
         }
 
-        val asyncTask = asyncJob.toDeferred()
+        val asyncTask = asyncJob.asDeferred()
 
-        runBlocking {
-            delay(5000)
-        }
+        advanceTimeBy(70.milliseconds)
+        client.jobManager.cancelPendingJobs()
 
         Assertions.assertTrue(
             asyncTask.isCompleted,
@@ -356,22 +335,19 @@ class AsyncJobTest {
             asyncTask.isCancelled,
             "AsyncJobMultiple should be canceled after 5 seconds of a 1 second job timeout"
         )
-
-        Assertions.assertThrows(CancellationException::class.java) { runBlocking { asyncTask.await() } }
+        assertThrows<CancellationException> { asyncTask.await() }
     }
 
-    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    @OptIn(ExperimentalCoroutinesApi::class)
     @Test
-    fun asyncJobMultipleCompletesOnIncompleteResult() {
-        val client = SteamClient().apply {
-            jobManager.setTimeoutsEnabled(true)
-        }
+    fun asyncJobMultipleCompletesOnIncompleteResult() = runTest {
+        val client = SteamClient()
 
         val asyncJob = AsyncJobMultiple<Callback>(client, JobID(123)) { call -> call.isFinished }.apply {
-            timeout = 1000
+            timeout = 1.seconds
         }
 
-        val asyncTask = asyncJob.toDeferred()
+        val asyncTask = asyncJob.asDeferred()
 
         val onlyResult = Callback().apply {
             jobID = JobID(123)
@@ -381,11 +357,10 @@ class AsyncJobTest {
         asyncJob.addResult(onlyResult)
 
         // adding a result will extend the job's timeout, but we'll cheat here and decrease it
-        asyncJob.timeout = 1000
+        asyncJob.timeout = 50.milliseconds
 
-        runBlocking {
-            delay(5000)
-        }
+        advanceTimeBy(70.milliseconds)
+        client.jobManager.cancelPendingJobs()
 
         Assertions.assertTrue(
             asyncTask.isCompleted,
@@ -396,7 +371,7 @@ class AsyncJobTest {
             "AsyncJobMultiple should not be canceled on partial (timed out) result set"
         )
 
-        val result: AsyncJobMultiple.ResultSet = asyncTask.getCompleted()
+        val result = asyncTask.await()
 
         Assertions.assertFalse(result.complete, "ResultSet should be incomplete")
         Assertions.assertFalse(result.failed, "ResultSet should not be failed")
@@ -404,18 +379,15 @@ class AsyncJobTest {
         Assertions.assertSame(onlyResult, result.results.first())
     }
 
-    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     @Test
-    fun asyncJobMultipleCompletesOnIncompleteResultAndFailure() {
-        val client = SteamClient().apply {
-            jobManager.setTimeoutsEnabled(true)
-        }
+    fun asyncJobMultipleCompletesOnIncompleteResultAndFailure() = runTest {
+        val client = SteamClient()
 
         val asyncJob = AsyncJobMultiple<Callback>(client, JobID(123)) { call -> call.isFinished }.apply {
-            timeout = 1000
+            timeout = 1.seconds
         }
 
-        val asyncTask = asyncJob.toDeferred()
+        val asyncTask = asyncJob.asDeferred()
 
         val onlyResult = Callback().apply {
             jobID = JobID(123)
@@ -423,6 +395,7 @@ class AsyncJobTest {
         }
 
         asyncJob.addResult(onlyResult)
+
         asyncJob.setFailed(true)
 
         Assertions.assertTrue(
@@ -434,7 +407,7 @@ class AsyncJobTest {
             "AsyncJobMultiple should not be canceled on partial (failed) result set"
         )
 
-        val result: AsyncJobMultiple.ResultSet = asyncTask.getCompleted()
+        val result = asyncTask.await()
 
         Assertions.assertFalse(result.complete, "ResultSet should be incomplete")
         Assertions.assertTrue(result.failed, "ResultSet should be failed")
@@ -443,16 +416,17 @@ class AsyncJobTest {
     }
 
     @Test
-    fun asyncJobMultipleThrowsFailureExceptionOnFailure() {
+    fun asyncJobMultipleThrowsFailureExceptionOnFailure() = runTest {
         val client = SteamClient()
 
         val asyncJob = AsyncJobMultiple<Callback>(client, JobID(123)) { _ -> false }
-        val asyncTask = asyncJob.toDeferred()
+        val asyncTask = asyncJob.asDeferred()
 
         asyncJob.setFailed(true)
 
         Assertions.assertTrue(asyncTask.isCompleted, "AsyncJobMultiple should be completed after job failure")
-        Assertions.assertThrows(AsyncJobFailedException::class.java) { runBlocking { asyncTask.await() } }
+        Assertions.assertFalse(asyncTask.isCancelled, "AsyncJobMultiple should not be canceled after job failure")
+        assertThrows<AsyncJobFailedException> { asyncTask.await() }
     }
 
 //    @Test

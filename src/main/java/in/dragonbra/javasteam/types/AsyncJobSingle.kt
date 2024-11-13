@@ -3,44 +3,37 @@ package `in`.dragonbra.javasteam.types
 import `in`.dragonbra.javasteam.steam.steamclient.AsyncJobFailedException
 import `in`.dragonbra.javasteam.steam.steamclient.SteamClient
 import `in`.dragonbra.javasteam.steam.steamclient.callbackmgr.CallbackMsg
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.runBlocking
-import kotlin.jvm.Throws
+import kotlinx.coroutines.*
 
 /**
  * @author Lossy
  * @since 2023-03-17
  */
+/**
+ * Represents a coroutine-based async job that returns a single result.
+ */
 class AsyncJobSingle<T : CallbackMsg>(client: SteamClient, jobId: JobID) : AsyncJob(client, jobId) {
-    private val tcs = CompletableDeferred<T>()
 
-    init {
-        registerJob(client)
-    }
+    private val deferred = CompletableDeferred<T>()
 
-    fun toDeferred(): CompletableDeferred<T> = tcs
+    /**
+     * Awaits the result of this async job.
+     */
+    suspend fun await(): T = deferred.await()
 
-    @Throws(CancellationException::class)
-    fun runBlock(): T = runBlocking { toDeferred().await() }
+    fun asDeferred(): Deferred<T> = deferred
 
-    override fun addResult(callback: CallbackMsg): Boolean {
-        // we're complete with just this callback
+    override suspend fun addResult(callback: CallbackMsg): Boolean {
         @Suppress("UNCHECKED_CAST")
-        tcs.complete(callback as T)
-
-        // inform steamclient that this job wishes to be removed from tracking since
-        // we've received the single callback we were waiting for
-        return true
+        deferred.complete(callback as T)
+        return true // Single result job is always complete after first result
     }
 
-    override fun setFailed(dueToRemoteFailure: Boolean) {
+    override suspend fun setFailed(dueToRemoteFailure: Boolean) {
         if (dueToRemoteFailure) {
-            // if steam informs us of a remote failure, we cancel with our exception
-            tcs.completeExceptionally(AsyncJobFailedException())
+            deferred.completeExceptionally(AsyncJobFailedException())
         } else {
-            // if we time out, we trigger a normal cancellation
-            tcs.cancel()
+            deferred.cancel()
         }
     }
 }

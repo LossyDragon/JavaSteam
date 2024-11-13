@@ -55,7 +55,7 @@ class SteamClient @JvmOverloads constructor(
 
     private val callbackQueue = Channel<CallbackMsg>(Channel.UNLIMITED)
 
-    internal val jobManager: AsyncJobManager // What does this even do now?
+    internal val jobManager: AsyncJobManager
 
     /**
      * Handler used for authenticating on Steam.
@@ -257,11 +257,11 @@ class SteamClient @JvmOverloads constructor(
     // fun clearHandlerCaches()
 
     private fun handleJobHeartbeat(packetMsg: IPacketMsg) {
-        JobID(packetMsg.getTargetJobID()).let(jobManager::heartbeatJob)
+        jobManager.heartbeatJob(JobID(packetMsg.getTargetJobID()))
     }
 
     private fun handleJobFailed(packetMsg: IPacketMsg) {
-        JobID(packetMsg.getTargetJobID()).let(jobManager::failJob)
+        jobManager.failJob(JobID(packetMsg.getTargetJobID()))
     }
 
     companion object {

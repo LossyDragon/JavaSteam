@@ -29,6 +29,7 @@ commonsCodec = "1.17.1" # https://mvnrepository.com/artifact/commons-codec/commo
 junit5 = "5.11.2" # https://mvnrepository.com/artifact/org.junit/junit-bom
 mockWebServer = "5.0.0-alpha.14" # https://mvnrepository.com/artifact/com.squareup.okhttp3/mockwebserver3-junit5
 mockitoVersion = "5.14.1" # https://mvnrepository.com/artifact/org.mockito/mockito-core
+coroutinesTest = "1.9.0" # https://mvnrepository.com/artifact/org.jetbrains.kotlinx/kotlinx-coroutines-test
 
 [libraries]
 bouncyCastle = { module = "org.bouncycastle:bcprov-jdk18on", version.ref = "bouncyCastle" }
@@ -50,6 +51,7 @@ test-jupiter-params = { module = "org.junit.jupiter:junit-jupiter-params", versi
 test-mock-webserver3 = { module = "com.squareup.okhttp3:mockwebserver3-junit5", version.ref = "mockWebServer" }
 test-mockito-core = { module = "org.mockito:mockito-core", version.ref = "mockitoVersion" }
 test-mockito-jupiter = { module = "org.mockito:mockito-junit-jupiter", version.ref = "mockitoVersion" }
+test-coroutines = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutinesTest" }
 
 [plugins]
 kotlin-dokka = { id = "org.jetbrains.dokka", version.ref = "dokka" }
@@ -61,6 +63,7 @@ protobuf-gradle = { id = "com.google.protobuf", version.ref = "protobuf-gradle" 
 [bundles]
 testing = [
     "bouncyCastle",
+    "test-coroutines",
     "test-commons-codec",
     "test-jupiter-api",
     "test-jupiter-engine",

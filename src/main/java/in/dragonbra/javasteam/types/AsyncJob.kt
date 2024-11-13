@@ -2,34 +2,49 @@ package `in`.dragonbra.javasteam.types
 
 import `in`.dragonbra.javasteam.steam.steamclient.SteamClient
 import `in`.dragonbra.javasteam.steam.steamclient.callbackmgr.CallbackMsg
-import java.time.Instant
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
 
 /**
- * The base class for awaitable versions of a [JobID].
- * Should not be used or constructed directly, but rather with [AsyncJobSingle] or [AsyncJobMultiple]
- *
+ * Base class for coroutine-based async jobs.
+ * Should not be used directly, but rather with [AsyncJob] or [AsyncJobMultiple].
  * @author Lossy
  * @since 2023-03-17
  */
-abstract class AsyncJob(val client: SteamClient, val jobID: JobID) {
+abstract class AsyncJob(
+    protected val client: SteamClient,
+    val jobID: JobID
+) {
+    var timeout: Duration = 10.seconds
 
-    private var jobStart = Instant.now()
-
-    var timeout: Long = 10000 // 10 Seconds
+    private val jobStart = System.nanoTime()
 
     val isTimedOut: Boolean
-        get() = Instant.now() >= jobStart.plusMillis(timeout)
+        get() = (System.nanoTime() - jobStart) / 1_000_000_000.0 >= timeout.inWholeSeconds
 
-    protected fun registerJob(client: SteamClient) {
+    init {
+        registerJob()
+    }
+
+    private fun registerJob() {
         client.startJob(this)
     }
 
-    abstract fun addResult(callback: CallbackMsg): Boolean
+    /**
+     * Adds a callback to the async job's result set.
+     * @return true if this result completes the set; otherwise, false.
+     */
+    internal abstract suspend fun addResult(callback: CallbackMsg): Boolean
 
-    abstract fun setFailed(dueToRemoteFailure: Boolean)
+    /**
+     * Sets this job as failed, either remotely or due to a message timeout.
+     */
+    internal abstract suspend fun setFailed(dueToRemoteFailure: Boolean)
 
-    fun heartbeat() {
-        println("heartbeat")
-        timeout += 10000
+    /**
+     * Marks this job as having received a heartbeat and extends the job's timeout.
+     */
+    internal fun heartbeat() {
+        timeout += 10.seconds
     }
 }

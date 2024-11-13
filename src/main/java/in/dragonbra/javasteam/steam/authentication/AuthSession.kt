@@ -12,6 +12,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.future.await
 import kotlinx.coroutines.future.future
+import kotlinx.coroutines.runBlocking
 import java.util.concurrent.CompletableFuture
 
 /**
@@ -180,13 +181,13 @@ open class AuthSession(
      * @throws AuthenticationException Thrown when polling fails.
      */
     @Throws(AuthenticationException::class)
-    fun pollAuthSessionStatus(): AuthPollResult? {
+    fun pollAuthSessionStatus(): AuthPollResult? = runBlocking {
         val request = CAuthentication_PollAuthSessionStatus_Request.newBuilder().apply {
             clientId = clientID
             requestId = ByteString.copyFrom(requestID)
         }
 
-        val result = authentication.authenticationService.pollAuthSessionStatus(request.build()).runBlock()
+        val result = authentication.authenticationService.pollAuthSessionStatus(request.build()).await()
 
         // eResult can be Expired, FileNotFound, Fail
         if (result.result != EResult.OK) {
@@ -196,10 +197,10 @@ open class AuthSession(
         handlePollAuthSessionStatusResponse(result.body)
 
         if (result.body.refreshToken.isNotEmpty()) {
-            return AuthPollResult(result.body)
+            return@runBlocking AuthPollResult(result.body)
         }
 
-        return null
+        return@runBlocking null
     }
 
     internal open fun handlePollAuthSessionStatusResponse(response: CAuthentication_PollAuthSessionStatus_Response.Builder) {
