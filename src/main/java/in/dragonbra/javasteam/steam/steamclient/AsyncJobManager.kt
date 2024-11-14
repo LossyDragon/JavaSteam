@@ -3,8 +3,12 @@ package `in`.dragonbra.javasteam.steam.steamclient
 import `in`.dragonbra.javasteam.steam.steamclient.callbackmgr.CallbackMsg
 import `in`.dragonbra.javasteam.types.AsyncJob
 import `in`.dragonbra.javasteam.types.JobID
-import kotlinx.coroutines.*
-import java.util.concurrent.*
+import `in`.dragonbra.javasteam.util.event.ScheduledFunction
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.time.Duration.Companion.seconds
 
 /**
@@ -13,15 +17,11 @@ import kotlin.time.Duration.Companion.seconds
  */
 class AsyncJobManager {
 
-    private val asyncJobs = ConcurrentHashMap<JobID, AsyncJob>()
-
-    private var jobTimeoutJob: Job? = null
-
     private val coroutineScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
 
-    init {
-        setTimeoutsEnabled(true)
-    }
+    internal val asyncJobs = ConcurrentHashMap<JobID, AsyncJob>()
+
+    internal val jobTimeoutFunc = ScheduledFunction(coroutineScope, 1.seconds, { cancelTimedoutJobs() })
 
     /**
      * Tracks a job with this manager.
@@ -34,7 +34,7 @@ class AsyncJobManager {
      * Passes a callback to a pending async job.
      * If the given callback completes the job, the job is removed from this manager.
      */
-    suspend fun tryCompleteJob(jobId: JobID, callback: CallbackMsg) {
+    fun tryCompleteJob(jobId: JobID, callback: CallbackMsg) {
         val asyncJob = getJob(jobId) ?: return
 
         // pass this callback into the job so it can determine if the job is finished
@@ -57,7 +57,7 @@ class AsyncJobManager {
     /**
      * Marks a certain job as remotely failed.
      */
-    suspend fun failJob(jobId: JobID) {
+    fun failJob(jobId: JobID) {
         val asyncJob = getJob(jobId, andRemove = true) ?: return
         asyncJob.setFailed(dueToRemoteFailure = true)
     }
@@ -65,7 +65,7 @@ class AsyncJobManager {
     /**
      * Cancels and clears all jobs being tracked.
      */
-    suspend fun cancelPendingJobs() {
+    fun cancelPendingJobs() {
         asyncJobs.values.forEach { asyncJob ->
             asyncJob.setFailed(dueToRemoteFailure = false)
         }
@@ -77,31 +77,16 @@ class AsyncJobManager {
      */
     fun setTimeoutsEnabled(enable: Boolean) {
         if (enable) {
-            startTimeoutChecker()
+            jobTimeoutFunc.start()
         } else {
-            stopTimeoutChecker()
+            jobTimeoutFunc.stop()
         }
-    }
-
-    private fun startTimeoutChecker() {
-        jobTimeoutJob?.cancel()
-        jobTimeoutJob = coroutineScope.launch {
-            while (isActive) {
-                cancelTimedoutJobs()
-                delay(1.seconds)
-            }
-        }
-    }
-
-    private fun stopTimeoutChecker() {
-        jobTimeoutJob?.cancel()
-        jobTimeoutJob = null
     }
 
     /**
      * This is called periodically to cancel and clear out any jobs that have timed out.
      */
-    private suspend fun cancelTimedoutJobs() {
+    fun cancelTimedoutJobs() {
         asyncJobs.values.toList().forEach { job ->
             if (job.isTimedOut) {
                 job.setFailed(dueToRemoteFailure = false)
@@ -113,12 +98,10 @@ class AsyncJobManager {
     /**
      * Retrieves a job from this manager, and optionally removes it from tracking.
      */
-    private fun getJob(jobId: JobID, andRemove: Boolean = false): AsyncJob? {
-        return if (andRemove) {
-            asyncJobs.remove(jobId)
-        } else {
-            asyncJobs[jobId]
-        }
+    private fun getJob(jobId: JobID, andRemove: Boolean = false): AsyncJob? = if (andRemove) {
+        asyncJobs.remove(jobId)
+    } else {
+        asyncJobs[jobId]
     }
 
     /**

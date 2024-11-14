@@ -13,7 +13,7 @@ import kotlin.time.Duration.Companion.seconds
  */
 abstract class AsyncJob(
     protected val client: SteamClient,
-    val jobID: JobID
+    val jobID: JobID,
 ) {
     var timeout: Duration = 10.seconds
 
@@ -34,12 +34,12 @@ abstract class AsyncJob(
      * Adds a callback to the async job's result set.
      * @return true if this result completes the set; otherwise, false.
      */
-    internal abstract suspend fun addResult(callback: CallbackMsg): Boolean
+    internal abstract fun addResult(callback: CallbackMsg): Boolean
 
     /**
      * Sets this job as failed, either remotely or due to a message timeout.
      */
-    internal abstract suspend fun setFailed(dueToRemoteFailure: Boolean)
+    internal abstract fun setFailed(dueToRemoteFailure: Boolean)
 
     /**
      * Marks this job as having received a heartbeat and extends the job's timeout.

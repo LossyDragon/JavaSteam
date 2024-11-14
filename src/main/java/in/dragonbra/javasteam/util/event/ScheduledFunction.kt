@@ -1,55 +1,51 @@
-package in.dragonbra.javasteam.util.event;
+package `in`.dragonbra.javasteam.util.event
 
-import java.util.Timer;
-import java.util.TimerTask;
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * @author lngtr
  * @since 2018-02-20
  */
-public class ScheduledFunction {
+fun interface ScheduledAction {
+    fun execute()
+}
 
-    private long delay;
+class ScheduledFunction(
+    private val coroutineScope: CoroutineScope,
+    private var delay: Duration,
+    private val action: ScheduledAction
+) {
 
-    private final Runnable func;
+    constructor(
+        coroutineScope: CoroutineScope,
+        duration: Long,
+        action: ScheduledAction
+    ) : this(coroutineScope, duration.seconds, action)
 
-    private Timer timer;
+    private var job: Job? = null
 
-    private boolean bStarted = false;
-
-    public ScheduledFunction(Runnable func, long delay) {
-        this.delay = delay;
-        this.func = func;
+    fun setDelay(delay: Long) {
+        this.delay = delay.seconds
     }
 
-    public void start() {
-        if (!bStarted) {
-            timer = new Timer();
-            timer.scheduleAtFixedRate(new TimerTask() {
-                @Override
-                public void run() {
-                    if (func != null) {
-                        func.run();
-                    }
-                }
-            }, 0, delay);
-            bStarted = true;
+    fun start() {
+        job?.cancel()
+        job = coroutineScope.launch {
+            while (isActive) {
+                action.execute()
+                delay(delay)
+            }
         }
     }
 
-    public void stop() {
-        if (bStarted) {
-            timer.cancel();
-            timer = null;
-            bStarted = false;
-        }
-    }
-
-    public long getDelay() {
-        return delay;
-    }
-
-    public void setDelay(long delay) {
-        this.delay = delay;
+    fun stop() {
+        job?.cancel()
+        job = null
     }
 }

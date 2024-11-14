@@ -219,32 +219,33 @@ public class SampleUnifiedMessages implements Runnable {
                 .build();
 
         // now let's send the request and await for the response
-        var response = playerService.getGameBadgeLevels(req).runBlock();
-        System.out.println("Main Request:");
-        if (response.getResult() != EResult.OK) {
-            System.err.println("Unified service request failed with " + response.getResult());
-        }
-        System.out.println("Our player level is " + response.getBody().getPlayerLevel());
-        for (var badge : response.getBody().getBadgesList()) {
-            System.out.println("Badge series " + badge.toString() + " is level " + badge.getLevel());
-        }
+        playerService.getGameBadgeLevels(req).runBlocking().thenAccept(response -> {
+            System.out.println("Main Request:");
+            if (response.getResult() != EResult.OK) {
+                System.err.println("Unified service request failed with " + response.getResult());
+            }
+            System.out.println("Our player level is " + response.getBody().getPlayerLevel());
+            for (var badge : response.getBody().getBadgesList()) {
+                System.out.println("Badge series " + badge.toString() + " is level " + badge.getLevel());
+            }
+        });
 
         // alternatively, the request can be made using SteamUnifiedMessages directly, but then you must build the service request name manually
         // the name format is in the form of <Service>.<Method>#<Version>
-        var responseAlt = steamUnifiedMessages.sendMessage(
+        steamUnifiedMessages.sendMessage(
                 CPlayer_GetGameBadgeLevels_Response.Builder.class,
                 "Player.GetGameBadgeLevels#1",
                 req
-        ).runBlock();
-
-        System.out.println("Alt Request");
-        if (responseAlt.getResult() != EResult.OK) {
-            System.err.println("Unified service request failed with " + responseAlt.getResult());
-        }
-        System.out.println("Our player level is " + responseAlt.getBody().getPlayerLevel());
-        for (var badge : responseAlt.getBody().getBadgesList()) {
-            System.out.println("Badge series " + badge.toString() + " is level " + badge.getLevel());
-        }
+        ).runBlocking().thenAccept(response -> {
+            System.out.println("Alt Request");
+            if (response.getResult() != EResult.OK) {
+                System.err.println("Unified service request failed with " + response.getResult());
+            }
+            System.out.println("Our player level is " + response.getBody().getPlayerLevel());
+            for (var badge : response.getBody().getBadgesList()) {
+                System.out.println("Badge series " + badge.toString() + " is level " + badge.getLevel());
+            }
+        });
 
         // now that we've completed our task, lets log off after a few seconds to receive possible notifications
         // steamUser.logOff();

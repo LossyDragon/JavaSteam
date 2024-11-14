@@ -17,7 +17,7 @@ abstract class Account {
 
 data class User(
     var relationship: EFriendRelationship? = null,
-    var personaState: EPersonaState = EPersonaState.Offline,
+    var personaState: EPersonaState? = null,
     var personaStateFlags: EnumSet<EPersonaStateFlag>? = null,
     var gameAppID: Int = 0,
     var gameID: GameID = GameID(),
@@ -25,7 +25,7 @@ data class User(
 ) : Account()
 
 class Clan(
-    var relationship: EClanRelationship = EClanRelationship.None,
+    var relationship: EClanRelationship? = null,
 ) : Account()
 
 class AccountList<T : Account>(private val clazz: Class<T>) : ConcurrentHashMap<SteamID, T>() {

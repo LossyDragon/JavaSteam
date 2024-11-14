@@ -3,17 +3,22 @@ package `in`.dragonbra.javasteam.types
 import `in`.dragonbra.javasteam.steam.steamclient.AsyncJobFailedException
 import `in`.dragonbra.javasteam.steam.steamclient.SteamClient
 import `in`.dragonbra.javasteam.steam.steamclient.callbackmgr.CallbackMsg
-import kotlinx.coroutines.*
-import kotlinx.coroutines.test.*
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestCoroutineScheduler
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
+import java.util.concurrent.atomic.AtomicReference
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.cancellation.CancellationException
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
-// Note: await() is kotlin only.
-// Note: Deferred is an alternative to C#'s Task<>; however, when a deferred is completed exceptionally,
-// it's not considered cancelled. Also, there is no "isFaulted" state too.
 class AsyncJobTest {
 
     internal class Callback(var isFinished: Boolean = false) : CallbackMsg()
@@ -86,7 +91,7 @@ class AsyncJobTest {
         }
 
         advanceTimeBy(70.milliseconds)
-        client.jobManager.cancelPendingJobs()
+        client.jobManager.cancelTimedoutJobs()
 
         Assertions.assertFalse(
             client.jobManager.asyncJobs.containsKey(asyncJob.jobID),
@@ -122,7 +127,7 @@ class AsyncJobTest {
         val asyncTask = asyncJob.asDeferred()
 
         advanceTimeBy(70.milliseconds)
-        client.jobManager.cancelPendingJobs()
+        client.jobManager.cancelTimedoutJobs()
 
         Assertions.assertTrue(asyncTask.isCompleted, "Async job should be completed yet")
         Assertions.assertTrue(asyncTask.isCancelled, "Async job should be canceled yet")
@@ -136,10 +141,11 @@ class AsyncJobTest {
         val asyncJob = AsyncJobSingle<Callback>(client, JobID(123))
         val asyncTask = asyncJob.asDeferred()
 
-        asyncJob.setFailed(true)
+        asyncJob.setFailed(dueToRemoteFailure = true)
 
         Assertions.assertTrue(asyncTask.isCompleted, "Async job should be completed after job failure")
-        Assertions.assertFalse(asyncTask.isCancelled, "Async job should not be canceled after job failure")
+        // Kotlin bias, completeExceptionally is Completed AND Cancelled
+        Assertions.assertTrue(asyncTask.isCancelled, "Async job should be cancelled after completion with exception")
         assertThrows<AsyncJobFailedException> { asyncTask.await() }
     }
 
@@ -246,7 +252,7 @@ class AsyncJobTest {
         asyncJob.timeout = 50.milliseconds
 
         advanceTimeBy(70.milliseconds)
-        client.jobManager.cancelPendingJobs()
+        client.jobManager.cancelTimedoutJobs()
 
         Assertions.assertFalse(
             client.jobManager.asyncJobs.containsKey(asyncJob.jobID),
@@ -283,7 +289,7 @@ class AsyncJobTest {
         // delay for what the original timeout would have been
         advanceTimeBy(70.milliseconds)
 
-        client.jobManager.cancelPendingJobs()
+        client.jobManager.cancelTimedoutJobs()
 
         // we still shouldn't be completed or canceled (timed out)
         Assertions.assertFalse(
@@ -325,7 +331,7 @@ class AsyncJobTest {
         val asyncTask = asyncJob.asDeferred()
 
         advanceTimeBy(70.milliseconds)
-        client.jobManager.cancelPendingJobs()
+        client.jobManager.cancelTimedoutJobs()
 
         Assertions.assertTrue(
             asyncTask.isCompleted,
@@ -360,7 +366,7 @@ class AsyncJobTest {
         asyncJob.timeout = 50.milliseconds
 
         advanceTimeBy(70.milliseconds)
-        client.jobManager.cancelPendingJobs()
+        client.jobManager.cancelTimedoutJobs()
 
         Assertions.assertTrue(
             asyncTask.isCompleted,
@@ -425,13 +431,78 @@ class AsyncJobTest {
         asyncJob.setFailed(true)
 
         Assertions.assertTrue(asyncTask.isCompleted, "AsyncJobMultiple should be completed after job failure")
-        Assertions.assertFalse(asyncTask.isCancelled, "AsyncJobMultiple should not be canceled after job failure")
+        // Kotlin bias, completeExceptionally is Completed AND Cancelled
+        Assertions.assertTrue(
+            asyncTask.isCancelled,
+            "AsyncJobMultiple should be cancelled after completion with exception"
+        )
         assertThrows<AsyncJobFailedException> { asyncTask.await() }
     }
 
-//    @Test
-//    fun asyncJobContinuesAsynchronously()
+    @Test
+    fun asyncJobContinuesAsynchronously() = runTest {
+        val testDispatcher = TestDispatcherWrapper(testScheduler)
+        val client = SteamClient()
 
-//    @Test
-//    fun AsyncJobMultipleContinuesAsynchronously()
+        val completionContext = coroutineContext
+        val continuationContext = AtomicReference<CoroutineContext>()
+
+        val asyncJob = AsyncJobSingle<Callback>(client, JobID(123))
+        val asyncDeferred = asyncJob.asDeferred()
+
+        val continuation = async(testDispatcher) {
+            asyncDeferred.await()
+            continuationContext.set(coroutineContext)
+        }
+
+        asyncJob.addResult(Callback().apply { jobID = JobID(123) })
+
+        continuation.join()
+
+        Assertions.assertNotNull(continuationContext.get(), "Continuation should have executed")
+        Assertions.assertNotEquals(
+            completionContext[CoroutineDispatcher],
+            continuationContext.get()!![CoroutineDispatcher],
+            "Continuation should run on different dispatcher"
+        )
+    }
+
+    @Test
+    fun asyncJobMultipleContinuesAsynchronously() = runTest {
+        val testDispatcher = TestDispatcherWrapper(testScheduler)
+        val client = SteamClient()
+
+        val completionContext = coroutineContext
+        val continuationContext = AtomicReference<CoroutineContext>()
+
+        val asyncJob = AsyncJobMultiple<Callback>(client, JobID(123)) { true }
+        val asyncDeferred = asyncJob.asDeferred()
+
+        val continuation = async(testDispatcher) {
+            asyncDeferred.await()
+            continuationContext.set(coroutineContext)
+        }
+
+        asyncJob.addResult(Callback().apply { jobID = JobID(123) })
+
+        continuation.join()
+
+        Assertions.assertNotNull(continuationContext.get(), "Continuation should have executed")
+        Assertions.assertNotEquals(
+            completionContext[CoroutineDispatcher],
+            continuationContext.get()!![CoroutineDispatcher],
+            "Continuation should run on different dispatcher"
+        )
+    }
+
+    private class TestDispatcherWrapper(scheduler: TestCoroutineScheduler) : CoroutineDispatcher() {
+        private val delegate = StandardTestDispatcher(scheduler)
+        var executedContext: CoroutineContext? = null
+            private set
+
+        override fun dispatch(context: CoroutineContext, block: Runnable) {
+            executedContext = context
+            delegate.dispatch(context, block)
+        }
+    }
 }

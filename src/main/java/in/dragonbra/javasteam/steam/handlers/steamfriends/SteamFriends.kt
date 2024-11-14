@@ -77,6 +77,8 @@ import java.util.*
 @Suppress("unused", "MemberVisibilityCanBePrivate")
 class SteamFriends : ClientMsgHandler() {
 
+    private val listLock = Any()
+
     var friendsList: MutableList<SteamID> = mutableListOf()
         private set
     var clanList: MutableList<SteamID> = mutableListOf()
@@ -152,7 +154,9 @@ class SteamFriends : ClientMsgHandler() {
             CMsgClientChangeStatus::class.java,
             EMsg.ClientChangeStatus
         ).apply {
-            body.personaState = cache.localUser.personaState.code()
+            cache.localUser.personaState?.code()?.let {
+                body.personaState = it
+            }
             body.playerName = name
         }.also(client::send)
     }
@@ -161,7 +165,7 @@ class SteamFriends : ClientMsgHandler() {
      * Gets the local user's persona state.
      * @return The persona state.
      */
-    fun getPersonaState(): EPersonaState = cache.localUser.personaState
+    fun getPersonaState(): EPersonaState? = cache.localUser.personaState
 
     /**
      * Sets the local user's persona state and broadcasts it over the network.
@@ -222,7 +226,11 @@ class SteamFriends : ClientMsgHandler() {
      *
      * @return The number of friends.
      */
-    fun getFriendCount(): Int = friendsList.size
+    fun getFriendCount(): Int {
+        synchronized(listLock) {
+            return friendsList.size
+        }
+    }
 
     /**
      * Gets a friend by index.
@@ -230,8 +238,15 @@ class SteamFriends : ClientMsgHandler() {
      * @param index The index.
      * @return A valid steamid of a friend if the index is in range; otherwise a steamid representing 0.
      */
-    fun getFriendByIndex(index: Int): SteamID =
-        if (index < 0 || index >= friendsList.size) SteamID(0) else friendsList[index]
+    fun getFriendByIndex(index: Int): SteamID {
+        synchronized(listLock) {
+            if (index < 0 || index >= friendsList.size) {
+                return SteamID(0)
+            }
+
+            return friendsList[index]
+        }
+    }
 
     /**
      * Gets the persona name of a friend.
@@ -247,7 +262,7 @@ class SteamFriends : ClientMsgHandler() {
      * @param steamID The steam id.
      * @return The persona state.
      */
-    fun getFriendPersonaState(steamID: SteamID): EPersonaState = cache.getUser(steamID).personaState
+    fun getFriendPersonaState(steamID: SteamID): EPersonaState? = cache.getUser(steamID).personaState
 
     /**
      * Gets the relationship of a friend.
@@ -302,7 +317,11 @@ class SteamFriends : ClientMsgHandler() {
      * Gets the count of clans the local user is a member of.
      * @return The number of clans this user is a member of.
      */
-    fun getClanCount(): Int = clanList.size
+    fun getClanCount(): Int {
+        synchronized(listLock) {
+            return clanList.size
+        }
+    }
 
     /**
      * Gets a clan SteamID by index.
@@ -310,8 +329,15 @@ class SteamFriends : ClientMsgHandler() {
      * @param index The index.
      * @return A valid steamid of a clan if the index is in range; otherwise a steamid representing 0.
      */
-    fun getClanByIndex(index: Int): SteamID =
-        if (index < 0 || index >= clanList.size) SteamID(0) else clanList[index]
+    fun getClanByIndex(index: Int): SteamID {
+        synchronized(listLock) {
+            if (index < 0 || index >= clanList.size) {
+                SteamID(0)
+            }
+
+            return clanList[index]
+        }
+    }
 
     /**
      * Gets the name of a clan.
@@ -327,7 +353,7 @@ class SteamFriends : ClientMsgHandler() {
      * @param steamID The clan steamid.
      * @return The relationship of the clan to the local user.
      */
-    fun getClanRelationship(steamID: SteamID): EClanRelationship = cache.clans.getAccount(steamID).relationship
+    fun getClanRelationship(steamID: SteamID): EClanRelationship? = cache.clans.getAccount(steamID).relationship
 
     /**
      * Gets an SHA-1 hash representing the clan's avatar.
@@ -794,8 +820,10 @@ class SteamFriends : ClientMsgHandler() {
 
         if (!list.body.bincremental) {
             // if we're not an incremental update, the message contains all friends, so we should clear our current list
-            friendsList.clear()
-            clanList.clear()
+            synchronized(listLock) {
+                friendsList.clear()
+                clanList.clear()
+            }
         }
 
         // we have to request information for all of our friends because steam only sends persona information for online friends
@@ -808,52 +836,54 @@ class SteamFriends : ClientMsgHandler() {
             EClientPersonaStateFlag.code(client.configuration.defaultPersonaStateFlags)
         )
 
-        val friendsToRemove = mutableListOf<SteamID>()
-        val clansToRemove = mutableListOf<SteamID>()
+        synchronized(listLock) {
+            val friendsToRemove = mutableListOf<SteamID>()
+            val clansToRemove = mutableListOf<SteamID>()
 
-        list.body.friendsList.forEach { friendObj ->
-            val friendID = SteamID(friendObj.ulfriendid)
+            list.body.friendsList.forEach { friendObj ->
+                val friendID = SteamID(friendObj.ulfriendid)
 
-            if (friendID.isIndividualAccount) {
-                val user = cache.getUser(friendID)
+                if (friendID.isIndividualAccount) {
+                    val user = cache.getUser(friendID)
 
-                user.relationship = EFriendRelationship.from(friendObj.efriendrelationship)
+                    user.relationship = EFriendRelationship.from(friendObj.efriendrelationship)
 
-                if (friendsList.contains(friendID)) {
-                    // if this is a friend on our list, and they removed us, mark them for removal
-                    if (user.relationship == EFriendRelationship.None) {
-                        friendsToRemove.add(friendID)
+                    if (friendsList.contains(friendID)) {
+                        // if this is a friend on our list, and they removed us, mark them for removal
+                        if (user.relationship == EFriendRelationship.None) {
+                            friendsToRemove.add(friendID)
+                        }
+                    } else {
+                        // we don't know about this friend yet, lets add them
+                        friendsList.add(friendID)
                     }
-                } else {
-                    // we don't know about this friend yet, lets add them
-                    friendsList.add(friendID)
+                } else if (friendID.isClanAccount) {
+                    val clan = cache.clans.getAccount(friendID)
+
+                    clan.relationship = EClanRelationship.from(friendObj.efriendrelationship)
+
+                    if (clanList.contains(friendID)) {
+                        // mark clans we were removed/kicked from
+                        // note: not actually sure about the kicked relationship, but I'm using it for good measure
+                        if (clan.relationship == EClanRelationship.None || clan.relationship == EClanRelationship.Kicked) {
+                            clansToRemove.add(friendID)
+                        }
+                    } else {
+                        // don't know about this clan, add it
+                        clanList.add(friendID)
+                    }
                 }
-            } else if (friendID.isClanAccount) {
-                val clan = cache.clans.getAccount(friendID)
 
-                clan.relationship = EClanRelationship.from(friendObj.efriendrelationship)
-
-                if (clanList.contains(friendID)) {
-                    // mark clans we were removed/kicked from
-                    // note: not actually sure about the kicked relationship, but I'm using it for good measure
-                    if (clan.relationship == EClanRelationship.None || clan.relationship == EClanRelationship.Kicked) {
-                        clansToRemove.add(friendID)
-                    }
-                } else {
-                    // don't know about this clan, add it
-                    clanList.add(friendID)
+                if (!list.body.bincremental) {
+                    // request persona state for our friend & clan list when it's a non-incremental update
+                    reqInfo.body.addFriends(friendObj.ulfriendid)
                 }
             }
 
-            if (!list.body.bincremental) {
-                // request persona state for our friend & clan list when it's a non-incremental update
-                reqInfo.body.addFriends(friendObj.ulfriendid)
-            }
+            // remove anything we marked for removal
+            friendsToRemove.forEach(friendsList::remove)
+            clansToRemove.forEach(clanList::remove)
         }
-
-        // remove anything we marked for removal
-        friendsToRemove.forEach(friendsList::remove)
-        clansToRemove.forEach(clanList::remove)
 
         if (reqInfo.body.friendsList.isNotEmpty()) {
             client.send(reqInfo)

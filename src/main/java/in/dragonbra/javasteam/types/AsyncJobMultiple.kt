@@ -3,7 +3,12 @@ package `in`.dragonbra.javasteam.types
 import `in`.dragonbra.javasteam.steam.steamclient.AsyncJobFailedException
 import `in`.dragonbra.javasteam.steam.steamclient.SteamClient
 import `in`.dragonbra.javasteam.steam.steamclient.callbackmgr.CallbackMsg
-import kotlinx.coroutines.*
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.future.future
+import java.util.concurrent.CompletableFuture
 
 /**
  * @author Lossy
@@ -12,13 +17,13 @@ import kotlinx.coroutines.*
 class AsyncJobMultiple<T : CallbackMsg>(
     client: SteamClient,
     jobId: JobID,
-    private val finishCondition: (T) -> Boolean
+    private val finishCondition: (T) -> Boolean,
 ) : AsyncJob(client, jobId) {
 
     data class ResultSet<T : CallbackMsg>(
         val complete: Boolean,
         val failed: Boolean = false,
-        val results: List<T>
+        val results: List<T>,
     )
 
     private val deferred = CompletableDeferred<ResultSet<T>>()
@@ -32,7 +37,12 @@ class AsyncJobMultiple<T : CallbackMsg>(
 
     fun asDeferred(): Deferred<ResultSet<T>> = deferred
 
-    override suspend fun addResult(callback: CallbackMsg): Boolean {
+    /* Java Compat */
+    fun runBlocking(): CompletableFuture<ResultSet<T>> = CoroutineScope(Dispatchers.IO).future {
+        await()
+    }
+
+    override fun addResult(callback: CallbackMsg): Boolean {
         @Suppress("UNCHECKED_CAST")
         val callbackMsg = callback as T
         results.add(callbackMsg)
@@ -46,7 +56,7 @@ class AsyncJobMultiple<T : CallbackMsg>(
         }
     }
 
-    override suspend fun setFailed(dueToRemoteFailure: Boolean) {
+    override fun setFailed(dueToRemoteFailure: Boolean) {
         if (results.isEmpty()) {
             if (dueToRemoteFailure) {
                 deferred.completeExceptionally(AsyncJobFailedException())
