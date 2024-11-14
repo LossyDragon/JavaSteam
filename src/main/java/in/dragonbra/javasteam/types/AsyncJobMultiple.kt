@@ -4,9 +4,7 @@ import `in`.dragonbra.javasteam.steam.steamclient.AsyncJobFailedException
 import `in`.dragonbra.javasteam.steam.steamclient.SteamClient
 import `in`.dragonbra.javasteam.steam.steamclient.callbackmgr.CallbackMsg
 import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.future.future
 import java.util.concurrent.CompletableFuture
 
@@ -14,6 +12,7 @@ import java.util.concurrent.CompletableFuture
  * @author Lossy
  * @since 2023-03-17
  */
+@Suppress("MemberVisibilityCanBePrivate")
 class AsyncJobMultiple<T : CallbackMsg>(
     client: SteamClient,
     jobId: JobID,
@@ -38,7 +37,7 @@ class AsyncJobMultiple<T : CallbackMsg>(
     fun asDeferred(): Deferred<ResultSet<T>> = deferred
 
     /* Java Compat */
-    fun runBlocking(): CompletableFuture<ResultSet<T>> = CoroutineScope(Dispatchers.IO).future {
+    fun runBlocking(): CompletableFuture<ResultSet<T>> = scope.future {
         await()
     }
 

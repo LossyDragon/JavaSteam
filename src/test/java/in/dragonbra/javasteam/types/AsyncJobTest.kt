@@ -439,6 +439,7 @@ class AsyncJobTest {
         assertThrows<AsyncJobFailedException> { asyncTask.await() }
     }
 
+    @OptIn(ExperimentalStdlibApi::class)
     @Test
     fun asyncJobContinuesAsynchronously() = runTest {
         val testDispatcher = TestDispatcherWrapper(testScheduler)
@@ -467,6 +468,7 @@ class AsyncJobTest {
         )
     }
 
+    @OptIn(ExperimentalStdlibApi::class)
     @Test
     fun asyncJobMultipleContinuesAsynchronously() = runTest {
         val testDispatcher = TestDispatcherWrapper(testScheduler)

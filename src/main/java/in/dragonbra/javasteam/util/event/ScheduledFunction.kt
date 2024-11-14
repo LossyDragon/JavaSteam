@@ -5,8 +5,6 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlin.time.Duration
-import kotlin.time.Duration.Companion.seconds
 
 /**
  * @author lngtr
@@ -18,20 +16,14 @@ fun interface ScheduledAction {
 
 class ScheduledFunction(
     private val coroutineScope: CoroutineScope,
-    private var delay: Duration,
-    private val action: ScheduledAction
+    private var delay: Long,
+    private val action: ScheduledAction,
 ) {
-
-    constructor(
-        coroutineScope: CoroutineScope,
-        duration: Long,
-        action: ScheduledAction
-    ) : this(coroutineScope, duration.seconds, action)
 
     private var job: Job? = null
 
     fun setDelay(delay: Long) {
-        this.delay = delay.seconds
+        this.delay = delay
     }
 
     fun start() {

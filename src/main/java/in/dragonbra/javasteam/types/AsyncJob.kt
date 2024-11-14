@@ -2,12 +2,15 @@ package `in`.dragonbra.javasteam.types
 
 import `in`.dragonbra.javasteam.steam.steamclient.SteamClient
 import `in`.dragonbra.javasteam.steam.steamclient.callbackmgr.CallbackMsg
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
 /**
  * Base class for coroutine-based async jobs.
- * Should not be used directly, but rather with [AsyncJob] or [AsyncJobMultiple].
+ * Should not be used directly, but rather with [AsyncJobSingle] or [AsyncJobMultiple].
  * @author Lossy
  * @since 2023-03-17
  */
@@ -15,6 +18,8 @@ abstract class AsyncJob(
     protected val client: SteamClient,
     val jobID: JobID,
 ) {
+    internal val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+
     var timeout: Duration = 10.seconds
 
     private val jobStart = System.nanoTime()

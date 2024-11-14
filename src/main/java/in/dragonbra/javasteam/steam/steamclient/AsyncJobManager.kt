@@ -9,7 +9,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import java.util.concurrent.ConcurrentHashMap
-import kotlin.time.Duration.Companion.seconds
 
 /**
  * @author Lossy
@@ -21,7 +20,7 @@ class AsyncJobManager {
 
     internal val asyncJobs = ConcurrentHashMap<JobID, AsyncJob>()
 
-    internal val jobTimeoutFunc = ScheduledFunction(coroutineScope, 1.seconds, { cancelTimedoutJobs() })
+    internal val jobTimeoutFunc = ScheduledFunction(coroutineScope, 1000) { cancelTimedoutJobs() }
 
     /**
      * Tracks a job with this manager.

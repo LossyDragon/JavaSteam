@@ -119,9 +119,6 @@ public abstract class CMClient {
 
         this.configuration = configuration;
 
-       // heartBeatFunc = new ScheduledFunction(() -> send(new ClientMsgProtobuf<CMsgClientHeartBeat.Builder>(CMsgClientHeartBeat.class, EMsg.ClientHeartBeat)), 5000);
-
-        // TODO
         heartBeatFunc = new ScheduledFunction(
                 CoroutineScopeKt.CoroutineScope(Dispatchers.getDefault()),
                 5000L,
