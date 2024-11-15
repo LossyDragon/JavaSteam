@@ -37,13 +37,12 @@ import java.util.concurrent.atomic.AtomicLong
  * Represents a single client that connects to the Steam3 network.
  * This class is also responsible for handling the registration of client message handlers and callbacks.
  *
- * @constructor Initializes a new instance of the [SteamClient] class with a specific configuration.
+ * @constructor Initializes a new instance of the [SteamClient] class with a specific configuration and identifier
  * @param configuration The configuration to use for this client.
+ * @param identifier A specific identifier to be used to uniquely identify this instance.
  */
 @Suppress("unused")
-class SteamClient @JvmOverloads constructor(
-    configuration: SteamConfiguration? = SteamConfiguration.createDefault(),
-) : CMClient(configuration) {
+class SteamClient(configuration: SteamConfiguration, identifier: String) : CMClient(configuration, identifier) {
 
     // private val clientScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
 
@@ -61,6 +60,24 @@ class SteamClient @JvmOverloads constructor(
      * Handler used for authenticating on Steam.
      */
     val authentication: SteamAuthentication by lazy { SteamAuthentication(this) }
+
+    /**
+     * Initializes a new instance of the [SteamClient] class with the default configuration.
+     */
+    constructor() : this(SteamConfiguration.createDefault())
+
+    /**
+     * Initializes a new instance of the [SteamClient] class a specific identifier.
+     * @param identifier A specific identifier to be used to uniquely identify this instance.
+     */
+    constructor(identifier: String) : this(SteamConfiguration.createDefault(), identifier)
+
+    /**
+     * Initializes a new instance of the [SteamClient] class with a specific configuration.
+     * @param configuration The configuration to use for this client.
+     */
+    constructor(configuration: SteamConfiguration) :
+        this(configuration, UUID.randomUUID().toString().replace("-", ""))
 
     init {
         // add this library's handlers
@@ -200,11 +217,13 @@ class SteamClient @JvmOverloads constructor(
      * Called when a client message is received from the network.
      * @param packetMsg The packet message.
      */
-    override fun onClientMsgReceived(packetMsg: IPacketMsg): Boolean {
+    override fun onClientMsgReceived(packetMsg: IPacketMsg?): Boolean {
         // let the underlying CMClient handle this message first
         if (!super.onClientMsgReceived(packetMsg)) {
             return false
         }
+
+        requireNotNull(packetMsg)
 
         // we want to handle some of the clientMsg's before we pass them along to registered handlers
         when (packetMsg.getMsgType()) {

@@ -33,7 +33,7 @@ import `in`.dragonbra.javasteam.util.NetHelpers
  */
 class SteamUser : ClientMsgHandler() {
 
-    val steamID: SteamID
+    val steamID: SteamID?
         get() = client.steamID
 
     /**

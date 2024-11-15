@@ -76,7 +76,7 @@ public class FriendCacheTest extends HandlerTestBase<SteamFriends> {
         Assertions.assertTrue(handler.isLocalUser());
 
         // Account
-        Assertions.assertEquals(sid, handler.getFriendSteamID(sid));
+        Assertions.assertEquals(sid, handler.getFriend(sid).getSteamID());
         Assertions.assertEquals("testpersonaname", handler.getPersonaName());
         Assertions.assertNotNull(handler.getPersonaAvatar());
         Assertions.assertEquals(avatarHash, new String((handler.getPersonaAvatar())));
@@ -121,7 +121,7 @@ public class FriendCacheTest extends HandlerTestBase<SteamFriends> {
         var sid2 = new SteamID(1236);
         sid2.setAccountType(EAccountType.Individual);
 
-        Assertions.assertEquals(sid2, handler.getFriendSteamID(sid2));
+        Assertions.assertEquals(sid2, handler.getFriend(sid2).getSteamID());
         Assertions.assertEquals(sid2, handler.getFriendByIndex(2));
         Assertions.assertEquals(EFriendRelationship.Friend, handler.getFriendRelationship(sid2));
     }
@@ -156,7 +156,7 @@ public class FriendCacheTest extends HandlerTestBase<SteamFriends> {
         var sid2 = new SteamID(1236);
         sid2.setAccountType(EAccountType.Clan);
 
-        Assertions.assertEquals(sid2, handler.getClanSteamID(sid2));
+        Assertions.assertEquals(sid2, handler.getClan(sid2).getSteamID());
         Assertions.assertEquals(sid2, handler.getClanByIndex(2));
     }
 }

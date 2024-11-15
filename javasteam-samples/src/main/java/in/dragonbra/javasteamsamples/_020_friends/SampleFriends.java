@@ -208,5 +208,6 @@ public class SampleFriends implements Runnable {
 
         // for this sample we'll simply display the names of the friends
         System.out.println("State change: " + callback.getName() + " " + callback.getState());
+        System.out.println("Cache State: " + steamFriends.getFriendPersonaName(callback.getFriendID()) + " " +steamFriends.getFriendPersonaState(callback.getFriendID()));
     }
 }

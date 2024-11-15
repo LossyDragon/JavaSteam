@@ -87,17 +87,29 @@ class SteamFriends : ClientMsgHandler() {
     private var cache: AccountCache = AccountCache()
 
     /**
-     * Gets a list of all caches users.
      *
+     */
+    // JavaSteam Addition
+    fun getFriend(steamID: SteamID): User = cache.users.getAccount(steamID)
+
+    /**
+     *
+     */
+    // JavaSteam Addition
+    fun getClan(steamID: SteamID): Clan = cache.clans.getAccount(steamID)
+
+    /**
+     * Gets a list of all caches users.
      * @return a list of [User]
      */
+    // JavaSteam Addition
     fun getCachedUsers(): List<User> = cache.users.getList()
 
     /**
      * Gets a list of all cached clans.
-     *
      * @return a list of [Clan]
      */
+    // JavaSteam Addition
     fun getCachedClans(): List<Clan> = cache.clans.getList()
 
     /**
@@ -107,28 +119,17 @@ class SteamFriends : ClientMsgHandler() {
      * @return true if the account is the local user, otherwise false.
      */
     @JvmOverloads
-    fun isLocalUser(steamID: SteamID? = null): Boolean = cache.isLocalUser(steamID ?: client.steamID)
+    fun isLocalUser(steamID: SteamID? = null): Boolean = cache.isLocalUser(steamID ?: client.steamID!!)
 
     /**
-     * Gets the steam ID from the cached account.
      *
-     * @param steamID the steam ID to check the cache.
-     * @return The [SteamID] of the cached user.
      */
-    fun getFriendSteamID(steamID: SteamID): SteamID = cache.getUser(steamID).steamID // Why not...
-
-    /**
-     * Gets the steam ID from the cached clans account.
-     *
-     * @param steamID the steam ID to check the cache.
-     * @return The [SteamID] of the cached clan.
-     */
-    fun getClanSteamID(steamID: SteamID): SteamID = cache.clans.getAccount(steamID).steamID // Why not...
+    // JavaSteam Addition
+    fun getLocalUser(): User = cache.getUser(client.steamID!!)
 
     /**
      * Gets the local user's persona name. Will be null before user initialization.
      * User initialization is performed prior to [AccountInfoCallback] callback.
-     *
      * @return The name.
      */
     fun getPersonaName(): String? = cache.localUser.name
@@ -186,9 +187,9 @@ class SteamFriends : ClientMsgHandler() {
     }
 
     /**
-     * JavaSteam addition:
      * Sets the local user's persona state flag back to normal desktop mode.
      */
+    // JavaSteam Addition
     fun resetPersonaStateFlag() {
         ClientMsgProtobuf<CMsgClientChangeStatus.Builder>(
             CMsgClientChangeStatus::class.java,
@@ -200,7 +201,6 @@ class SteamFriends : ClientMsgHandler() {
     }
 
     /**
-     * JavaSteam addition:
      * Sets the local user's persona state flag to a valid ClientType
      *
      * @param flag one of the following
@@ -209,6 +209,7 @@ class SteamFriends : ClientMsgHandler() {
      * [EPersonaStateFlag.ClientTypeTenfoot],
      * or [EPersonaStateFlag.ClientTypeVR].
      */
+    // JavaSteam Addition
     fun setPersonaStateFlag(flag: EPersonaStateFlag) {
         require(!(flag.code() < EPersonaStateFlag.ClientTypeWeb.code() || flag.code() > EPersonaStateFlag.ClientTypeVR.code())) { "Persona State Flag was not a valid ClientType" }
 
@@ -448,10 +449,12 @@ class SteamFriends : ClientMsgHandler() {
             body.steamIdChat = chatID
             body.type = EChatInfoType.StateChange
 
+            val localSteamID = client.steamID?.convertToUInt64() ?: SteamID().convertToUInt64()
+
             try {
-                writeLong(client.steamID.convertToUInt64()) // ChatterActedOn
+                writeLong(localSteamID) // ChatterActedOn
                 writeInt(EChatMemberStateChange.Left.code()) // StateChange
-                writeLong(client.steamID.convertToUInt64()) // ChatterActedBy
+                writeLong(localSteamID) // ChatterActedBy
             } catch (e: IOException) {
                 logger.debug(e)
             }
@@ -499,7 +502,7 @@ class SteamFriends : ClientMsgHandler() {
             body.steamIdInvited = steamIdUser.convertToUInt64()
             // steamclient also sends the steamid of the user that did the invitation
             // we'll mimic that behavior
-            body.steamIdPatron = client.steamID.convertToUInt64()
+            body.steamIdPatron = client.steamID?.convertToUInt64() ?: SteamID().convertToUInt64()
         }.also(client::send)
     }
 
