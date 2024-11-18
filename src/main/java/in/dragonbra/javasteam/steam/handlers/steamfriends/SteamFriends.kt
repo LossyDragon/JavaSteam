@@ -172,6 +172,8 @@ class SteamFriends : ClientMsgHandler() {
      * Sets the local user's persona state and broadcasts it over the network.
      * Results are returned in a[PersonaChangeCallback] callback.
      *
+     * JavaSteam Note: This must be set in order to receive friend PersonaStates.
+     *
      * @param state The state.
      */
     fun setPersonaState(state: EPersonaState) {

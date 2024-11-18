@@ -171,6 +171,7 @@ public class SampleFriends implements Runnable {
         // this callback is posted shortly after a successful logon
 
         // at this point, we can go online on friends, so let's do that
+        // JavaSteam Note: This must be set in order to receive friend PersonaStates.
         steamFriends.setPersonaState(EPersonaState.Online);
     }
 
