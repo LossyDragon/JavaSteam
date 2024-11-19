@@ -1,6 +1,7 @@
 package `in`.dragonbra.javasteam.util.event
 
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -14,6 +15,7 @@ fun interface ScheduledAction {
     fun execute()
 }
 
+@Suppress("unused")
 class ScheduledFunction(
     private val coroutineScope: CoroutineScope,
     private var delay: Long,
@@ -21,6 +23,13 @@ class ScheduledFunction(
 ) {
 
     private var job: Job? = null
+
+    // Java compat constructor
+    constructor(delay: Long, action: ScheduledAction) : this(
+        coroutineScope = CoroutineScope(Dispatchers.IO),
+        delay = delay,
+        action = action
+    )
 
     fun setDelay(delay: Long) {
         this.delay = delay
