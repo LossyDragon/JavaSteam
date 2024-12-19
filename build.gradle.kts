@@ -130,6 +130,7 @@ dependencies {
     implementation(libs.okHttp)
     implementation(libs.xz)
     implementation(libs.protobuf.java)
+    implementation(libs.bundles.ktor)
 
     testImplementation(libs.bundles.testing)
 }
