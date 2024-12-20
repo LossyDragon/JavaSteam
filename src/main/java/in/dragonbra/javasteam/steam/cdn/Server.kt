@@ -3,6 +3,7 @@ package `in`.dragonbra.javasteam.steam.cdn
 /**
  * Represents a single Steam3 'Steampipe' content server.
  */
+@Suppress("unused")
 class Server(
     protocol: ConnectionProtocol = ConnectionProtocol.HTTP,
     host: String,
@@ -38,86 +39,85 @@ class Server(
     /**
      * Gets the supported connection protocol of the server.
      */
-    var protocol = protocol
+    var protocol: ConnectionProtocol = protocol
         internal set
 
     /**
      * Gets the hostname of the server.
      */
-    var host = host
+    var host: String = host
         internal set
 
     /**
      * Gets the virtual hostname of the server.
      */
-    var vHost = vHost
+    var vHost: String = vHost
         internal set
 
     /**
      * Gets the port of the server.
      */
-    var port = port
+    var port: Int = port
         internal set
 
     /**
      * Gets the type of the server.
      */
-    var type = type
+    var type: String? = type
         internal set
 
     /**
      * Gets the SourceID this server belongs to.
      */
-    @Suppress("unused")
-    var sourceID = sourceID
+    var sourceID: Int = sourceID
         internal set
 
     /**
      * Gets the CellID this server belongs to.
      */
-    var cellID = cellID
+    var cellID: Int = cellID
         internal set
 
     /**
      * Gets the load value associated with this server.
      */
-    var load = load
+    var load: Int = load
         internal set
 
     /**
      * Gets the weighted load.
      */
-    var weightedLoad = weightedLoad
+    var weightedLoad: Float = weightedLoad
         internal set
 
     /**
      * Gets the number of entries this server is worth.
      */
-    var numEntries = numEntries
+    var numEntries: Int = numEntries
         internal set
 
     /**
      * Gets the flag whether this server is for Steam China only.
      */
-    var steamChinaOnly = steamChinaOnly
+    var steamChinaOnly: Boolean = steamChinaOnly
         internal set
 
     /**
      * Gets the download proxy status.
      */
-    var useAsProxy = useAsProxy
+    var useAsProxy: Boolean = useAsProxy
         internal set
 
     /**
      * Gets the transformation template applied to request paths.
      */
-    var proxyRequestPathTemplate = proxyRequestPathTemplate
+    var proxyRequestPathTemplate: String? = proxyRequestPathTemplate
         internal set
 
     /**
      * Gets the list of app ids this server can be used with.
      */
-    var allowedAppIds = allowedAppIds
+    var allowedAppIds: IntArray = allowedAppIds
         internal set
 
     /**

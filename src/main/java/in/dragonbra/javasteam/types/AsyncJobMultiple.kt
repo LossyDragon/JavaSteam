@@ -30,7 +30,10 @@ class AsyncJobMultiple<T : CallbackMsg>(
         registerJob(client)
     }
 
+    @Deprecated("Use await() instead", ReplaceWith("await()"))
     fun toDeferred(): CompletableDeferred<ResultSet> = tcs
+
+    suspend fun await(): ResultSet = tcs.await()
 
     override fun addResult(callback: CallbackMsg): Boolean {
         @Suppress("UNCHECKED_CAST")

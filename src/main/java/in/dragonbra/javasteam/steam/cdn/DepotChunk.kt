@@ -27,6 +27,8 @@ object DepotChunk {
      * @exception IOException Thrown if the processed data does not match the expected checksum given in its chunk information.
      * @exception IllegalArgumentException Thrown if the destination size is too small or the depot key is not 32 bytes long
      */
+    @Throws(IOException::class, IllegalArgumentException::class)
+    @JvmStatic
     fun process(
         info: ChunkData,
         data: ByteArray,
@@ -59,15 +61,16 @@ object DepotChunk {
         try {
             val bytesWrittenToBuffer = cbcCipher.doFinal(data, iv.size, data.size - iv.size, buffer)
 
-            writtenDecompressed = if (buffer.size > 1 && buffer[0] == 'V'.code.toByte() && buffer[1] == 'Z'.code.toByte()) {
-                MemoryStream(buffer, 0, bytesWrittenToBuffer).use { ms ->
-                    VZipUtil.decompress(ms, destination, verifyChecksum = false)
+            writtenDecompressed =
+                if (buffer.size > 1 && buffer[0] == 'V'.code.toByte() && buffer[1] == 'Z'.code.toByte()) {
+                    MemoryStream(buffer, 0, bytesWrittenToBuffer).use { ms ->
+                        VZipUtil.decompress(ms, destination, verifyChecksum = false)
+                    }
+                } else {
+                    MemoryStream(buffer, 0, bytesWrittenToBuffer).use { ms ->
+                        ZipUtil.decompress(ms, destination, verifyChecksum = false)
+                    }
                 }
-            } else {
-                MemoryStream(buffer, 0, bytesWrittenToBuffer).use { ms ->
-                    ZipUtil.decompress(ms, destination, verifyChecksum = false)
-                }
-            }
         } catch (e: Exception) {
             throw IOException("Failed to decompress chunk ${Strings.toHex(info.chunkID)}: $e\n${e.stackTraceToString()}")
         }

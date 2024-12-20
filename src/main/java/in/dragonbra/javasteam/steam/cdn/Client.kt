@@ -18,6 +18,8 @@ import java.io.Closeable
 import java.io.IOException
 import java.util.zip.DataFormatException
 import java.util.zip.ZipInputStream
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * The [Client] class is used for downloading game content from the Steam servers.
@@ -30,18 +32,19 @@ class Client(steamClient: SteamClient) : Closeable {
     private val httpClient: OkHttpClient = steamClient.configuration.httpClient
 
     companion object {
+        private val logger: Logger = LogManager.getLogger(Client::class.java)
+
         /**
          * Default timeout to use when making requests
          */
-        var requestTimeout = 10000L
+        var requestTimeout: Duration = 10.seconds
 
         /**
          * Default timeout to use when reading the response body
          */
-        var responseBodyTimeout = 60000L
+        var responseBodyTimeout: Duration = 60.seconds
 
-        private val logger: Logger = LogManager.getLogger(Client::class.java)
-
+        @JvmStatic
         fun buildCommand(
             server: Server,
             command: String,

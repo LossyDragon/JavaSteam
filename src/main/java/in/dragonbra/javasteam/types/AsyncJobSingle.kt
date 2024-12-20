@@ -19,10 +19,13 @@ class AsyncJobSingle<T : CallbackMsg>(client: SteamClient, jobId: JobID) : Async
         registerJob(client)
     }
 
+    @Deprecated("Use await() instead", ReplaceWith("await()"))
     fun toDeferred(): CompletableDeferred<T> = tcs
 
+    suspend fun await(): T = tcs.await()
+
     @Throws(CancellationException::class)
-    fun runBlock(): T = runBlocking { toDeferred().await() }
+    fun runBlock(): T = runBlocking { tcs.await() }
 
     override fun addResult(callback: CallbackMsg): Boolean {
         // we're complete with just this callback

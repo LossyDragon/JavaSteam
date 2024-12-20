@@ -20,9 +20,16 @@ import java.util.concurrent.TimeUnit
 /**
  * [ClientPool] provides a pool of connections to CDN endpoints, requesting CDN tokens as needed
  */
-class ClientPool(internal val steamClient: SteamClient, private val appId: Int, private val parentScope: CoroutineScope) {
+// From: SteamRE/DepotDownloader/blob/master/DepotDownloader/CDNClientPool.cs
+class ClientPool(
+    internal val steamClient: SteamClient,
+    private val appId: Int,
+    private val parentScope: CoroutineScope,
+) {
 
     companion object {
+        private val logger: Logger = LogManager.getLogger(ClientPool::class.java)
+
         private const val SERVER_ENDPOINT_MIN_SIZE = 8
     }
 
@@ -31,15 +38,13 @@ class ClientPool(internal val steamClient: SteamClient, private val appId: Int, 
     var proxyServer: Server? = null
         private set
 
-    private val activeConnectionPool = ConcurrentLinkedDeque<Server>()
+    private val activeConnectionPool: ConcurrentLinkedDeque<Server> = ConcurrentLinkedDeque<Server>()
 
-    private val availableServerEndpoints = ConcurrentLinkedQueue<Server>()
+    private val availableServerEndpoints: ConcurrentLinkedQueue<Server> = ConcurrentLinkedQueue<Server>()
 
-    private val populatePoolEvent = CountDownLatch(1)
+    private val populatePoolEvent: CountDownLatch = CountDownLatch(1)
 
     private val monitorJob: Job
-
-    private val logger: Logger = LogManager.getLogger(ClientPool::class.java)
 
     init {
         monitorJob = parentScope.launch { connectionPoolMonitor().await() }
@@ -65,7 +70,6 @@ class ClientPool(internal val steamClient: SteamClient, private val appId: Int, 
         while (isActive) {
             populatePoolEvent.await(1, TimeUnit.SECONDS)
 
-            @Suppress("UsePropertyAccessSyntax")
             if (availableServerEndpoints.size < SERVER_ENDPOINT_MIN_SIZE && steamClient.isConnected) {
                 val servers = fetchBootstrapServerList().await()
 
