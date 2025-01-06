@@ -40,6 +40,7 @@ gson = { module = "com.google.code.gson:gson", version.ref = "gson" }
 kotlin-coroutines = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlin-coroutines" }
 kotlin-stdib = { module = "org.jetbrains.kotlin:kotlin-stdlib-jdk8", version.ref = "kotlin" }
 okHttp = { module = "com.squareup.okhttp3:okhttp", version.ref = "okHttp" }
+okhttp-coroutines = { module = "com.squareup.okhttp3:okhttp-coroutines", version.ref = "okHttp" }
 protobuf-java = { module = "com.google.protobuf:protobuf-java", version.ref = "protobuf" }
 protobuf-protoc = { module = "com.google.protobuf:protoc", version.ref = "protobuf" }
 qrCode = { module = "pro.leaco.qrcode:console-qrcode", version.ref = "qrCode" }
@@ -70,4 +71,8 @@ testing = [
     "test-mock-webserver3",
     "test-mockito-core",
     "test-mockito-jupiter",
+]
+okhttp = [
+    "okHttp",
+    "okhttp-coroutines",
 ]

@@ -119,7 +119,7 @@ dependencies {
     implementation(libs.gson)
     implementation(libs.kotlin.coroutines)
     implementation(libs.kotlin.stdib)
-    implementation(libs.okHttp)
+    implementation(libs.bundles.okhttp)
     implementation(libs.xz)
     implementation(libs.protobuf.java)
 

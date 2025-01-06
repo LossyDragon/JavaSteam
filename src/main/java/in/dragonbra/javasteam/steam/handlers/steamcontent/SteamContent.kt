@@ -5,7 +5,6 @@ import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesContentsystem
 import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesContentsystemSteamclient.CContentServerDirectory_GetManifestRequestCode_Request
 import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesContentsystemSteamclient.CContentServerDirectory_GetServersForSteamPipe_Request
 import `in`.dragonbra.javasteam.rpc.service.ContentServerDirectory
-import `in`.dragonbra.javasteam.steam.cdn.AuthToken
 import `in`.dragonbra.javasteam.steam.cdn.Server
 import `in`.dragonbra.javasteam.steam.handlers.ClientMsgHandler
 import `in`.dragonbra.javasteam.steam.handlers.steamunifiedmessages.SteamUnifiedMessages
@@ -18,6 +17,7 @@ import kotlinx.coroutines.async
  * This handler is used for interacting with content server directory on the Steam network.
  */
 class SteamContent : ClientMsgHandler() {
+
     private val contentService: ContentServerDirectory by lazy {
         val unifiedMessages = client.getHandler(SteamUnifiedMessages::class.java)
             ?: throw NullPointerException("Unable to get SteamUnifiedMessages handler")
@@ -65,7 +65,7 @@ class SteamContent : ClientMsgHandler() {
         branch: String? = null,
         branchPasswordHash: String? = null,
         parentScope: CoroutineScope,
-    ): Deferred<ULong> = parentScope.async {
+    ): Deferred<Long> = parentScope.async {
         var localBranch = branch
         var localBranchPasswordHash = branchPasswordHash
 
@@ -86,36 +86,40 @@ class SteamContent : ClientMsgHandler() {
             localBranchPasswordHash?.let { this.branchPasswordHash = it }
         }.build()
 
+        // SendMessage is an AsyncJob, but we want to deserialize it
+        // can't really do HandleMsg because it requires parsing the service like it's done in HandleServiceMethod
         val message = contentService.getManifestRequestCode(request).await()
         val response = message.body.build()
 
-        return@async response.manifestRequestCode.toULong()
+        return@async response.manifestRequestCode
     }
 
     /**
      * Request product information for an app or package
-     * Results are returned in a [AuthToken].
+     * Results are returned in a [CDNAuthToken].
      *
      * @param app App id requested.
      * @param depot Depot id requested.
      * @param hostName CDN host name being requested.
-     * @return The [AuthToken] containing the result.
+     * @return The [CDNAuthToken] containing the result.
      */
     fun getCDNAuthToken(
         app: Int,
         depot: Int,
         hostName: String,
         parentScope: CoroutineScope,
-    ): Deferred<AuthToken> = parentScope.async {
+    ): Deferred<CDNAuthToken> = parentScope.async {
         val request = CContentServerDirectory_GetCDNAuthToken_Request.newBuilder().apply {
             this.appId = app
             this.depotId = depot
             this.hostName = hostName
         }.build()
 
+        // SendMessage is an AsyncJob, but we want to deserialize it
+        // can't really do HandleMsg because it requires parsing the service like it's done in HandleServiceMethod
         val message = contentService.getCDNAuthToken(request).await()
 
-        return@async AuthToken(message)
+        return@async CDNAuthToken(message)
     }
 
     /**

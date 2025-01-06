@@ -46,7 +46,7 @@ public class CDNClientTest {
 
             // JVM will throw ExecutionException
             Exception exception = Assertions.assertThrows(ExecutionException.class, () ->
-                    client.downloadManifestFuture(0, 0, 0, server).get()
+                    client.downloadManifest(0, 0, 0, server).get()
             );
 
             // Get the actual instance to verify test.
@@ -69,7 +69,7 @@ public class CDNClientTest {
 
             // JVM will throw ExecutionException
             Exception exception = Assertions.assertThrows(ExecutionException.class, () ->
-                    client.downloadDepotChunkFuture(0, chunk, server, new byte[0]).get()
+                    client.downloadDepotChunk(0, chunk, server, new byte[0]).get()
             );
 
             // Get the actual instance to verify test.
@@ -92,7 +92,7 @@ public class CDNClientTest {
 
             // JVM will throw ExecutionException
             Exception exception = Assertions.assertThrows(ExecutionException.class, () ->
-                    client.downloadDepotChunkFuture(0, chunk, server, new byte[0]).get()
+                    client.downloadDepotChunk(0, chunk, server, new byte[0]).get()
             );
 
             // Get the actual instance to verify test.
@@ -116,7 +116,7 @@ public class CDNClientTest {
 
             // JVM will throw ExecutionException
             Exception exception = Assertions.assertThrows(ExecutionException.class, () ->
-                    client.downloadDepotChunkFuture(0, chunk, server, new byte[4]).get()
+                    client.downloadDepotChunk(0, chunk, server, new byte[4]).get()
             );
 
             // Get the actual instance to verify test.
@@ -140,7 +140,7 @@ public class CDNClientTest {
 
             // JVM will throw ExecutionException
             Exception exception = Assertions.assertThrows(ExecutionException.class, () ->
-                    client.downloadDepotChunkFuture(0, chunk, server, new byte[4], new byte[0]).get()
+                    client.downloadDepotChunk(0, chunk, server, new byte[4], new byte[0]).get()
             );
 
             // Get the actual instance to verify test.
