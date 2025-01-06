@@ -9,6 +9,6 @@ data class DepotFilesData(
     val stagingDir: String,
     val manifest: DepotManifest,
     val previousManifest: DepotManifest?,
-    val list: List<FileData> = emptyList(),
+    val filteredFiles: ArrayList<FileData> = arrayListOf(),
     val allFileNames: Set<String> = emptySet(),
 )

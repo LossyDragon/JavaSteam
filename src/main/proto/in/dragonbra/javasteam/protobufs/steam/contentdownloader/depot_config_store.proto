@@ -1,0 +1,15 @@
+syntax = "proto2";
+
+option java_package = "in.dragonbra.javasteam.protobufs.steam.contentdownloader";
+option java_outer_classname = "DepotConfigStore";
+
+option optimize_for = SPEED;
+
+message ManifestIDEntry {
+  required uint32 key = 1;
+  required uint64 value = 2;
+}
+
+message InstalledManifestIDsMap {
+  repeated ManifestIDEntry installed_manifest_ids = 1;
+}

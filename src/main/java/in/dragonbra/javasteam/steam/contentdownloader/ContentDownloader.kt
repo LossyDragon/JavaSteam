@@ -3,8 +3,7 @@ package `in`.dragonbra.javasteam.steam.contentdownloader
 import `in`.dragonbra.javasteam.enums.EAccountType
 import `in`.dragonbra.javasteam.enums.EAppInfoSection
 import `in`.dragonbra.javasteam.enums.EResult
-import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesPublishedfileSteamclient.CPublishedFile_GetDetails_Request
-import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesPublishedfileSteamclient.PublishedFileDetails
+import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesPublishedfileSteamclient.*
 import `in`.dragonbra.javasteam.rpc.service.PublishedFile
 import `in`.dragonbra.javasteam.steam.cdn.Server
 import `in`.dragonbra.javasteam.steam.handlers.steamapps.License
@@ -12,27 +11,30 @@ import `in`.dragonbra.javasteam.steam.handlers.steamapps.PICSProductInfo
 import `in`.dragonbra.javasteam.steam.handlers.steamapps.PICSRequest
 import `in`.dragonbra.javasteam.steam.handlers.steamapps.SteamApps
 import `in`.dragonbra.javasteam.steam.handlers.steamcloud.SteamCloud
+import `in`.dragonbra.javasteam.steam.handlers.steamcloud.callback.UGCDetailsCallback
 import `in`.dragonbra.javasteam.steam.handlers.steamcontent.CDNAuthToken
 import `in`.dragonbra.javasteam.steam.handlers.steamcontent.SteamContent
 import `in`.dragonbra.javasteam.steam.handlers.steamunifiedmessages.SteamUnifiedMessages
 import `in`.dragonbra.javasteam.steam.steamclient.SteamClient
+import `in`.dragonbra.javasteam.types.DepotManifest
 import `in`.dragonbra.javasteam.types.KeyValue
-import `in`.dragonbra.javasteam.types.PubFile
 import `in`.dragonbra.javasteam.types.PubFile.PublishedFileID
 import `in`.dragonbra.javasteam.types.UGCHandle
+import `in`.dragonbra.javasteam.util.Strings
+import `in`.dragonbra.javasteam.util.crypto.CryptoHelper
 import `in`.dragonbra.javasteam.util.log.LogManager
 import `in`.dragonbra.javasteam.util.log.Logger
-import jdk.javadoc.internal.doclets.formats.html.markup.HtmlStyle.details
-import kotlinx.coroutines.future.await
-import kotlinx.coroutines.future.future
+import kotlinx.coroutines.*
+import kotlinx.coroutines.future.*
 import okhttp3.Request
 import java.io.File
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
-import java.util.concurrent.CompletableFuture
-import java.util.concurrent.ConcurrentHashMap
-import kotlin.collections.mutableMapOf
+import java.util.concurrent.*
 
+@Suppress("unused", "MemberVisibilityCanBePrivate")
 class ContentDownloader(val steamClient: SteamClient) {
 
     companion object {
@@ -50,11 +52,6 @@ class ContentDownloader(val steamClient: SteamClient) {
         internal const val INVALID_APP_ID: Int = Int.MAX_VALUE
         internal const val INVALID_DEPOT_ID: Int = Int.MAX_VALUE
         internal const val INVALID_MANIFEST_ID: Long = Long.MAX_VALUE
-
-        @JvmStatic
-        fun getSteamOS() : String {
-
-        }
     }
 
     data class DepotManifestIds(val depotId: Int, val manifestId: Long)
@@ -79,10 +76,7 @@ class ContentDownloader(val steamClient: SteamClient) {
 
     var licenses: List<License> = listOf()
 
-    fun createDirectories(
-        depotId: Int,
-        depotVersion: Int,
-    ): Pair<Boolean, String?> {
+    fun createDirectories(depotId: Int, depotVersion: Int): Pair<Boolean, String?> {
         TODO("Not Impl.")
     }
 
@@ -130,15 +124,12 @@ class ContentDownloader(val steamClient: SteamClient) {
         return@future true
     }
 
-    internal fun getSteam3AppSection(appId: Int, section: EAppInfoSection): KeyValue? {
+    private fun getSteam3AppSection(appId: Int, section: EAppInfoSection): KeyValue? {
         if (appInfo.isEmpty()) {
             return null
         }
 
-        val app = appInfo[appId]
-        if (app == null) {
-            return null
-        }
+        val app = appInfo[appId] ?: return null
 
         val appInfo = app.keyValues
         val sectionKey = when (section) {
@@ -191,21 +182,101 @@ class ContentDownloader(val steamClient: SteamClient) {
         return depotChild["depotfromapp"].value.toInt()
     }
 
-    fun getSteam3DepotManifest() = steamClient.defaultScope.future {
-        TODO("Not Impl")
+    fun getSteam3DepotManifest(
+        depotId: Int,
+        appId: Int,
+        branch: String
+    ): CompletableFuture<Long> = steamClient.defaultScope.future {
+        val depots = getSteam3AppSection(appId, EAppInfoSection.Depots)
+        val depotChild = depots?.get(depotId.toString()) ?: KeyValue.INVALID
+
+        if (depotChild == KeyValue.INVALID) {
+            return@future INVALID_MANIFEST_ID
+        }
+
+        // Shared depots can either provide manifests, or leave you relying on their parent app.
+        // It seems that with the latter, "sharedinstall" will exist (and equals 2 in the one existence I know of).
+        // Rather than relay on the unknown sharedinstall key, just look for manifests. Test cases: 111710, 346680.
+        if (depotChild["manifests"] == KeyValue.INVALID && depotChild["depotfromapp"] != KeyValue.INVALID) {
+            val otherAppId = depotChild["depotfromapp"].asInteger()
+            if (otherAppId == appId) {
+                // This shouldn't ever happen, but ya never know with Valve. Don't infinite loop.
+                logger.debug("App $appId, Depot $depotId has depotfromapp of $otherAppId")
+                return@future INVALID_MANIFEST_ID
+            }
+
+            requestAppInfo(otherAppId).await()
+
+            return@future getSteam3DepotManifest(depotId, otherAppId, branch).await()
+        }
+
+        val manifests = depotChild["manifests"]
+        val manifestsEncrypted = depotChild["encryptedmanifests"]
+
+        if (manifests.children.size == 0 && manifestsEncrypted.children.size == 0) {
+            return@future INVALID_MANIFEST_ID
+        }
+
+        val node = manifests[branch]["gid"]
+
+        if (node == KeyValue.INVALID && !branch.equals(DEFAULT_BRANCH, true)) {
+            val nodeEncrypted = manifestsEncrypted[branch]
+            if (nodeEncrypted != KeyValue.INVALID) {
+                val password: String? = betaPassword
+
+                if (password.isNullOrEmpty()) {
+                    throw Exception("Beta password is empty.")
+                }
+
+                val encryptedGid = nodeEncrypted["gid"]
+
+                if (encryptedGid != KeyValue.INVALID) {
+                    // Submit the password to Steam now to get encryption keys
+                    checkAppBetaPassword(appId, password).await()
+
+                    val appBetaPassword = appBetaPasswords[branch]
+                    if (appBetaPassword == null) {
+                        logger.debug("Password was invalid for branch $branch")
+                        return@future INVALID_MANIFEST_ID
+                    }
+
+                    val input = Strings.decodeHex(encryptedGid.value)
+                    val manifestBytes: ByteArray
+
+                    try {
+                        manifestBytes = CryptoHelper.symmetricEncrypt(input, appBetaPassword)
+                    } catch (e: Exception) {
+                        logger.debug("Failed to decrypt branch $branch", e)
+                        return@future INVALID_MANIFEST_ID
+                    }
+
+                    // TODO ehhhh
+                    val long = ByteBuffer.wrap(manifestBytes).order(ByteOrder.LITTLE_ENDIAN).getLong(0)
+                    return@future long
+                }
+
+                logger.debug("Unhandled depot encryption for depotId $depotId")
+                return@future INVALID_MANIFEST_ID
+            }
+
+            return@future INVALID_MANIFEST_ID
+        }
+
+        if (node.value == null) {
+            return@future INVALID_MANIFEST_ID
+        }
+
+        return@future node.value.toLong()
     }
 
     fun getAppName(appId: Int): String {
-        val info = getSteam3AppSection(appId, EAppInfoSection.Common)
-
-        if (info == null) {
-            return ""
-        }
+        val info = getSteam3AppSection(appId, EAppInfoSection.Common) ?: return ""
 
         return info["name"].asString()
     }
 
-    fun downloadPubfileAsync(appId: Int, publishedFileId: Long) = steamClient.defaultScope.future {
+    // TODO java compat this
+    suspend fun downloadPubfileAsync(appId: Int, publishedFileId: Long) {
         val details = getPublishedFileDetails(appId, PublishedFileID(publishedFileId))
 
         requireNotNull(details)
@@ -228,7 +299,80 @@ class ContentDownloader(val steamClient: SteamClient) {
         }
     }
 
-    fun downloadAppAsync(
+    // TODO java compat this
+    suspend fun downloadUGCAsync(appId: Int, ugcId: Long) {
+        var details: UGCDetailsCallback? = null
+
+        if (steamClient.steamID.accountType != EAccountType.AnonUser) {
+            details = getUGCDetails(UGCHandle(ugcId)).await()
+        } else {
+            logger.debug("Unable to query UGC details for $ugcId from an anonymous account")
+        }
+
+        if (!details?.url.isNullOrEmpty()) {
+            downloadWebFile(
+                appId = appId,
+                fileName = details!!.fileName,
+                url = details.url
+            )
+        } else {
+            val list = listOf(DepotManifestIds(appId, ugcId))
+            downloadAppAsync(
+                appId = appId,
+                depotManifestIds = list,
+                branch = DEFAULT_BRANCH,
+                os = null,
+                arch = null,
+                language = null,
+                lv = false,
+                isUgc = true,
+            )
+        }
+    }
+
+    private suspend fun downloadWebFile(appId: Int, fileName: String, url: String) {
+
+        val dir = createDirectories(appId, 0)
+        if (!dir.first || dir.second == null) {
+            logger.debug("Unable to create install directories")
+            return
+        }
+
+        val stagingDir = File(dir.second, STAGING_DIR).path
+        val fileStagingPath = File(stagingDir, fileName).path
+        val fileFinalPath = File(dir.second, fileName).path
+
+        // Create directories for both paths
+        File(fileFinalPath).parentFile?.mkdirs()
+        File(fileStagingPath).parentFile?.mkdirs()
+
+        val request = Request.Builder()
+            .url(url)
+            .build()
+
+        steamClient.configuration.httpClient.newCall(request).execute().use { response ->
+            File(fileStagingPath).outputStream().use { fileOutput ->
+                response.body.byteStream().use { inputStream ->
+                    inputStream.copyTo(fileOutput)
+                }
+            }
+        }
+
+        val finalFile = File(fileFinalPath)
+        if (finalFile.exists()) {
+            finalFile.delete()
+        }
+
+        withContext(Dispatchers.IO) {
+            Files.move(
+                File(fileStagingPath).toPath(),
+                finalFile.toPath(),
+                StandardCopyOption.REPLACE_EXISTING
+            )
+        }
+    }
+
+    suspend fun downloadAppAsync(
         appId: Int,
         depotManifestIds: List<DepotManifestIds>,
         branch: String,
@@ -236,10 +380,11 @@ class ContentDownloader(val steamClient: SteamClient) {
         arch: String?,
         language: String?,
         lv: Boolean,
-        isUgc: Boolean
-    ) = steamClient.defaultScope.future {
-        var depotManifestIds = depotManifestIds
-        val cdnPool = CDNClientPool(steamClient, appId, this)
+        isUgc: Boolean,
+        parentScope: CoroutineScope = steamClient.defaultScope
+    ) {
+        var internalDepotManifestIds = depotManifestIds.toMutableList()
+        val cdnPool = CDNClientPool(steamClient, appId, parentScope)
 
         requestAppInfo(appId).await()
 
@@ -255,16 +400,18 @@ class ContentDownloader(val steamClient: SteamClient) {
             }
         }
 
-        val hasSpecificDepots = depotManifestIds.isNotEmpty()
+        val hasSpecificDepots = internalDepotManifestIds.isNotEmpty()
         val depotIdsFound = mutableListOf<Int>()
-        val depotIdsExpected = depotManifestIds.map { it.depotId }.toMutableList()
+        val depotIdsExpected = internalDepotManifestIds.map { it.depotId }.toMutableList()
         val depots = getSteam3AppSection(appId, EAppInfoSection.Depots)
 
         if (isUgc) {
             val workshopDepot = depots?.get("workshopdepot")?.asInteger() ?: 0
             if (workshopDepot != 0 && !depotIdsExpected.contains(workshopDepot)) {
                 depotIdsExpected.add(workshopDepot)
-                depotManifestIds = depotManifestIds.map { pair -> DepotManifestIds(workshopDepot, pair.manifestId) }
+                internalDepotManifestIds = internalDepotManifestIds
+                    .map { pair -> DepotManifestIds(workshopDepot, pair.manifestId) }
+                    .toMutableList()
             }
 
             depotIdsFound.addAll(depotIdsExpected)
@@ -287,19 +434,159 @@ class ContentDownloader(val steamClient: SteamClient) {
                         return@forEach
                     }
 
-                    if(!hasSpecificDepots) {
+                    if (!hasSpecificDepots) {
                         val depotConfig = depotSection["config"]
-                        if(depotConfig != KeyValue.INVALID) {
+                        if (depotConfig != KeyValue.INVALID) {
 
+                            // TODO
                         }
+                    }
+
+                    depotIdsFound.add(id)
+
+                    if (!hasSpecificDepots) {
+                        internalDepotManifestIds.add(DepotManifestIds(id, INVALID_MANIFEST_ID))
                     }
                 }
             }
+
+            if (internalDepotManifestIds.isEmpty() && !hasSpecificDepots) {
+                throw Exception("Couldn't find any depots to download for app $appId")
+            }
+
+            if (depotIdsFound.size < depotIdsExpected.size) {
+                val remainingDepotIds = depotIdsExpected - depotIdsFound.toSet()
+                throw Exception("Depot ${remainingDepotIds.joinToString(", ")} not listed for app $appId")
+            }
         }
+
+        val infos = mutableListOf<DepotDownloadInfo>()
+
+        internalDepotManifestIds.forEach { info ->
+            getDepotInfo(info.depotId, appId, info.manifestId, branch).await()?.also(infos::add)
+        }
+
+        downloadSteam3Async(infos)
     }
 
+    fun getDepotInfo(
+        depotId: Int,
+        appId: Int,
+        manifestId: Long,
+        branch: String
+    ): CompletableFuture<DepotDownloadInfo?> = steamClient.defaultScope.future {
+        if (appId != INVALID_APP_ID) {
+            requestAppInfo(appId).await()
+        }
+
+        if (!accountHasAccess(appId, depotId).await()) {
+            logger.debug("Depot $depotId is not available from this account.")
+            return@future null
+        }
+
+        var internalManifestId = manifestId
+
+        if (internalManifestId == INVALID_MANIFEST_ID) {
+            internalManifestId = getSteam3DepotManifest(depotId, appId, branch).await()
+            if (internalManifestId == INVALID_MANIFEST_ID && branch.equals(DEFAULT_BRANCH, true)) {
+                logger.debug("Warning: Depot $depotId does not have branch named \"$branch\". Trying $DEFAULT_BRANCH branch.")
+                internalManifestId = getSteam3DepotManifest(depotId, appId, DEFAULT_BRANCH).await()
+            }
+
+            if (internalManifestId == INVALID_MANIFEST_ID) {
+                logger.debug("Depot $depotId missing public subsection or manifest section.")
+                return@future null
+            }
+        }
+
+        requestDepotKey(depotId, appId).await()
+        val depotKey = depotKeys[depotId]
+        if (depotKey == null) {
+            logger.debug("No valid depot key for $depotId, unable to download.")
+            return@future null
+        }
+
+        val uVersion = getSteam3AppBuildNumber(appId, branch)
+
+        val installDir = createDirectories(depotId, uVersion)
+        if (!installDir.first || installDir.second == null) {
+            logger.error("Error: Unable to create install directories!")
+            return@future null
+        }
+
+        // For depots that are proxied through depotfromapp, we still need to resolve the proxy app id
+        var containingAppId = appId
+        val proxyAppId = getSteam3DepotProxyAppId(depotId, appId)
+        if (proxyAppId != INVALID_APP_ID) {
+            containingAppId = proxyAppId
+        }
+
+        return@future DepotDownloadInfo(
+            depotId,
+            containingAppId,
+            internalManifestId,
+            branch,
+            installDir.second!!,
+            depotKey
+        )
+    }
+
+    private suspend fun downloadSteam3Async(depots: List<DepotDownloadInfo>) {
+        val downloadCounter = GlobalDownloadCounter()
+        val depotsToDownload = ArrayList<DepotFilesData>(depots.size)
+        val allFileNamesAllDepots = HashSet<String>()
+
+        // First, fetch all the manifests for each depot (including previous manifests) and perform the initial setup
+        depots.forEach { depot ->
+            val depotFileData = processDepotManifestAndFiles(depot, downloadCounter)
+
+            if (depotFileData != null) {
+                depotsToDownload.add(depotFileData)
+                allFileNamesAllDepots.addAll(depotFileData.allFileNames)
+            }
+        }
+
+        // If we're about to write all the files to the same directory, we will need to first de-duplicate any files by path
+        // This is in last-depot-wins order, from Steam or the list of depots supplied by the user
+        if (!Config.installDirectory.isNullOrBlank() && depotsToDownload.isNotEmpty()) {
+            val claimedFileNames = HashSet<String>()
+            for (i in depotsToDownload.size - 1 downTo 0) {
+                // For each depot, remove all files from the list that have been claimed by a later depot
+                depotsToDownload[i].filteredFiles.removeAll { file ->
+                    claimedFileNames.contains(file.fileName)
+                }
+                claimedFileNames.addAll(depotsToDownload[i].allFileNames)
+            }
+        }
+
+        depotsToDownload.forEach { depotFilesData ->
+            downloadSteam3AsyncDepotFiles(downloadCounter, depotFilesData, allFileNamesAllDepots)
+        }
+
+        logger.debug(
+            "Total downloaded: ${downloadCounter.totalBytesCompressed} bytes " +
+                "(${downloadCounter.totalBytesUncompressed} bytes uncompressed) from ${depots.size} depots"
+        )
+    }
+
+    private suspend fun processDepotManifestAndFiles(
+        depot: DepotDownloadInfo,
+        downloadCounter: GlobalDownloadCounter
+    ): DepotFilesData? {
+        val depotCounter = DepotDownloadCounter()
+
+        logger.debug("Processing depot ${depot.depotId}")
+
+        val oldManifest: DepotManifest?= null
+        val newManifest: DepotManifest?= null
+
+
+    }
+
+    // region [REGION] Convenience helpers
+
     private suspend fun requestPackageInfo(packageIds: List<Int>, licenses: List<License>) {
-        var packages = packageIds.toMutableList()
+        val packages = packageIds.toMutableList()
         packages.removeAll { packageInfo.containsKey(it) }
 
         if (packages.isEmpty()) {
@@ -333,8 +620,8 @@ class ContentDownloader(val steamClient: SteamClient) {
         }
     }
 
-    private suspend fun getPublishedFileDetails(appId: Int, pubFile: PubFile.PublishedFileID): PublishedFileDetails? {
-        var pubFileRequest = CPublishedFile_GetDetails_Request.newBuilder().apply {
+    private suspend fun getPublishedFileDetails(appId: Int, pubFile: PublishedFileID): PublishedFileDetails? {
+        val pubFileRequest = CPublishedFile_GetDetails_Request.newBuilder().apply {
             this.appid = appId
         }.build()
 
@@ -349,46 +636,6 @@ class ContentDownloader(val steamClient: SteamClient) {
         }
 
         throw Exception("EResult ${details.result.code()} (${details.result}) while retrieving file details for pubfile $pubFile.")
-    }
-
-    private suspend fun downloadWebFile(appId: Int, fileName: String, url: String) {
-
-        val dir = createDirectories(appId, 0)
-        if (dir.first == false || dir.second == null) {
-            logger.debug("Unable to create install directories")
-            return
-        }
-
-        val stagingDir = File(dir.second, STAGING_DIR).path
-        val fileStagingPath = File(stagingDir, fileName).path
-        val fileFinalPath = File(dir.second, fileName).path
-
-        // Create directories for both paths
-        File(fileFinalPath).parentFile?.mkdirs()
-        File(fileStagingPath).parentFile?.mkdirs()
-
-        val request = Request.Builder()
-            .url(url)
-            .build()
-
-        steamClient.configuration.httpClient.newCall(request).execute().use { response ->
-            File(fileStagingPath).outputStream().use { fileOutput ->
-                response.body.byteStream().use { inputStream ->
-                    inputStream.copyTo(fileOutput)
-                }
-            }
-        }
-
-        val finalFile = File(fileFinalPath)
-        if (finalFile.exists()) {
-            finalFile.delete()
-        }
-
-        Files.move(
-            File(fileStagingPath).toPath(),
-            finalFile.toPath(),
-            StandardCopyOption.REPLACE_EXISTING
-        )
     }
 
     fun requestAppInfo(appId: Int) = steamClient.defaultScope.future {
@@ -491,7 +738,7 @@ class ContentDownloader(val steamClient: SteamClient) {
         val steamContent = steamClient.getHandler<SteamContent>()
             ?: throw NullPointerException("Unable to get SteamContent handler")
 
-        var cdnAuth = steamContent.getCDNAuthToken(appId, depotId, server.host, this).await()
+        val cdnAuth = steamContent.getCDNAuthToken(appId, depotId, server.host, this).await()
 
         logger.debug("Got CDN auth token for ${server.host} result: ${cdnAuth.result} (expires ${cdnAuth.expiration})")
 
@@ -521,14 +768,14 @@ class ContentDownloader(val steamClient: SteamClient) {
 
         val callback = steamCloud.requestUGCDetails(ugcHandle).await()
 
-        if (callback.result == EResult.OK) {
-            return@future callback
+        return@future if (callback.result == EResult.OK) {
+            callback
         } else {
-            return@future null
+            null
         }
-
-        throw Exception("EResult ${callback.result.code()} (${callback.result}) while retrieving UGC details for $ugcHandle.");
     }
+
+    // endregion
 
 //    private fun getDepotManifestId(
 //        app: PICSProductInfo,
