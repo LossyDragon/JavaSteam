@@ -4,8 +4,9 @@ import in.dragonbra.javasteam.enums.EOSType;
 import in.dragonbra.javasteam.types.ChunkData;
 import org.apache.commons.lang3.SystemUtils;
 
+import java.io.FileInputStream;
 import java.io.IOException;
-import java.io.RandomAccessFile;
+import java.io.InputStream;
 import java.nio.channels.ClosedChannelException;
 import java.util.Map;
 import java.util.LinkedHashMap;
@@ -198,9 +199,24 @@ public class Utils {
      * Performs an Adler32 on the given input
      */
     public static int adlerHash(byte[] input) {
-        int a = 0, b = 0;
+        var a = 0;
+        var b = 0;
+
         for (byte value : input) {
             // Use bitwise AND with 0xFF to treat byte as unsigned
+            a = (a + (value & 0xFF)) % 65521;
+            b = (b + a) % 65521;
+        }
+
+        return a | (b << 16);
+    }
+
+    public static int adlerHash(InputStream stream, int length) throws IOException {
+        int a = 0;
+        int b = 0;
+
+        for (int i = 0; i < length; i++) {
+            int value = stream.read();
             a = (a + (value & 0xFF)) % 65521;
             b = (b + a) % 65521;
         }
@@ -218,7 +234,7 @@ public class Utils {
      * @throws IllegalArgumentException If the new position is negative
      */
     @SuppressWarnings("resource")
-    public static List<ChunkData> validateSteam3FileChecksums(RandomAccessFile fs, ChunkData[] chunkData) throws IOException {
+    public static List<ChunkData> validateSteam3FileChecksums(FileInputStream fs, ChunkData[] chunkData) throws IOException {
         List<ChunkData> neededChunks = new ArrayList<>();
         int read;
 

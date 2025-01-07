@@ -29,10 +29,11 @@ class DepotConfigStore {
             val file = File(fileName)
             if (file.exists()) {
                 Files.newInputStream(file.toPath()).use { fis ->
-                    instance!!.installedManifestIDs =
-                        InstalledManifestIDsMap.parseFrom(fis)
-                            .installedManifestIdsList
-                            .associate { it.key to it.value }
+                    instance = DepotConfigStore()
+                    instance!!.installedManifestIDs = InstalledManifestIDsMap.parseFrom(fis)
+                        .installedManifestIdsList
+                        .associate { it.key to it.value }
+                        .toMutableMap()
                 }
             } else {
                 instance = DepotConfigStore()
@@ -48,7 +49,7 @@ class DepotConfigStore {
             }
 
             val builder = InstalledManifestIDsMap.newBuilder().apply {
-                instance!!.installedManifestIDs?.map {
+                instance!!.installedManifestIDs.map {
                     ManifestIDEntry.newBuilder()
                         .setKey(it.key)
                         .setValue(it.value)
@@ -56,7 +57,7 @@ class DepotConfigStore {
             }.build()
 
             try {
-                Files.newOutputStream(File(instance!!.fileName!!).toPath()).use { fos ->
+                Files.newOutputStream(File(instance!!.fileName).toPath()).use { fos ->
                     builder.writeTo(fos)
                 }
             } catch (e: IOException) {
@@ -65,9 +66,8 @@ class DepotConfigStore {
         }
     }
 
-    var installedManifestIDs: Map<Int, Long>? = null
+    var installedManifestIDs: MutableMap<Int, Long> = mutableMapOf()
         private set
 
-    var fileName: String? = null
-        private set
+    lateinit var fileName: String
 }

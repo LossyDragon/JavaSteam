@@ -2,6 +2,7 @@ package `in`.dragonbra.javasteam.steam.contentdownloader
 
 import `in`.dragonbra.javasteam.enums.EAccountType
 import `in`.dragonbra.javasteam.enums.EAppInfoSection
+import `in`.dragonbra.javasteam.enums.EDepotFileFlag
 import `in`.dragonbra.javasteam.enums.EResult
 import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesPublishedfileSteamclient.*
 import `in`.dragonbra.javasteam.rpc.service.PublishedFile
@@ -16,23 +17,44 @@ import `in`.dragonbra.javasteam.steam.handlers.steamcontent.CDNAuthToken
 import `in`.dragonbra.javasteam.steam.handlers.steamcontent.SteamContent
 import `in`.dragonbra.javasteam.steam.handlers.steamunifiedmessages.SteamUnifiedMessages
 import `in`.dragonbra.javasteam.steam.steamclient.SteamClient
+import `in`.dragonbra.javasteam.types.ChunkData
 import `in`.dragonbra.javasteam.types.DepotManifest
+import `in`.dragonbra.javasteam.types.FileData
 import `in`.dragonbra.javasteam.types.KeyValue
 import `in`.dragonbra.javasteam.types.PubFile.PublishedFileID
 import `in`.dragonbra.javasteam.types.UGCHandle
+import `in`.dragonbra.javasteam.util.SteamKitWebRequestException
 import `in`.dragonbra.javasteam.util.Strings
+import `in`.dragonbra.javasteam.util.Utils
+import `in`.dragonbra.javasteam.util.Utils.validateSteam3FileChecksums
 import `in`.dragonbra.javasteam.util.crypto.CryptoHelper
 import `in`.dragonbra.javasteam.util.log.LogManager
 import `in`.dragonbra.javasteam.util.log.Logger
 import kotlinx.coroutines.*
 import kotlinx.coroutines.future.*
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import okhttp3.Request
+import java.io.DataInputStream
 import java.io.File
+import java.io.FileInputStream
+import java.io.FileOutputStream
+import java.io.IOException
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.nio.channels.FileChannel
 import java.nio.file.Files
+import java.nio.file.Paths
 import java.nio.file.StandardCopyOption
+import java.nio.file.StandardOpenOption
+import java.security.MessageDigest
+import java.time.Instant
+import java.time.temporal.ChronoUnit
 import java.util.concurrent.*
+import java.util.concurrent.atomic.AtomicInteger
+import kotlin.coroutines.cancellation.CancellationException
+import kotlin.coroutines.coroutineContext
+import kotlin.io.path.Path
 
 @Suppress("unused", "MemberVisibilityCanBePrivate")
 class ContentDownloader(val steamClient: SteamClient) {
@@ -47,11 +69,112 @@ class ContentDownloader(val steamClient: SteamClient) {
             SERVICE_UNAVAILABLE(503, "Service Unavailable"),
         }
 
+        class ChunkIdComparator {
+            fun equals(x: ByteArray?, y: ByteArray?): Boolean {
+                if (x === y) return true
+                if (x == null || y == null) return false
+                return x.contentEquals(y)
+            }
+
+            fun hashCode(obj: ByteArray): Int {
+                requireNotNull(obj)
+                return obj.take(4).fold(0) { acc, byte -> (acc shl 8) or (byte.toInt() and 0xFF) }
+            }
+        }
+
         const val DEFAULT_BRANCH: String = "public"
 
         internal const val INVALID_APP_ID: Int = Int.MAX_VALUE
         internal const val INVALID_DEPOT_ID: Int = Int.MAX_VALUE
         internal const val INVALID_MANIFEST_ID: Long = Long.MAX_VALUE
+
+        fun saveManifestToFile(directory: String, manifest: DepotManifest): Boolean {
+            return try {
+                val filename = File(directory, "${manifest.depotID}_${manifest.manifestGID}.manifest").path
+                manifest.saveToFile(filename)
+                File("$filename.sha").writeBytes(fileSHAHash(filename))
+                true
+            } catch (e: Exception) {
+                false
+            }
+        }
+
+        private fun fileSHAHash(filename: String): ByteArray {
+            return File(filename).inputStream().use { fs ->
+                MessageDigest.getInstance("SHA-1", CryptoHelper.SEC_PROV).run {
+                    update(fs.readAllBytes())
+                    digest()
+                }
+            }
+        }
+
+        private fun loadManifestFromFile(
+            directory: String,
+            depotId: Int,
+            manifestId: Long,
+            badHashWarning: Boolean
+        ): DepotManifest? {
+            // Try loading Steam format manifest first.
+            val filename = File(directory, "${depotId}_${manifestId}.manifest")
+
+            if (Files.exists(filename.toPath())) {
+                val expectedChecksum = try {
+                    File("$filename.sha").readBytes()
+                } catch (e: IOException) {
+                    null
+                }
+
+                val currentChecksum = fileSHAHash(filename.path)
+
+                if (expectedChecksum != null && expectedChecksum.contentEquals(currentChecksum)) {
+                    return DepotManifest.loadFromFile(filename.path)!!
+                } else if (badHashWarning) {
+                    logger.debug("Manifest $manifestId on disk did not match the expected checksum.")
+                }
+            }
+
+            return null
+        }
+
+        @JvmStatic
+        fun dumpManifestToTextFile(depot: DepotDownloadInfo, manifest: DepotManifest) {
+            val txtManifest = File(depot.installDir, "manifest_${depot.depotId}_${depot.manifestId}.txt")
+            txtManifest.bufferedWriter().use { writer ->
+                writer.apply {
+                    write("Content Manifest for Depot ${depot.depotId}\n\n")
+                    write("Manifest ID / date     : ${depot.manifestId} / ${manifest.creationTime}\n")
+
+                    val comparator = ChunkIdComparator()
+                    val uniqueChunks = mutableSetOf<ByteArray>()
+                    manifest.files.forEach { file ->
+                        file.chunks.forEach { chunk ->
+                            if (!uniqueChunks.any { comparator.equals(it, chunk.chunkID) }) {
+                                uniqueChunks.add(chunk.chunkID!!)
+                            }
+                        }
+                    }
+
+                    write("Total number of files  : ${manifest.files.size}\n")
+                    write("Total number of chunks : ${uniqueChunks.size}\n")
+                    write("Total bytes on disk    : ${manifest.totalUncompressedSize}\n")
+                    write("Total bytes compressed : ${manifest.totalCompressedSize}\n\n\n")
+                    write("          Size Chunks File SHA                                 Flags Name\n")
+
+                    manifest.files.forEach { file ->
+                        val sha1Hash = file.fileHash.joinToString("") { "%02x".format(it) }
+                        write(
+                            "%14d %6d %s %5x %s\n".format(
+                                file.totalSize,
+                                file.chunks.size,
+                                sha1Hash,
+                                EDepotFileFlag.code(file.flags),
+                                file.fileName
+                            )
+                        )
+                    }
+                }
+            }
+        }
     }
 
     data class DepotManifestIds(val depotId: Int, val manifestId: Long)
@@ -75,6 +198,8 @@ class ContentDownloader(val steamClient: SteamClient) {
         private set
 
     var licenses: List<License> = listOf()
+
+    private lateinit var cdnPool: CDNClientPool
 
     fun createDirectories(depotId: Int, depotVersion: Int): Pair<Boolean, String?> {
         TODO("Not Impl.")
@@ -207,13 +332,14 @@ class ContentDownloader(val steamClient: SteamClient) {
 
             requestAppInfo(otherAppId).await()
 
+            // recursive
             return@future getSteam3DepotManifest(depotId, otherAppId, branch).await()
         }
 
         val manifests = depotChild["manifests"]
         val manifestsEncrypted = depotChild["encryptedmanifests"]
 
-        if (manifests.children.size == 0 && manifestsEncrypted.children.size == 0) {
+        if (manifests.children.isEmpty() && manifestsEncrypted.children.isEmpty()) {
             return@future INVALID_MANIFEST_ID
         }
 
@@ -312,7 +438,7 @@ class ContentDownloader(val steamClient: SteamClient) {
         if (!details?.url.isNullOrEmpty()) {
             downloadWebFile(
                 appId = appId,
-                fileName = details!!.fileName,
+                fileName = details.fileName,
                 url = details.url
             )
         } else {
@@ -384,7 +510,7 @@ class ContentDownloader(val steamClient: SteamClient) {
         parentScope: CoroutineScope = steamClient.defaultScope
     ) {
         var internalDepotManifestIds = depotManifestIds.toMutableList()
-        val cdnPool = CDNClientPool(steamClient, appId, parentScope)
+        cdnPool = CDNClientPool(steamClient, appId, parentScope)
 
         requestAppInfo(appId).await()
 
@@ -577,9 +703,582 @@ class ContentDownloader(val steamClient: SteamClient) {
 
         logger.debug("Processing depot ${depot.depotId}")
 
-        val oldManifest: DepotManifest?= null
-        val newManifest: DepotManifest?= null
+        var oldManifest: DepotManifest? = null
+        var newManifest: DepotManifest? = null
+        val configDir = File(depot.installDir, CONFIG_DIR).path
 
+        var lastManifestId = INVALID_MANIFEST_ID
+
+        DepotConfigStore.instance?.installedManifestIDs?.get(depot.depotId)?.let {
+            lastManifestId = it
+        }
+
+        // In case we have an early exit, this will force equiv of verifyall next run.
+        DepotConfigStore.instance?.installedManifestIDs?.set(depot.depotId, INVALID_MANIFEST_ID)
+        DepotConfigStore.save()
+
+        if (lastManifestId != INVALID_MANIFEST_ID) {
+            // We only have to show this warning if the old manifest ID was different
+            val badHashWarning = (lastManifestId != depot.manifestId)
+            oldManifest = loadManifestFromFile(configDir, depot.depotId, lastManifestId, badHashWarning);
+            logger.error("Bad hash, but this isn't implemented.")
+        }
+
+        if (lastManifestId == depot.manifestId && oldManifest != null) {
+            newManifest = oldManifest
+            logger.debug("Already have manifest ${depot.manifestId} for depot ${depot.depotId}")
+        } else {
+            newManifest = loadManifestFromFile(configDir, depot.depotId, depot.manifestId, true)
+
+            if (newManifest != null) {
+                logger.debug("Already have manifest ${depot.manifestId} for depot ${depot.depotId}.")
+            } else {
+                logger.debug("Downloading depot ${depot.depotId} manifest")
+
+                var manifestRequestCode = 0L
+                var manifestRequestCodeExpiration = Instant.MIN
+
+                do {
+                    var connection: Server? = null
+
+                    try {
+                        connection = cdnPool.getConnection().await()
+
+                        var cdnToken: String? = null
+                        val authTokenCallbackPromise = cdnAuthTokens.get(Pair(depot.depotId, connection!!.host))
+                        if (authTokenCallbackPromise != null) {
+                            val result = authTokenCallbackPromise.await()
+                            cdnToken = result.token
+                        }
+
+                        val now = Instant.now()
+
+                        // In order to download this manifest, we need the current manifest request code
+                        // The manifest request code is only valid for a specific period in time
+                        if (manifestRequestCode == 0L || now >= manifestRequestCodeExpiration) {
+                            manifestRequestCode = getDepotManifestRequestCodeAsync(
+                                depotId = depot.depotId,
+                                appId = depot.appId,
+                                manifestId = depot.manifestId,
+                                branch = depot.branch,
+                            ).await()
+
+                            // This code will hopefully be valid for one period following the issuing period
+                            manifestRequestCodeExpiration = now.plus(5, ChronoUnit.MINUTES)
+
+                            // If we could not get the manifest code, this is a fatal error
+                            if (manifestRequestCode == 0L) {
+                                throw CancellationException("Could not get the manifest code")
+                            }
+                        }
+
+                        logger.debug(
+                            "Downloading manifest ${depot.manifestId} from $connection with " +
+                                "${if (cdnPool.proxyServer != null) cdnPool.proxyServer else "no proxy server"} "
+                        )
+
+                        newManifest = cdnPool.cdnClient.downloadManifest(
+                            depotId = depot.depotId,
+                            manifestId = depot.manifestId,
+                            manifestRequestCode = manifestRequestCode,
+                            server = connection,
+                            depotKey = depot.depotKey,
+                            proxyServer = cdnPool.proxyServer,
+                            cdnAuthToken = cdnToken
+                        ).await()
+
+                        cdnPool.returnConnection(connection)
+                    } catch (e: CancellationException) {
+                        logger.error("Connection timeout downloading depot manifest ${depot.depotId} ${depot.manifestId}. Retrying.")
+                    } catch (e: SteamKitWebRequestException) {
+                        // If the CDN returned 403, attempt to get a cdn auth if we didn't yet
+                        if (e.statusCode == HTTP.FORBIDDEN.code &&
+                            cdnAuthTokens.contains(Pair(depot.depotId, connection!!.host))
+                        ) {
+                            requestCDNAuthToken(depot.appId, depot.depotId, connection).await()
+
+                            cdnPool.returnConnection(connection)
+
+                            continue
+                        }
+
+                        cdnPool.returnConnection(connection)
+
+                        if (e.statusCode == HTTP.UNAUTHORIZED.code || e.statusCode == HTTP.FORBIDDEN.code) {
+                            logger.error("Encountered ${e.statusCode} for depot manifest ${depot.depotId} ${depot.manifestId}. Aborting.")
+                            break
+                        }
+
+                        if (e.statusCode == HTTP.NOT_FOUND.code) {
+                            logger.error("Encountered 404 for depot manifest ${depot.depotId} ${depot.manifestId}. Aborting.")
+                            break
+                        }
+
+                        logger.error("Encountered error downloading depot manifest ${depot.depotId} ${depot.manifestId}: ${e.statusCode}")
+                    } catch (e: Exception) {
+                        cdnPool.returnBrokenConnection(connection)
+                        logger.error(
+                            "Encountered error downloading depot manifest " +
+                                "${depot.depotId} ${depot.manifestId}:", e
+                        )
+                    }
+                } while (newManifest == null)
+
+                if (newManifest == null) {
+                    logger.debug("\nUnable to download manifest ${depot.manifestId} for depot ${depot.depotId}")
+                    coroutineContext.cancel(CancellationException("new manifest null"))
+                }
+
+                if (!coroutineContext.isActive) {
+                    throw CancellationException("Job cancelled")
+                }
+
+                saveManifestToFile(configDir, newManifest!!)
+            }
+        }
+
+        logger.debug("Manifest ${depot.manifestId} ${newManifest.creationTime}")
+
+        if (Config.downloadManifestOnly) {
+            dumpManifestToTextFile(depot, newManifest)
+            return null
+        }
+
+        val stagingDir = File(depot.depotId, STAGING_DIR)
+
+        val filesAfterExclusions = newManifest.files
+            .asSequence()
+            .filter { testIsFileIncluded(it.fileName) }
+            .toList()
+        val allFileNames = HashSet<String>(filesAfterExclusions.size)
+
+        // Pre-process
+        filesAfterExclusions.forEach { file ->
+            allFileNames.add(file.fileName)
+
+            val fileFinalPath = File(depot.installDir, file.fileName)
+            val fileStagingPath = File(stagingDir, file.fileName)
+
+            if (file.flags.contains(EDepotFileFlag.Directory)) {
+                Files.createDirectories(fileFinalPath.toPath())
+                Files.createDirectories(fileStagingPath.toPath())
+            } else {
+                // Some manifests don't explicitly include all necessary directories
+                Files.createDirectories(fileFinalPath.toPath().parent)
+                Files.createDirectories(fileStagingPath.toPath().parent)
+
+                downloadCounter.completeDownloadSize += file.totalSize
+                depotCounter.completeDownloadSize += file.totalSize
+            }
+        }
+
+        return DepotFilesData(
+            depotDownloadInfo = depot,
+            depotCounter = depotCounter,
+            stagingDir = stagingDir,
+            manifest = newManifest,
+            previousManifest = oldManifest,
+            filteredFiles = filesAfterExclusions.toCollection(ArrayList()),
+            allFileNames = allFileNames,
+        )
+    }
+
+    private suspend fun downloadSteam3AsyncDepotFiles(
+        downloadCounter: GlobalDownloadCounter,
+        depotFilesData: DepotFilesData,
+        allFileNamesAllDepots: HashSet<String>,
+        onDownloadProgress: ProgressCallback? = null,
+    ) = steamClient.defaultScope.async {
+        val depot = depotFilesData.depotDownloadInfo
+        val depotCounter = depotFilesData.depotCounter
+
+        logger.debug("Downloading depot ${depot.depotId}")
+
+        val files = depotFilesData.manifest.files.filter { !it.flags.contains(EDepotFileFlag.Directory) }.toTypedArray()
+        val networkChunkQueue = ConcurrentLinkedQueue<Triple<FileStreamData, FileData, ChunkData>>()
+
+        val downloadSemaphore = Semaphore(8) // TODO MAX DL's
+        files.map { file ->
+            async {
+                downloadSemaphore.withPermit {
+                    downloadSteam3AsyncDepotFile(
+                        downloadCounter = downloadCounter,
+                        depotFilesData = depotFilesData,
+                        file = file,
+                        networkChunkQueue = networkChunkQueue,
+                        onDownloadProgress = onDownloadProgress,
+                        parentScope = this
+                    ).await()
+                }
+            }
+        }.awaitAll()
+
+        networkChunkQueue.map { (fileStreamData, fileData, chunk) ->
+            async {
+                downloadSemaphore.withPermit {
+                    downloadSteam3AsyncDepotFileChunk(
+                        downloadCounter = downloadCounter,
+                        depotFilesData = depotFilesData,
+                        file = fileData,
+                        fileStreamData = fileStreamData,
+                        chunk = chunk,
+                        onDownloadProgress = onDownloadProgress,
+                        parentScope = this,
+                    ).await()
+                }
+            }
+        }.awaitAll()
+
+        // Check for deleted files if updating the depot.
+        if (depotFilesData.previousManifest != null) {
+            val previousFilteredFiles = files.asSequence().map { it.fileName }.toMutableSet()
+
+            // Check if we are writing to a single output directory. If not, each depot folder is managed independently
+            if (Config.InstallDirectory.isNullOrEmpty()) {
+                // Of the list of files in the previous manifest, remove any file names that exist in the current set of all file names
+                previousFilteredFiles.removeAll(depotFilesData.allFileNames)
+            } else {
+                // Of the list of files in the previous manifest, remove any file names that exist in the current set of all file names across all depots being downloaded
+                previousFilteredFiles.removeAll(allFileNamesAllDepots)
+            }
+
+            previousFilteredFiles.forEach { existingFileName ->
+                val fileFinalPath = Paths.get(depotFilesData.depotDownloadInfo.installDir, existingFileName).toString()
+
+                if (!File(fileFinalPath).exists()) {
+                    return@forEach
+                }
+
+                File(fileFinalPath).delete()
+
+                logger.debug("Deleted $fileFinalPath")
+            }
+        }
+
+        DepotConfigStore.instance!!.installedManifestIDs[depot.depotId] = depot.manifestId
+        DepotConfigStore.save()
+
+        logger.debug("Depot ${depot.depotId} - Downloaded ${depotCounter.depotBytesCompressed} bytes (${depotCounter.depotBytesUncompressed} bytes uncompressed)")
+    }
+
+    private fun downloadSteam3AsyncDepotFile(
+        downloadCounter: GlobalDownloadCounter,
+        depotFilesData: DepotFilesData,
+        file: FileData,
+        networkChunkQueue: ConcurrentLinkedQueue<Triple<FileStreamData, FileData, ChunkData>>,
+        onDownloadProgress: ProgressCallback? = null,
+        parentScope: CoroutineScope,
+    ) = parentScope.async {
+        if (!isActive) {
+            return@async
+        }
+
+        val depot = depotFilesData.depotDownloadInfo
+        val stagingDir = depotFilesData.stagingDir
+        val depotDownloadCounter = depotFilesData.depotCounter
+        val oldProtoManifest = depotFilesData.previousManifest
+        var oldManifestFile: FileData? = null
+
+        if (oldProtoManifest != null) {
+            oldManifestFile = oldProtoManifest.files.firstOrNull { it.fileName == file.fileName }
+        }
+
+        val fileFinalPath = Paths.get(depot.installDir, file.fileName).toString()
+        val fileStagingPath = Paths.get(stagingDir, file.fileName).toString()
+
+        // This may still exist if the previous run exited before cleanup
+        File(fileStagingPath).takeIf { it.exists() }?.delete()
+
+        var neededChunks: ArrayList<ChunkData>? = null
+        val fi = File(fileFinalPath)
+        val fileDidExist = fi.exists()
+
+        if (!fileDidExist) {
+            logger.debug("Pre-allocateding $fileFinalPath")
+
+            // create new file. need all chunks
+            File(fileFinalPath).outputStream().use { fs ->
+                try {
+                    fs.channel.truncate(file.totalSize)
+                } catch (e: IOException) {
+                    throw Exception("Failed to allocate file $fileFinalPath:", e)
+                }
+            }
+
+            neededChunks = ArrayList(file.chunks)
+        } else {
+            // open existing
+            if (oldManifestFile != null) {
+                neededChunks = ArrayList()
+
+                val hashMatches = oldManifestFile.fileHash.contentEquals(file.fileHash)
+                if (Config.VerifyAll || !hashMatches) {
+                    // we have a version of this file, but it doesn't fully match what we want
+
+                    if (Config.VerifyAll) {
+                        logger.debug("Validating $fileFinalPath")
+                    }
+
+                    val matchingChunks = ArrayList<ChunkMatch>()
+
+                    file.chunks.forEach { chunk ->
+                        val oldChunk =
+                            oldManifestFile.chunks.firstOrNull { c -> c.chunkID.contentEquals(chunk.chunkID) }
+                        if (oldChunk != null) {
+                            matchingChunks.add(ChunkMatch(oldChunk, chunk))
+                        } else {
+                            neededChunks.add(chunk)
+                        }
+                    }
+
+                    val orderedChunks = matchingChunks.sortedBy { it.oldChunk.offset }
+
+                    val copyChunks = ArrayList<ChunkMatch>()
+
+                    FileInputStream(fileFinalPath).use { fsOld ->
+                        orderedChunks.forEach { match ->
+                            fsOld.channel.position(match.oldChunk.offset)
+                            val adler = Utils.adlerHash(fsOld, match.oldChunk.uncompressedLength.toInt())
+
+                            if (adler != match.oldChunk.checksum) {
+                                neededChunks.add(match.newChunk)
+                            } else {
+                                copyChunks.add(match)
+                            }
+                        }
+                    }
+
+                    if (!hashMatches || neededChunks.isNotEmpty()) {
+                        Files.move(Path(fileFinalPath), Path(fileStagingPath))
+
+                        FileInputStream(fileStagingPath).use { fsOld ->
+                            FileOutputStream(fileFinalPath).use { fs ->
+                                try {
+                                    fs.channel.truncate(file.totalSize)
+                                } catch (ex: IOException) {
+                                    throw Exception("Failed to resize file to expected size $fileFinalPath: ${ex.message}")
+                                }
+
+                                val dataInput = DataInputStream(fsOld)
+                                copyChunks.forEach { match ->
+                                    fsOld.channel.position(match.oldChunk.offset)
+                                    val tmp = ByteArray(match.oldChunk.uncompressedLength.toInt())
+                                    dataInput.readFully(tmp)
+
+                                    fs.channel.position(match.newChunk.offset)
+                                    fs.write(tmp)
+                                }
+                            }
+                        }
+
+                        Files.delete(Path(fileStagingPath))
+                    }
+                }
+            } else {
+                // No old manifest or file not in old manifest. We must validate.
+                FileInputStream(fileFinalPath).use { fs ->
+                    val fi = File(fileFinalPath)
+                    if (fi.length() != file.totalSize) {
+                        try {
+                            fs.channel.truncate(file.totalSize)
+                        } catch (ex: IOException) {
+                            throw Exception("Failed to allocate file $fileFinalPath: ${ex.message}")
+                        }
+                    }
+
+                    logger.debug("Validating $fileFinalPath")
+                    neededChunks = validateSteam3FileChecksums(
+                        fs,
+                        file.chunks.sortedBy { it.offset }.toTypedArray()
+                    ).toCollection(ArrayList())
+                }
+            }
+
+            if (neededChunks!!.isEmpty()) {
+                synchronized(depotDownloadCounter) {
+                    depotDownloadCounter.sizeDownloaded += file.totalSize
+                }
+                onDownloadProgress?.onProgress(
+                    depotFilesData.depotCounter.sizeDownloaded.toFloat() / depotFilesData.depotCounter.completeDownloadSize
+                )
+
+                return@async
+            }
+
+            val sizeOnDisk = file.totalSize - neededChunks!!.sumOf { it.uncompressedLength.toLong() }
+            synchronized(depotDownloadCounter) {
+                depotDownloadCounter.sizeDownloaded += sizeOnDisk
+            }
+            onDownloadProgress?.onProgress(
+                depotFilesData.depotCounter.sizeDownloaded.toFloat() / depotFilesData.depotCounter.completeDownloadSize
+            )
+        }
+
+        val fileIsExecutable = file.flags.contains(EDepotFileFlag.Executable)
+        if (fileIsExecutable &&
+            (!fileDidExist || oldManifestFile == null || !oldManifestFile.flags.contains(EDepotFileFlag.Executable))
+        ) {
+            File(fileFinalPath).setExecutable(true)
+        } else if (!fileIsExecutable && oldManifestFile != null && oldManifestFile.flags.contains(EDepotFileFlag.Executable)) {
+            File(fileFinalPath).setExecutable(false)
+        }
+        val fileStreamData = FileStreamData(
+            fileStream = null,
+            fileLock = Semaphore(1),
+            chunksToDownload = AtomicInteger(neededChunks!!.size)
+        )
+        for (chunk in neededChunks) {
+            networkChunkQueue.add(Triple(fileStreamData, file, chunk))
+        }
+    }
+
+    private fun downloadSteam3AsyncDepotFileChunk(
+        downloadCounter: GlobalDownloadCounter,
+        depotFilesData: DepotFilesData,
+        file: FileData,
+        fileStreamData: FileStreamData,
+        chunk: ChunkData,
+        onDownloadProgress: ProgressCallback? = null,
+        parentScope: CoroutineScope,
+    ) = parentScope.async {
+        if (!isActive) {
+            return@async
+        }
+
+        val depot = depotFilesData.depotDownloadInfo
+        val depotDownloadCounter = depotFilesData.depotCounter
+
+        val chunkID = Strings.toHex(chunk.chunkID)
+
+        var written = 0
+        var chunkBuffer = ByteArray(chunk.uncompressedLength)
+
+        try {
+            do {
+                if (!isActive) {
+                    return@async
+                }
+
+                var connection: Server? = null
+
+                try {
+                    connection = cdnPool.getConnection().await()
+
+                    var cdnToken: String? = null
+                    val authTokenCallbackPromise = cdnAuthTokens.get(Pair(depot.depotId, connection!!.host))
+                    if (authTokenCallbackPromise != null) {
+                        val result = authTokenCallbackPromise.await()
+                        cdnToken = result.token
+                    }
+
+                    logger.debug(
+                        "Downloading chunk $chunkID from $connection " +
+                            "with ${if (cdnPool.proxyServer != null) cdnPool.proxyServer else "no proxy"}"
+                    )
+
+                    written = cdnPool.cdnClient.downloadDepotChunk(
+                        depotId = depot.depotId,
+                        chunk = chunk,
+                        server = connection,
+                        destination = chunkBuffer,
+                        depotKey = depot.depotKey,
+                        proxyServer = cdnPool.proxyServer
+                    ).await()
+
+                    cdnPool.returnConnection(connection)
+
+                    break
+                } catch (e: CancellationException) {
+                    logger.error("Connection timeout downloading chunk $chunkID", e)
+                } catch (e: SteamKitWebRequestException) {
+                    // If the CDN returned 403, attempt to get a cdn auth if we didn't yet,
+                    // if auth task already exists, make sure it didn't complete yet, so that it gets awaited above
+                    val authTokenCallbackPromise = cdnAuthTokens.get(Pair(depot.depotId, connection!!.host))
+                    if (e.statusCode == HTTP.FORBIDDEN.code &&
+                        authTokenCallbackPromise != null || !authTokenCallbackPromise!!.isCancelled
+                    ) {
+                        requestCDNAuthToken(depot.appId, depot.depotId, connection).await()
+
+                        cdnPool.returnConnection(connection)
+
+                        continue
+                    }
+
+                    cdnPool.returnBrokenConnection(connection)
+
+                    if (e.statusCode == HTTP.UNAUTHORIZED.code || e.statusCode == HTTP.FORBIDDEN.code) {
+                        logger.error("Encountered ${e.statusCode} for chunk $chunkID. Aborting.")
+                        break
+                    }
+
+                    logger.error("Encountered error downloading chunk $chunkID: ${e.statusCode}")
+                } catch (e: Exception) {
+                    cdnPool.returnBrokenConnection(connection)
+
+                    logger.error("Encountered unexpected error downloading chunk $chunkID", e)
+                }
+            } while (isActive && written <= 0)
+
+            if (written <= 0) {
+                logger.error("Failed to find any server with chunk $chunkID for depot ${depot.depotId}. Aborting.")
+                throw CancellationException("Failed to download chunk")
+            }
+
+            // Throw the cancellation exception if requested so that this task is marked failed
+            if (!isActive) {
+                return@async
+            }
+
+            fileStreamData.fileLock.withPermit {
+                if (fileStreamData.fileStream == null) {
+                    val fileFinalPath = File(depot.installDir, file.fileName).path
+                    fileStreamData.fileStream = FileChannel.open(
+                        Path(fileFinalPath),
+                        StandardOpenOption.READ,
+                        StandardOpenOption.WRITE
+                    )
+
+                    fileStreamData.fileStream?.apply {
+                        position(chunk.offset)
+                        withContext(Dispatchers.IO) {
+                            write(ByteBuffer.wrap(chunkBuffer, 0, written))
+                        }
+                    }
+                }
+            }
+        } finally {
+            chunkBuffer.fill(0)
+        }
+
+        val remainingChunks = fileStreamData.chunksToDownload.decrementAndGet()
+        if (remainingChunks == 0) {
+            logger.debug("No more remaining chunks, closing streams.") // TODO remove once validated.
+            fileStreamData.fileStream?.close()
+            fileStreamData.fileLock.release()
+        }
+
+        var sizeDownloaded = 0L
+        synchronized(depotDownloadCounter) {
+            sizeDownloaded = depotDownloadCounter.sizeDownloaded + written
+            depotDownloadCounter.sizeDownloaded = sizeDownloaded
+            depotDownloadCounter.depotBytesCompressed += chunk.compressedLength
+            depotDownloadCounter.depotBytesUncompressed += chunk.uncompressedLength
+        }
+
+        synchronized(downloadCounter) {
+            downloadCounter.totalBytesCompressed += chunk.compressedLength
+            downloadCounter.totalBytesUncompressed += chunk.uncompressedLength
+        }
+
+        onDownloadProgress?.onProgress(
+            depotFilesData.depotCounter.sizeDownloaded.toFloat() / depotFilesData.depotCounter.completeDownloadSize
+        )
+
+        if (remainingChunks == 0) {
+            val fileFinalPath = File(depot.installDir, file.fileName).path
+            val percentage = (sizeDownloaded.toFloat() / depotDownloadCounter.completeDownloadSize) * 100f
+            logger.debug("${"%6.2f".format(percentage)}% $fileFinalPath")
+        }
 
     }
 
@@ -712,7 +1411,8 @@ class ContentDownloader(val steamClient: SteamClient) {
         val steamContent = steamClient.getHandler<SteamContent>()
             ?: throw NullPointerException("Unable to get SteamContent handler")
 
-        val requestCode = steamContent.getManifestRequestCode(depotId, appId, manifestId, branch, null, this).await()
+        val requestCode =
+            steamContent.getManifestRequestCode(depotId, appId, manifestId, branch, null, this).await()
 
         if (requestCode == 0L) {
             logger.debug("No manifest request code was returned for depot $depotId from app $appId, manifest $manifestId")
