@@ -5,12 +5,12 @@ import com.squareup.kotlinpoet.ParameterizedTypeName.Companion.parameterizedBy
 import java.io.File
 import java.util.*
 
-class ProtoParser(private val outputDir: File) {
+class ProtoParser(
+    private val outputDir: File,
+    private val servicePackage: String,
+) {
 
     private companion object {
-        private const val RPC_PACKAGE = "in.dragonbra.javasteam.rpc"
-        private const val SERVICE_PACKAGE = "${RPC_PACKAGE}.service"
-
         private val suppressAnnotation = AnnotationSpec
             .builder(Suppress::class)
             .addMember("%S", "KDocUnresolvedReference") // IntelliJ's seems to get confused with canonical names
@@ -25,7 +25,7 @@ class ProtoParser(private val outputDir: File) {
      * Then loop through all RPC interface methods, destructuring them to name, type, and response and put them in a list.
      * Collect the items into a [Service] and pass it off to [buildClass]
      */
-    fun parseFile(file: File) {
+    fun parseFile(file: File, importPackage: String) {
         Regex("""service\s+(\w+)\s*\{([^}]*)}""")
             .findAll(file.readText())
             .forEach { serviceMatch ->
@@ -47,7 +47,7 @@ class ProtoParser(private val outputDir: File) {
                 Service(serviceName, serviceMethods).also { service ->
                     println("[${file.name}] - found \"${service.name}\", which has ${service.methods.size} methods")
 
-                    buildClass(file, service)
+                    buildClass(file, service, importPackage)
                 }
             }
     }
@@ -82,7 +82,11 @@ class ProtoParser(private val outputDir: File) {
     /**
      * Build the [Service] to a class with all known RPC methods.
      */
-    private fun buildClass(file: File, service: Service) {
+    private fun buildClass(
+        file: File,
+        service: Service,
+        importPackage: String,
+    ) {
         val protoFileName = transformProtoFileName(file.name)
 
         // Class Builder
@@ -129,7 +133,7 @@ class ProtoParser(private val outputDir: File) {
                 // HAS Response
                 numResponse++
                 val className = ClassName(
-                    packageName = "in.dragonbra.javasteam.protobufs.steamclient.$protoFileName",
+                    packageName = "$importPackage$protoFileName",
                     method.responseType
                 )
                 responseBlock.addStatement(
@@ -141,7 +145,7 @@ class ProtoParser(private val outputDir: File) {
                 // NO Response
                 numNotification++
                 val className = ClassName(
-                    packageName = "in.dragonbra.javasteam.protobufs.steamclient.$protoFileName",
+                    packageName = "$importPackage$protoFileName",
                     method.requestType
                 )
                 notificationBlock.addStatement(
@@ -192,7 +196,7 @@ class ProtoParser(private val outputDir: File) {
                     .addParameter(
                         "request",
                         ClassName(
-                            packageName = "in.dragonbra.javasteam.protobufs.steamclient.$protoFileName",
+                            packageName = "$importPackage$protoFileName",
                             method.requestType
                         )
                     )
@@ -207,14 +211,14 @@ class ProtoParser(private val outputDir: File) {
                             packageName = "in.dragonbra.javasteam.steam.handlers.steamunifiedmessages.callback",
                             "ServiceMethodResponse"
                         ).parameterizedBy(
-                            ClassName.bestGuess("in.dragonbra.javasteam.protobufs.steamclient.$protoFileName.${method.responseType}.Builder")
+                            ClassName.bestGuess("$importPackage$protoFileName.${method.responseType}.Builder")
                         )
                     )
                 )
                 funcBuilder.addStatement(
                     format = "return unifiedMessages!!.sendMessage(\n%T.Builder::class.java,\n%S,\nrequest\n)",
                     ClassName(
-                        packageName = "in.dragonbra.javasteam.protobufs.steamclient.$protoFileName",
+                        packageName = "$importPackage$protoFileName",
                         method.responseType
                     ),
                     "${service.name}.${method.methodName}#1"
@@ -223,7 +227,7 @@ class ProtoParser(private val outputDir: File) {
                 funcBuilder.addStatement(
                     format = "unifiedMessages!!.sendNotification<%T.Builder>(\n%S,\nrequest\n)",
                     ClassName(
-                        packageName = "in.dragonbra.javasteam.protobufs.steamclient.$protoFileName",
+                        packageName = "$importPackage$protoFileName",
                         method.requestType
                     ),
                     "${service.name}.${method.methodName}#1"
@@ -234,7 +238,7 @@ class ProtoParser(private val outputDir: File) {
         }
 
         // Build everything together and write it
-        FileSpec.builder(SERVICE_PACKAGE, service.name)
+        FileSpec.builder(servicePackage, service.name)
             .addType(cBuilder.build())
             .build()
             .writeTo(outputDir)

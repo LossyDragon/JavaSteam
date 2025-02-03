@@ -5,14 +5,14 @@ import org.gradle.api.DefaultTask
 import org.gradle.api.tasks.TaskAction
 import java.io.File
 
-open class RpcGenTask : DefaultTask() {
+open class WebUiRpcGenTask : DefaultTask() {
 
     companion object {
         private const val KDOC_AUTHOR = "Lossy"
-        private const val KDOC_DATE = "2024-04-10"
+        private const val KDOC_DATE = "2025-02-03"
 
         private const val RPC_PACKAGE = "in.dragonbra.javasteam.rpc"
-        private const val SERVICE_PACKAGE = "${RPC_PACKAGE}.service"
+        private const val SERVICE_PACKAGE = "${RPC_PACKAGE}.service.webui"
 
         val kDocClass = """
             |@author $KDOC_AUTHOR
@@ -30,7 +30,7 @@ open class RpcGenTask : DefaultTask() {
 
     @TaskAction
     fun generate() {
-        println("Generating RPC service methods as interfaces")
+        println("Generating Web UI RPC service methods as interfaces")
 
         outputDir.mkdirs()
 
@@ -39,7 +39,7 @@ open class RpcGenTask : DefaultTask() {
         protoDirectory.walkTopDown()
             .filter { it.isFile && it.extension == "proto" }
             .forEach { file ->
-                protoParser.parseFile(file, "in.dragonbra.javasteam.protobufs.steamclient.")
+                protoParser.parseFile(file, "in.dragonbra.javasteam.protobufs.webui.")
             }
     }
 }

@@ -32,5 +32,9 @@ gradlePlugin {
             id = "rpcinterfacegen"
             implementationClass = "in.dragonbra.generators.rpc.RpcGenPlugin"
         }
+        create("webuirpcinterfacegen") {
+            id = "webuirpcinterfacegen"
+            implementationClass = "in.dragonbra.generators.rpc.WebUiRpcGenPlugin"
+        }
     }
 }
