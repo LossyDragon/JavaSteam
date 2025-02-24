@@ -6,35 +6,33 @@ import `in`.dragonbra.javasteam.types.ChunkData
 import `in`.dragonbra.javasteam.types.DepotManifest
 import `in`.dragonbra.javasteam.util.SteamKitWebRequestException
 import `in`.dragonbra.javasteam.util.Strings
-import `in`.dragonbra.javasteam.util.compat.readNBytesCompat
 import `in`.dragonbra.javasteam.util.log.LogManager
 import `in`.dragonbra.javasteam.util.log.Logger
 import `in`.dragonbra.javasteam.util.stream.MemoryStream
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.future.future
 import kotlinx.coroutines.withTimeout
 import okhttp3.HttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import java.io.ByteArrayOutputStream
 import java.io.Closeable
 import java.io.IOException
 import java.util.concurrent.*
 import java.util.zip.DataFormatException
 import java.util.zip.ZipInputStream
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * The [Client] class is used for downloading game content from the Steam servers.
+ *
  * @constructor Initializes a new instance of the [Client] class.
- * @param steamClient The [SteamClient] this instance will be associated with.
- * The SteamClient instance must be connected and logged onto Steam.
+ * @param steamClient The [SteamClient] this instance will be associated with. The SteamClient instance must be connected and logged onto Steam.
  */
 class Client(steamClient: SteamClient) : Closeable {
-
-    private val httpClient: OkHttpClient = steamClient.configuration.httpClient
-
-    private val defaultScope = CoroutineScope(Dispatchers.IO)
 
     companion object {
 
@@ -43,12 +41,12 @@ class Client(steamClient: SteamClient) : Closeable {
         /**
          * Default timeout to use when making requests
          */
-        var requestTimeout = 10000L
+        var requestTimeout: Duration = 10.seconds
 
         /**
          * Default timeout to use when reading the response body
          */
-        var responseBodyTimeout = 60000L
+        var responseBodyTimeout: Duration = 60.seconds
 
         @JvmStatic
         @JvmOverloads
@@ -63,9 +61,9 @@ class Client(steamClient: SteamClient) : Closeable {
             if (proxyServer != null && proxyServer.useAsProxy && proxyServer.proxyRequestPathTemplate != null) {
                 httpUrl = HttpUrl.Builder()
                     .scheme(if (proxyServer.protocol == Server.ConnectionProtocol.HTTP) "http" else "https")
-                    .host(proxyServer.vHost)
+                    .host(proxyServer.vHost!!)
                     .port(proxyServer.port)
-                    .addPathSegment(server.vHost)
+                    .addPathSegment(server.vHost!!)
                     .addPathSegments(command)
                     .run {
                         query?.let { this.query(it) } ?: this
@@ -73,7 +71,7 @@ class Client(steamClient: SteamClient) : Closeable {
             } else {
                 httpUrl = HttpUrl.Builder()
                     .scheme(if (server.protocol == Server.ConnectionProtocol.HTTP) "http" else "https")
-                    .host(server.vHost)
+                    .host(server.vHost!!)
                     .port(server.port)
                     .addPathSegments(command)
                     .run {
@@ -85,6 +83,10 @@ class Client(steamClient: SteamClient) : Closeable {
         }
     }
 
+    private val httpClient: OkHttpClient = steamClient.configuration.httpClient
+
+    private val defaultScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+
     /**
      * Disposes of this object.
      */
@@ -93,13 +95,14 @@ class Client(steamClient: SteamClient) : Closeable {
     }
 
     /**
-     * Downloads the depot manifest specified by the given manifest ID, and optionally decrypts the manifest's filenames if the depot decryption key has been provided.
+     * Downloads the depot manifest specified by the given manifest ID,
+     *      and optionally decrypts the manifest's filenames if the depot decryption key has been provided.
      * @param depotId The id of the depot being accessed.
      * @param manifestId The unique identifier of the manifest to be downloaded.
      * @param manifestRequestCode The manifest request code for the manifest that is being downloaded.
      * @param server The content server to connect to.
      * @param depotKey The depot decryption key for the depot that will be downloaded.
-     * This is used for decrypting filenames (if needed) in depot manifests.
+     *      This is used for decrypting filenames (if needed) in depot manifests.
      * @param proxyServer Optional content server marked as UseAsProxy which transforms the request.
      * @param cdnAuthToken CDN auth token for CDN content server endpoints if necessary. Get one with [SteamContent.getCDNAuthToken].
      * @return A [DepotManifest] instance that contains information about the files present within a depot.
@@ -108,17 +111,24 @@ class Client(steamClient: SteamClient) : Closeable {
      * @exception SteamKitWebRequestException A network error occurred when performing the request.
      * @exception DataFormatException When the data received is not as expected
      */
+    @Throws(
+        IllegalArgumentException::class,
+        IOException::class,
+        TimeoutCancellationException::class,
+        SteamKitWebRequestException::class,
+        DataFormatException::class
+    )
     suspend fun downloadManifest(
         depotId: Int,
         manifestId: Long,
-        manifestRequestCode: ULong,
+        manifestRequestCode: Long,
         server: Server,
         depotKey: ByteArray? = null,
         proxyServer: Server? = null,
         cdnAuthToken: String? = null,
     ): DepotManifest {
-        val manifestVersion = 5
-        val url = if (manifestRequestCode > 0U) {
+        val manifestVersion = 5 // Constant value
+        val url = if (manifestRequestCode > 0) {
             "depot/$depotId/manifest/$manifestId/$manifestVersion/$manifestRequestCode"
         } else {
             "depot/$depotId/manifest/$manifestId/$manifestVersion"
@@ -128,63 +138,95 @@ class Client(steamClient: SteamClient) : Closeable {
             .url(buildCommand(server, url, cdnAuthToken, proxyServer))
             .build()
 
-        return withTimeout(requestTimeout) {
-            val response = httpClient.newCall(request).execute()
+        var depotManifest: DepotManifest? = null
+
+        try {
+            val response = withTimeout(requestTimeout) {
+                httpClient.newCall(request).execute() // TODO move to Ktor because it's cool
+            }
 
             if (!response.isSuccessful) {
                 throw SteamKitWebRequestException(
-                    "Response status code does not indicate success: ${response.code} (${response.message})",
-                    response
+                    message = "Response status code does not indicate success: ${response.code} (${response.message})",
+                    response = response
                 )
             }
 
-            val depotManifest = withTimeout(responseBodyTimeout) {
-                val contentLength = response.header("Content-Length")?.toIntOrNull()
+            var contentLength = -1
+            var buffer: ByteArray? = null
 
-                if (contentLength == null) {
-                    logger.debug("Manifest response does not have Content-Length, falling back to unbuffered read.")
+            withTimeout(responseBodyTimeout) {
+                if (response.header("Content-Length") != null) {
+                    contentLength = response.header("Content-Length")?.toInt() ?: -1
+                    buffer = ByteArray(contentLength)
+                } else {
+                    logger.error("Manifest response has no Content-Length, falling back to unbuffered read.")
                 }
 
-                response.body.byteStream().use { inputStream ->
-                    ByteArrayOutputStream().use { bs ->
-                        val bytesRead = inputStream.copyTo(bs, contentLength ?: DEFAULT_BUFFER_SIZE)
+                try {
+                    var ms: MemoryStream
 
-                        if (bytesRead != contentLength?.toLong()) {
-                            throw DataFormatException("Length mismatch after downloading depot manifest! (was $bytesRead, but should be $contentLength)")
-                        }
+                    if (buffer != null) {
+                        ms = MemoryStream(buffer, 0, contentLength)
 
-                        val contentBytes = bs.toByteArray()
-
-                        MemoryStream(contentBytes).use { ms ->
-                            ZipInputStream(ms).use { zip ->
-                                var entryCount = 0
-                                while (zip.nextEntry != null) {
-                                    entryCount++
-                                }
-                                if (entryCount > 1) {
-                                    logger.debug("Expected the zip to contain only one file")
-                                }
+                        // Stream the http response into the rented buffer
+                        response.body.byteStream().use { input ->
+                            ms.asOutputStream().use { output ->
+                                input.copyTo(output)
                             }
                         }
 
-                        // Decompress the zipped manifest data
-                        MemoryStream(contentBytes).use { ms ->
-                            ZipInputStream(ms).use { zip ->
-                                zip.nextEntry
-                                DepotManifest.deserialize(zip)
-                            }
+                        if (ms.position.toInt() != contentLength) {
+                            throw DataFormatException(
+                                "Length mismatch after downloading depot manifest!" +
+                                    "was ${ms.position}, but should be $contentLength"
+                            )
+                        }
+
+                        ms.position = 0
+                    } else {
+                        val data = response.body.bytes()
+                        ms = MemoryStream(data)
+                    }
+
+                    // Decompress the zipped manifest data
+                    ZipInputStream(ms).use { zip ->
+                        var entryCount = 0
+                        while (zip.nextEntry != null) {
+                            entryCount++
+                        }
+                        if (entryCount != 1) {
+                            logger.debug("Expected the zip to contain only one file")
                         }
                     }
+
+                    // Open it again because we can't reverse our current entry in a single pass.
+                    ZipInputStream(ms).use { zip ->
+                        zip.nextEntry // Position at first entry
+                        depotManifest = DepotManifest.deserialize(zip)
+                    }
+
+                    ms.close()
+                } finally {
+                    buffer?.fill(0)
+                    buffer = null
                 }
             }
 
-            depotKey?.let { key ->
-                // if we have the depot key, decrypt the manifest filenames
-                depotManifest.decryptFilenames(key)
-            }
-
-            depotManifest
+            response.close() // Close the response since we're done.
+        } catch (e: Exception) {
+            logger.error("Failed to download manifest ${request.url}", e)
+            throw e
         }
+
+        if (depotKey != null) {
+            // if we have the depot key, decrypt the manifest filenames
+            depotManifest?.decryptFilenames(depotKey)
+        }
+
+        requireNotNull(depotManifest) // Sanity check
+
+        return depotManifest
     }
 
     /**
@@ -205,6 +247,13 @@ class Client(steamClient: SteamClient) : Closeable {
      * @exception DataFormatException When the data received is not as expected
      */
     @JvmOverloads
+    @Throws(
+        IllegalArgumentException::class,
+        IOException::class,
+        TimeoutCancellationException::class,
+        SteamKitWebRequestException::class,
+        DataFormatException::class
+    )
     fun downloadManifestFuture(
         depotId: Int,
         manifestId: Long,
@@ -217,7 +266,7 @@ class Client(steamClient: SteamClient) : Closeable {
         downloadManifest(
             depotId = depotId,
             manifestId = manifestId,
-            manifestRequestCode = manifestRequestCode.toULong(),
+            manifestRequestCode = manifestRequestCode,
             server = server,
             depotKey = depotKey,
             proxyServer = proxyServer,
@@ -244,6 +293,7 @@ class Client(steamClient: SteamClient) : Closeable {
      * @exception IllegalStateException Thrown if the downloaded data does not match the expected length.
      * @exception SteamKitWebRequestException A network error occurred when performing the request.
      */
+    @Throws(IllegalArgumentException::class, IllegalStateException::class, SteamKitWebRequestException::class)
     suspend fun downloadDepotChunk(
         depotId: Int,
         chunk: ChunkData,
@@ -253,92 +303,119 @@ class Client(steamClient: SteamClient) : Closeable {
         proxyServer: Server? = null,
         cdnAuthToken: String? = null,
     ): Int {
-        require(chunk.chunkID != null) { "Chunk must have a ChunkID." }
+        requireNotNull(chunk.chunkID) { "Chunk must have a ChunkID." }
 
         if (depotKey == null) {
             if (destination.size < chunk.compressedLength) {
-                throw IllegalArgumentException("The destination buffer must be longer than the chunk CompressedLength (since no depot key was provided).")
+                throw IllegalArgumentException(
+                    "The destination buffer must be longer than the " +
+                        "chunk CompressedLength (since no depot key was provided)."
+                )
             }
         } else {
             if (destination.size < chunk.uncompressedLength) {
-                throw IllegalArgumentException("The destination buffer must be longer than the chunk UncompressedLength.")
+                throw IllegalArgumentException(
+                    "The destination buffer must be longer than the " +
+                        "chunk UncompressedLength."
+                )
             }
         }
 
         val chunkID = Strings.toHex(chunk.chunkID)
         val url = "depot/$depotId/chunk/$chunkID"
 
-        val request: Request = if (ClientLancache.useLanCacheServer) {
+        val request = if (ClientLancache.useLanCacheServer) {
             ClientLancache.buildLancacheRequest(server, url, cdnAuthToken)
         } else {
             Request.Builder().url(buildCommand(server, url, cdnAuthToken, proxyServer)).build()
         }
 
-        withTimeout(requestTimeout) {
+        val response = withTimeout(requestTimeout) {
             httpClient.newCall(request).execute()
-        }.use { response ->
+        }
+
+        try {
             if (!response.isSuccessful) {
                 throw SteamKitWebRequestException(
-                    "Response status code does not indicate success: ${response.code} (${response.message})",
-                    response
+                    message = "Response status code does not indicate success: ${response.code} (${response.message})",
+                    response = response
                 )
             }
 
             var contentLength = chunk.compressedLength
 
-            response.header("Content-Length")?.toLongOrNull()?.let { responseContentLength ->
-                contentLength = responseContentLength.toInt()
+            if (response.header("Content-Length")?.toInt() != null) {
+                contentLength = response.header("Content-Length")!!.toInt()
 
                 // assert that lengths match only if the chunk has a length assigned.
                 if (chunk.compressedLength > 0 && contentLength != chunk.compressedLength) {
-                    throw IllegalStateException("Content-Length mismatch for depot chunk! (was $contentLength, but should be ${chunk.compressedLength})")
-                }
-            } ?: run {
-                if (contentLength > 0) {
-                    logger.debug("Response does not have Content-Length, falling back to chunk.compressedLength.")
-                } else {
-                    throw SteamKitWebRequestException(
-                        "Response does not have Content-Length and chunk.compressedLength is not set.",
-                        response
+                    throw IllegalStateException(
+                        "Content-Length mismatch for depot chunk! " +
+                            "(was $contentLength, but should be ${chunk.compressedLength})"
                     )
                 }
+            } else if (contentLength > 0) {
+                logger.debug("Response does not have Content-Length, falling back to chunk.compressedLength.")
+            } else {
+                throw SteamKitWebRequestException(
+                    "Response does not have Content-Length and chunk.compressedLength is not set.",
+                    response
+                )
             }
 
-            // If no depot key is provided, stream into the destination buffer without renting
-            if (depotKey == null) {
-                val bytesRead = withTimeout(responseBodyTimeout) {
-                    response.body.byteStream().use { input ->
-                        input.readNBytesCompat(destination, 0, contentLength)
+            return withTimeout(responseBodyTimeout) {
+                // If no depot key is provided, stream into the destination buffer without renting
+                if (depotKey == null) {
+                    MemoryStream(destination, 0, contentLength).use { ms ->
+                        response.body.byteStream().use { input ->
+                            ms.asOutputStream().use { output ->
+                                input.copyTo(output)
+                            }
+                        }
+
+                        if (ms.position.toInt() != contentLength) {
+                            throw IOException(
+                                "Length mismatch after downloading depot chunk! " +
+                                    "(was ${ms.position}, but should be $contentLength)"
+                            )
+                        }
+
+                        return@withTimeout contentLength
                     }
                 }
 
-                if (bytesRead != contentLength) {
-                    throw IOException("Length mismatch after downloading depot chunk! (was $bytesRead, but should be $contentLength)")
-                }
+                // We have to stream into a temporary buffer because a decryption will need to be performed
+                var buffer = ByteArray(contentLength)
 
-                return contentLength
-            }
+                try {
+                    MemoryStream(buffer, 0, contentLength).use { ms ->
+                        response.body.byteStream().use { input ->
+                            ms.asOutputStream().use { output ->
+                                input.copyTo(output)
+                            }
+                        }
 
-            // We have to stream into a temporary buffer because a decryption will need to be performed
-            val buffer = ByteArray(contentLength)
+                        if (ms.position.toInt() != contentLength) {
+                            throw IOException(
+                                "Length mismatch after downloading encrypted depot chunk! " +
+                                    "(was ${ms.position}, but should be $contentLength)"
+                            )
+                        }
 
-            try {
-                val bytesRead = withTimeout(responseBodyTimeout) {
-                    response.body.byteStream().use { input ->
-                        input.readNBytesCompat(buffer, 0, contentLength)
+                        // process the chunk immediately
+                        val writtenLength = DepotChunk.process(chunk, buffer, destination, depotKey)
+                        return@withTimeout writtenLength
                     }
+                } finally {
+                    buffer.fill(0)
+                    // buffer = null
                 }
-
-                if (bytesRead != contentLength) {
-                    throw IOException("Length mismatch after downloading encrypted depot chunk! (was $bytesRead, but should be $contentLength)")
-                }
-
-                // process the chunk immediately
-                return DepotChunk.process(chunk, buffer, destination, depotKey)
-            } catch (ex: Exception) {
-                logger.error("Failed to download a depot chunk ${request.url}", ex)
-                throw ex
             }
+        } catch (e: Exception) {
+            logger.error("Failed to download a depot chunk ${request.url}", e)
+            throw e
+        } finally {
+            response.close()
         }
     }
 
@@ -363,6 +440,7 @@ class Client(steamClient: SteamClient) : Closeable {
      * @exception SteamKitWebRequestException A network error occurred when performing the request.
      */
     @JvmOverloads
+    @Throws(IllegalArgumentException::class, IllegalStateException::class, SteamKitWebRequestException::class)
     fun downloadDepotChunkFuture(
         depotId: Int,
         chunk: ChunkData,

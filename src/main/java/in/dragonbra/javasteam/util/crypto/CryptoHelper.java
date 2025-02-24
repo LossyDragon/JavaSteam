@@ -349,4 +349,17 @@ public class CryptoHelper {
             throw new CryptoException("NetFilterEncryption was unable to decrypt packet", e);
         }
     }
+
+    public static byte[] symmetricDecryptECB(byte[] input, byte[] key) {
+        Cipher cipher = null;
+        try {
+            cipher = Cipher.getInstance("AES/ECB/PKCS5Padding", SEC_PROV);
+            var secretKey = new SecretKeySpec(key, "AES");
+            cipher.init(Cipher.DECRYPT_MODE, secretKey);
+            return cipher.doFinal(input);
+        } catch (NoSuchAlgorithmException | NoSuchPaddingException | NoSuchProviderException | InvalidKeyException |
+                 IllegalBlockSizeException | BadPaddingException e) {
+            return null;
+        }
+    }
 }

@@ -74,7 +74,8 @@ object ClientLancache {
                 .query(query)
                 .build()
         )
-        .header("Host", server.host)
+        .header("Host", server.host!!)
+        // User agent must match the Steam client in order for Lancache to correctly identify and cache Valve's CDN content
         .header("User-Agent", "Valve/Steam HTTP Client 1.0")
         .build()
 }

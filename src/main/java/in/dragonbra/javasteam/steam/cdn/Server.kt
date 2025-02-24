@@ -1,24 +1,41 @@
 package `in`.dragonbra.javasteam.steam.cdn
 
+import java.net.InetSocketAddress
+
 /**
  * Represents a single Steam3 'Steampipe' content server.
+ *
+ * @author Oxters
+ * @author Lossy
+ * @since 29-10-2024
  */
-class Server @JvmOverloads constructor(
-    protocol: ConnectionProtocol = ConnectionProtocol.HTTP,
-    host: String,
-    vHost: String,
-    port: Int,
-    type: String? = null,
-    sourceID: Int = 0,
-    cellID: Int = 0,
-    load: Int = 0,
-    weightedLoad: Float = 0f,
-    numEntries: Int = 0,
-    steamChinaOnly: Boolean = false,
-    useAsProxy: Boolean = false,
-    proxyRequestPathTemplate: String? = null,
-    allowedAppIds: IntArray = IntArray(0),
-) {
+@Suppress("unused")
+class Server {
+
+    companion object {
+
+        /**
+         * Creates a Server from an InetSocketAddress
+         */
+        @JvmStatic
+        fun fromInetSocketAddress(endpoint: InetSocketAddress): Server = Server(
+            protocol = if (endpoint.port == 443) ConnectionProtocol.HTTPS else ConnectionProtocol.HTTP,
+            host = endpoint.address.hostAddress,
+            vHost = endpoint.address.hostAddress,
+            port = endpoint.port,
+        )
+
+        /**
+         * Creates a Server from a hostname and port
+         */
+        @JvmStatic
+        fun fromHostAndPort(hostname: String, port: Int): Server = Server(
+            protocol = if (port == 443) ConnectionProtocol.HTTPS else ConnectionProtocol.HTTP,
+            host = hostname,
+            vHost = hostname,
+            port = port,
+        )
+    }
 
     /**
      * The protocol used to connect to this server
@@ -35,93 +52,102 @@ class Server @JvmOverloads constructor(
         HTTPS,
     }
 
+    constructor()
+
+    constructor(protocol: ConnectionProtocol, host: String, vHost: String, port: Int) {
+        this.protocol = protocol
+        this.host = host
+        this.vHost = vHost
+        this.port = port
+    }
+
     /**
      * Gets the supported connection protocol of the server.
      */
-    var protocol = protocol
+    var protocol: ConnectionProtocol = ConnectionProtocol.HTTP
         internal set
 
     /**
      * Gets the hostname of the server.
      */
-    var host = host
+    var host: String? = null
         internal set
 
     /**
      * Gets the virtual hostname of the server.
      */
-    var vHost = vHost
+    var vHost: String? = null
         internal set
 
     /**
      * Gets the port of the server.
      */
-    var port = port
+    var port: Int = 0
         internal set
 
     /**
      * Gets the type of the server.
      */
-    var type = type
+    var type: String? = null
         internal set
 
     /**
      * Gets the SourceID this server belongs to.
      */
-    @Suppress("unused")
-    var sourceID = sourceID
+    var sourceID: Int = 0
         internal set
 
     /**
      * Gets the CellID this server belongs to.
      */
-    var cellID = cellID
+    var cellID: Int = 0
         internal set
 
     /**
      * Gets the load value associated with this server.
      */
-    var load = load
+    var load: Int = 0
         internal set
 
     /**
      * Gets the weighted load.
      */
-    var weightedLoad = weightedLoad
+    var weightedLoad: Float = 0f
         internal set
 
     /**
      * Gets the number of entries this server is worth.
      */
-    var numEntries = numEntries
+    var numEntries: Int = 0
         internal set
 
     /**
      * Gets the flag whether this server is for Steam China only.
      */
-    var steamChinaOnly = steamChinaOnly
+    var steamChinaOnly: Boolean = false
         internal set
 
     /**
      * Gets the download proxy status.
      */
-    var useAsProxy = useAsProxy
+    var useAsProxy: Boolean = false
         internal set
 
     /**
      * Gets the transformation template applied to request paths.
      */
-    var proxyRequestPathTemplate = proxyRequestPathTemplate
+    var proxyRequestPathTemplate: String? = null
         internal set
 
     /**
      * Gets the list of app ids this server can be used with.
      */
-    var allowedAppIds = allowedAppIds
+    var allowedAppIds: IntArray = IntArray(0)
         internal set
 
     /**
-     * Returns a string that represents this server.
+     * Returns a [String] that represents this server.
+     * @return a [String] that represents this server.
      */
     override fun toString(): String = "$host:$port ($type)"
 }

@@ -14,6 +14,10 @@ import javax.crypto.spec.SecretKeySpec
 
 /**
  * Provides a helper function to decrypt and decompress a single depot chunk.
+ *
+ * @author Oxters
+ * @author Lossy
+ * @since 29-10-2024
  */
 object DepotChunk {
 
@@ -28,6 +32,7 @@ object DepotChunk {
      * @exception IllegalArgumentException Thrown if the destination size is too small or the depot key is not 32 bytes long
      */
     @JvmStatic
+    @Throws(IOException::class, IllegalArgumentException::class)
     fun process(
         info: ChunkData,
         data: ByteArray,

@@ -18,21 +18,21 @@ object ContentServerDirectoryService {
             Server.ConnectionProtocol.HTTP
         }
 
-        Server(
-            protocol = protocol,
-            host = child.host,
-            vHost = child.vhost,
-            port = if (protocol == Server.ConnectionProtocol.HTTPS) 443 else 80,
-            type = child.type,
-            sourceID = child.sourceId,
-            cellID = child.cellId,
-            load = child.load,
-            weightedLoad = child.weightedLoad,
-            numEntries = child.numEntriesInClientList,
-            steamChinaOnly = child.steamChinaOnly,
-            useAsProxy = child.useAsProxy,
-            proxyRequestPathTemplate = child.proxyRequestPathTemplate,
+        Server().apply {
+            this.protocol = protocol
+            host = child.host
+            vHost = child.vhost
+            port = if (protocol == Server.ConnectionProtocol.HTTPS) 443 else 80
+            type = child.type
+            sourceID = child.sourceId
+            cellID = child.cellId
+            load = child.load
+            weightedLoad = child.weightedLoad
+            numEntries = child.numEntriesInClientList
+            steamChinaOnly = child.steamChinaOnly
+            useAsProxy = child.useAsProxy
+            proxyRequestPathTemplate = child.proxyRequestPathTemplate
             allowedAppIds = child.allowedAppIdsList.toIntArray()
-        )
+        }
     }
 }
