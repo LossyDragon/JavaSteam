@@ -4,52 +4,41 @@ import `in`.dragonbra.javasteam.enums.EAccountType
 import `in`.dragonbra.javasteam.enums.EAppInfoSection
 import `in`.dragonbra.javasteam.enums.EDepotFileFlag
 import `in`.dragonbra.javasteam.enums.EResult
-import `in`.dragonbra.javasteam.steam.cdn.Server
+import `in`.dragonbra.javasteam.protobufs.steamclient.*
+import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesPublishedfileSteamclient.CPublishedFile_GetDetails_Request
+import `in`.dragonbra.javasteam.rpc.service.PublishedFile
 import `in`.dragonbra.javasteam.steam.contentdownloader.CDNClientPool
 import `in`.dragonbra.javasteam.steam.handlers.steamapps.License
 import `in`.dragonbra.javasteam.steam.handlers.steamapps.PICSProductInfo
 import `in`.dragonbra.javasteam.steam.handlers.steamapps.PICSRequest
 import `in`.dragonbra.javasteam.steam.handlers.steamapps.SteamApps
-import `in`.dragonbra.javasteam.steam.handlers.steamapps.callback.LicenseListCallback
-import `in`.dragonbra.javasteam.steam.handlers.steamcontent.SteamContent
+import `in`.dragonbra.javasteam.steam.handlers.steamcloud.SteamCloud
+import `in`.dragonbra.javasteam.steam.handlers.steamcloud.callback.UGCDetailsCallback
+import `in`.dragonbra.javasteam.steam.handlers.steamunifiedmessages.SteamUnifiedMessages
 import `in`.dragonbra.javasteam.steam.steamclient.SteamClient
-import `in`.dragonbra.javasteam.types.ChunkData
 import `in`.dragonbra.javasteam.types.DepotManifest
-import `in`.dragonbra.javasteam.types.FileData
 import `in`.dragonbra.javasteam.types.KeyValue
-import `in`.dragonbra.javasteam.util.SteamKitWebRequestException
+import `in`.dragonbra.javasteam.types.PublishedFileID
+import `in`.dragonbra.javasteam.types.PublishedFileID.Companion.toLong
+import `in`.dragonbra.javasteam.types.UGCHandle
 import `in`.dragonbra.javasteam.util.Strings
-import `in`.dragonbra.javasteam.util.Utils
-import `in`.dragonbra.javasteam.util.compat.readNBytesCompat
 import `in`.dragonbra.javasteam.util.crypto.CryptoHelper
 import `in`.dragonbra.javasteam.util.log.LogManager
 import `in`.dragonbra.javasteam.util.log.Logger
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Deferred
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.future.future
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.sync.Semaphore
-import kotlinx.coroutines.sync.withPermit
-import kotlinx.io.files.Path
-import java.io.BufferedWriter
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.cio.CIO
+import io.ktor.client.request.get
+import io.ktor.client.statement.bodyAsChannel
+import io.ktor.utils.io.copyTo
+import kotlinx.coroutines.*
 import java.io.File
-import java.io.FileInputStream
-import java.io.FileOutputStream
 import java.io.FileWriter
-import java.io.RandomAccessFile
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.nio.channels.FileChannel
 import java.nio.file.Paths
-import java.time.Instant
-import java.time.temporal.ChronoUnit
-import java.util.concurrent.CompletableFuture
+import java.nio.file.StandardOpenOption
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.ConcurrentLinkedQueue
 
 class ContentDownloaderException(value: String) : Exception(value)
 
@@ -83,9 +72,8 @@ data class DownloadConfig(
     val depotKeys: ConcurrentHashMap<Int, ByteArray> = ConcurrentHashMap<Int, ByteArray>(),
     var appInfo: ConcurrentHashMap<Int, PICSProductInfo?> = ConcurrentHashMap<Int, PICSProductInfo?>(),
     var packageInfo: ConcurrentHashMap<Int, PICSProductInfo?> = ConcurrentHashMap<Int, PICSProductInfo?>(),
-    var appBetaPasswords: ConcurrentHashMap<String, ByteArray> = ConcurrentHashMap<String, ByteArray>()
+    var appBetaPasswords: ConcurrentHashMap<String, ByteArray> = ConcurrentHashMap<String, ByteArray>(),
 )
-
 
 @Suppress("unused", "SpellCheckingInspection")
 class ContentDownloader(val steamClient: SteamClient, private val config: DownloadConfig) {
@@ -97,6 +85,7 @@ class ContentDownloader(val steamClient: SteamClient, private val config: Downlo
         private const val SERVICE_UNAVAILABLE = 503
 
         internal const val INVALID_APP_ID = Int.MAX_VALUE
+        internal const val INVALID_DEPOT_ID = Int.MAX_VALUE
         internal const val INVALID_MANIFEST_ID = Long.MAX_VALUE
         internal const val DEFAULT_BRANCH = "public"
 
@@ -140,6 +129,8 @@ class ContentDownloader(val steamClient: SteamClient, private val config: Downlo
     }
 
     private val defaultScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+
+    private var cdnPool: CDNClientPool? = null
 
     fun createDirectories(depotId: Int, depotVersion: Int): DirectoryResult = runCatching {
         var installDir: String? = null
@@ -197,11 +188,13 @@ class ContentDownloader(val steamClient: SteamClient, private val config: Downlo
             val pkg = config.packageInfo[license]
 
             if (pkg != null) {
-                if (pkg.keyValues["appids"].children.any { it.asInteger() == depotId })
+                if (pkg.keyValues["appids"].children.any { it.asInteger() == depotId }) {
                     return true
+                }
 
-                if (pkg.keyValues["depotids"].children.any { it.asInteger() == depotId })
+                if (pkg.keyValues["depotids"].children.any { it.asInteger() == depotId }) {
                     return true
+                }
             }
         }
 
@@ -217,10 +210,7 @@ class ContentDownloader(val steamClient: SteamClient, private val config: Downlo
             return null
         }
 
-        val app = config.appInfo[appId]
-        if (app == null) {
-            return null
-        }
+        val app = config.appInfo[appId] ?: return null
 
         val appInfo = app.keyValues
         val sectionKey = when (section) {
@@ -336,25 +326,175 @@ class ContentDownloader(val steamClient: SteamClient, private val config: Downlo
                 }
 
                 logger.error("Unhandled depot encryption for depotId $depotId")
-                return INVALID_MANIFEST_ID;
+                return INVALID_MANIFEST_ID
             }
 
             return INVALID_MANIFEST_ID
         }
 
-        if (node.value == null)
+        if (node.value == null) {
             return INVALID_MANIFEST_ID
+        }
 
         return node.value.toLong()
     }
 
     fun getAppName(appId: Int): String {
-        val info = getSteam3AppSection(appId, EAppInfoSection.Common)
-        if (info == null) {
-            return ""
-        }
+        val info = getSteam3AppSection(appId, EAppInfoSection.Common) ?: return ""
 
         return info["name"].asString()
+    }
+
+
+    suspend fun downloadPubfile(appId: Int, publishedFileId: Long) {
+        val details = getPublishedFileDetails(appId, PublishedFileID(publishedFileId))
+
+        if (!details!!.fileUrl.isNullOrEmpty()) {
+            downloadWebFile(appId, details.filename, details.filename)
+        } else if (details.hcontentFile > 0) {
+            downloadApp() // TODO
+        } else {
+            logger.error("Unable to locate manifest ID for published file $publishedFileId")
+        }
+    }
+
+    suspend fun downloadUGC(appId: Int, ugcId: Long) {
+        var details: UGCDetailsCallback? = null
+
+        if (steamClient.steamID.accountType != EAccountType.AnonUser) {
+            details = getUGCDetails(UGCHandle(ugcId))
+        } else {
+            logger.error("Unable to query UGC details for $ugcId from anonymous account.")
+        }
+
+        if (!details?.url.isNullOrEmpty()) {
+            downloadWebFile(appId, details!!.fileName, details.url)
+        } else {
+            downloadApp()
+        }
+    }
+
+    suspend fun downloadWebFile(appId: Int, fileName: String, url: String) = withContext(Dispatchers.IO) {
+        when (val result = createDirectories(appId, 0)) {
+            is DirectoryResult.Success -> {
+                val stagingDir = File(result.installDir, STAGING_DIR)
+                val fileStagingPath = File(stagingDir, fileName)
+                val fileFinalPath = File(result.installDir, fileName)
+
+                File(fileFinalPath.parent).mkdirs()
+                File(fileStagingPath.parent).mkdirs()
+
+                HttpClient(CIO).use { client ->
+                    val response = client.get(url)
+                    FileChannel.open(
+                        fileStagingPath.toPath(),
+                        StandardOpenOption.CREATE,
+                        StandardOpenOption.WRITE
+                    ).use { file ->
+                        logger.debug("Downloading: $fileName")
+                        response.bodyAsChannel().copyTo(file)
+                    }
+                }
+
+                if (fileFinalPath.exists()) {
+                    fileFinalPath.delete()
+                }
+
+                fileStagingPath.renameTo(fileFinalPath)
+            }
+            DirectoryResult.Failed -> {
+                logger.error("Error: Unable to create install directories!")
+            }
+        }
+    }
+
+    data class DepotManifestIds(val depotId: Int, val manifestId: Long)
+
+    suspend fun downloadAppAsync(
+        appId: Int,
+        depotManifestIds: List<DepotManifestIds>,
+        branch: String,
+        os: String? = null,
+        arch: String,
+        language: String,
+        lv: Boolean,
+        isUgc: Boolean
+    ) = withContext(Dispatchers.IO) {
+        var depotManifestIds = depotManifestIds
+        cdnPool = CDNClientPool(steamClient, appId, this)
+
+        // Load our configuration data containing the depots currently installed
+        var configPath = config.installDirectory
+        if (configPath.isNullOrEmpty()) {
+            configPath = DEFAULT_DOWNLOAD_DIR
+        }
+
+        File(Paths.get(configPath, CONFIG_DIR).toString()).mkdirs()
+
+        requestAppInfo(appId)
+
+        if (!accountHasAccess(appId, appId)) {
+            if (requestFreeAppLicense(appId)) {
+                logger.debug("Obtained FreeOnDemand license for app $appId")
+
+                // Fetch app info again in case we didn't get it fully without a license.
+                requestAppInfo(appId, true)
+            } else {
+                val contentName = getAppName(appId)
+                throw ContentDownloaderException("App $appId ($contentName) is not available from this account.")
+            }
+        }
+
+        val hasSpecificDepots = depotManifestIds.isNotEmpty()
+        val depotIdsFound = mutableListOf<Int>()
+        val depotIdsExpected = depotManifestIds.map { it.depotId }.toMutableList()
+        val depots = getSteam3AppSection(appId, EAppInfoSection.Depots) ?: KeyValue.INVALID
+
+        if (isUgc) {
+            val workshopDepot = depots["workshopdepot"].asInteger()
+            if (workshopDepot != 0 && !depotIdsExpected.contains(workshopDepot)) {
+                depotIdsExpected.add(workshopDepot)
+                depotManifestIds = depotManifestIds.map { DepotManifestIds(workshopDepot, it.manifestId) }.toList()
+            }
+
+            depotIdsFound.addAll(depotIdsExpected)
+        } else {
+            logger.debug("Using app brach: $branch")
+
+            if (depots != null) {
+                depots.children.forEach { depotSection ->
+                    var id = INVALID_DEPOT_ID
+                    if (depotSection.children.isEmpty()) {
+                        return@forEach
+                    }
+
+                    id = depotSection.name.toIntOrNull() ?: return@forEach
+
+                    if (hasSpecificDepots && !depotIdsExpected.contains(id)) {
+                        return@forEach
+                    }
+
+                    if (!hasSpecificDepots) {
+                        val depotConfig = depotSection["config"] ?: KeyValue.INVALID
+                        if (depotConfig != KeyValue.INVALID) {
+                            if (!config.downloadAllPlatforms &&
+                                depotConfig["oslist"] != KeyValue.INVALID &&
+                                !depotConfig["oslist"].value.isNullOrBlank()
+                            ) {
+                                val oslist = depotConfig["oslist"].value.split(',')
+                                val targetOs = os ?: Util.getSteamOS()
+                                if (targetOs !in oslist)
+                                    continue
+                            }
+                        }
+
+                        // TODO continue
+                    }
+                }
+            } else {
+
+            }
+        }
     }
 
     // TODO
@@ -371,7 +511,7 @@ class ContentDownloader(val steamClient: SteamClient, private val config: Downlo
         packages.forEach { pkg ->
             val request = PICSRequest(pkg)
 
-            val token = config.packageTokens.get(pkg)
+            val token = config.packageTokens[pkg]
             if (token != null) {
                 request.accessToken = token
             }
@@ -440,6 +580,54 @@ class ContentDownloader(val steamClient: SteamClient, private val config: Downlo
 
         appPassword.betaPasswords.forEach { entry ->
             config.appBetaPasswords[entry.key] = entry.value
+        }
+    }
+
+    suspend fun getPublishedFileDetails(
+        appId: Int,
+        pubFile: PublishedFileID
+    ): SteammessagesPublishedfileSteamclient.PublishedFileDetails? {
+        val pubFileRequest = CPublishedFile_GetDetails_Request.newBuilder().apply {
+            this.appid = appId
+            this.addPublishedfileids(pubFile.toLong())
+        }.build()
+
+        val details = steamClient.getHandler<SteamUnifiedMessages>()!!
+            .createService<PublishedFile>()
+            .getDetails(pubFileRequest)
+            .await()
+
+        if (details.result == EResult.OK) {
+            return details.body.publishedfiledetailsList.firstOrNull()
+        }
+
+        steamClient.getHandler<SteamUnifiedMessages>()!!.removeService<PublishedFile>()
+
+        throw Exception("EResult ${details.result.code()} (${details.result} while retrieving file details for pubfile $pubFile)")
+
+    }
+
+    suspend fun getUGCDetails(ugcHandle: UGCHandle): UGCDetailsCallback? {
+        val callback = steamClient.getHandler<SteamCloud>()!!
+            .requestUGCDetails(ugcHandle)
+            .await()
+
+        if (callback.result == EResult.OK) {
+            return callback
+        } else if (callback.result == EResult.FileNotFound) {
+            return null
+        }
+
+        throw Exception("EResult ${callback.result.code()} (${callback.result}) while retrieving UGC details for $ugcHandle")
+    }
+
+    suspend fun requestFreeAppLicense(appId: Int): Boolean {
+        try {
+            val resultInfo = steamClient.getHandler<SteamApps>()!!.requestFreeLicense(appId).await()
+            return resultInfo.grantedApps.contains(appId)
+        } catch (e: Exception) {
+            logger.error("Failed to request free license for app $appId", e)
+            return false
         }
     }
 

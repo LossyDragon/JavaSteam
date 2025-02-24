@@ -18,7 +18,6 @@ import java.util.concurrent.ConcurrentLinkedDeque
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
-import kotlin.math.log
 
 /**
  * [CDNClientPool] provides a pool of connections to CDN endpoints, requesting CDN tokens as needed
@@ -26,7 +25,7 @@ import kotlin.math.log
 class CDNClientPool(
     internal val steamClient: SteamClient,
     private val appId: Int,
-    private val parentScope: CoroutineScope
+    private val parentScope: CoroutineScope,
 ) {
 
     companion object {
@@ -138,7 +137,7 @@ class CDNClientPool(
 
     fun getConnection(): Deferred<Server?> = parentScope.async {
         return@async try {
-           val connection =  activeConnectionPool.poll() ?: buildConnection().await()
+            val connection = activeConnectionPool.poll() ?: buildConnection().await()
 
             logger.debug("Get Connection: $connection")
 
