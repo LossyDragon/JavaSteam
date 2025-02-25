@@ -14,6 +14,6 @@ data class DepotFilesData(
     val stagingDir: String,
     val manifest: DepotManifest,
     val previousManifest: DepotManifest?,
-    val filteredFiles: List<FileData>,
+    val filteredFiles: MutableList<FileData>,
     val allFileNames: HashSet<String>,
 )
