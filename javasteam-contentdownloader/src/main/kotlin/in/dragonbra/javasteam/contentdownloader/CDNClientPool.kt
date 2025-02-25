@@ -1,4 +1,4 @@
-package `in`.dragonbra.javasteam.steam.contentdownloader
+package `in`.dragonbra.javasteam.contentdownloader
 
 import `in`.dragonbra.javasteam.steam.cdn.Client
 import `in`.dragonbra.javasteam.steam.cdn.Server
@@ -6,14 +6,7 @@ import `in`.dragonbra.javasteam.steam.handlers.steamcontent.SteamContent
 import `in`.dragonbra.javasteam.steam.steamclient.SteamClient
 import `in`.dragonbra.javasteam.util.log.LogManager
 import `in`.dragonbra.javasteam.util.log.Logger
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Deferred
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.async
-import kotlinx.coroutines.cancel
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.*
 import java.util.concurrent.ConcurrentLinkedDeque
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.CountDownLatch
@@ -23,16 +16,16 @@ import java.util.concurrent.TimeUnit
  * [CDNClientPool] provides a pool of connections to CDN endpoints, requesting CDN tokens as needed
  */
 class CDNClientPool(
-    internal val steamClient: SteamClient,
+    private val steamSession: Steam3Session,
     private val appId: Int,
-    private val parentScope: CoroutineScope,
+    private val parentScope: CoroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob()),
 ) {
 
     companion object {
         private const val SERVER_ENDPOINT_MIN_SIZE = 8
     }
 
-    val cdnClient: Client = Client(steamClient)
+    val cdnClient: Client = Client(steamSession.steamClient)
 
     var proxyServer: Server? = null
         private set
@@ -57,12 +50,11 @@ class CDNClientPool(
 
     private fun fetchBootstrapServerList(): Deferred<List<Server>?> = parentScope.async {
         return@async try {
-            val cdnServers = steamClient.getHandler(SteamContent::class.java)
-                ?.getServersForSteamPipe(parentScope = parentScope)?.await()
+            val cdnServers = steamSession.steamContent.getServersForSteamPipe(parentScope = parentScope).await()
 
-            logger.debug("Fetched bootstrap servers: ${cdnServers?.size}")
+            logger.debug("Fetched bootstrap servers: ${cdnServers.size}")
 
-            if (cdnServers != null) {
+            if (cdnServers.isNotEmpty()) {
                 return@async cdnServers
             } else {
                 return@async null
@@ -80,7 +72,7 @@ class CDNClientPool(
         while (isActive) {
             populatePoolEvent.await(1, TimeUnit.SECONDS)
 
-            if (availableServerEndpoints.size < SERVER_ENDPOINT_MIN_SIZE && steamClient.isConnected) {
+            if (availableServerEndpoints.size < SERVER_ENDPOINT_MIN_SIZE && steamSession.steamClient.isConnected) {
                 val servers = fetchBootstrapServerList().await()
 
                 if (servers.isNullOrEmpty()) {
@@ -105,7 +97,7 @@ class CDNClientPool(
                 }
 
                 didPopulate = true
-            } else if (availableServerEndpoints.isEmpty() && !steamClient.isConnected && didPopulate) {
+            } else if (availableServerEndpoints.isEmpty() && !steamSession.steamClient.isConnected && didPopulate) {
                 logger.error("Available server endpoints is empty and steam is not connected, exiting connection pool monitor")
 
                 parentScope.cancel()

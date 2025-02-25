@@ -1,5 +1,6 @@
-package `in`.dragonbra.javasteam.steam.contentdownloader
+package `in`.dragonbra.javasteam.contentdownloader
 
+import `in`.dragonbra.javasteam.steam.contentdownloader.DepotConfigStoreProtos
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream

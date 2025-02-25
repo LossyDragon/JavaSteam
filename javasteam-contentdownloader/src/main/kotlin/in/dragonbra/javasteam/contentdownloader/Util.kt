@@ -1,4 +1,4 @@
-package `in`.dragonbra.javasteam.steam.contentdownloader
+package `in`.dragonbra.javasteam.contentdownloader
 
 import `in`.dragonbra.javasteam.types.DepotManifest
 import `in`.dragonbra.javasteam.util.log.LogManager
@@ -7,9 +7,31 @@ import java.io.File
 import java.io.IOException
 import java.security.MessageDigest
 
-internal object Util {
+class ContentDownloaderException(value: String) : Exception(value)
+
+sealed class DirectoryResult {
+    data class Success(val installDir: String) : DirectoryResult()
+    data object Failed : DirectoryResult()
+}
+
+object Util {
 
     private val logger = LogManager.getLogger(Util::class.java)
+
+    fun readPassword(): String {
+        val console = System.console()
+        if (console != null) {
+            val passwordArray = console.readPassword("Enter password: ")
+            val password = String(passwordArray)
+            // Clear the password array for security
+            passwordArray.fill('0')
+            return password
+        } else {
+            // Fallback for when console is not available (e.g., in IDE)
+            println("Warning: Console not available, password will be echoed")
+            return readlnOrNull() ?: ""
+        }
+    }
 
     @JvmStatic
     fun getSteamOS(): String = when {

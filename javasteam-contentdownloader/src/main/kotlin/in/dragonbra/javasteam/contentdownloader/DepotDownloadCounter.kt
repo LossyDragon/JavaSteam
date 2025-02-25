@@ -1,4 +1,4 @@
-package `in`.dragonbra.javasteam.steam.contentdownloader
+package `in`.dragonbra.javasteam.contentdownloader
 
 /**
  * @author Oxters
