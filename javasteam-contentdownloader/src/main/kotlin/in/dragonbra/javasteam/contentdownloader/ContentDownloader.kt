@@ -2,13 +2,17 @@ package `in`.dragonbra.javasteam.contentdownloader
 
 import `in`.dragonbra.javasteam.enums.EAccountType
 import `in`.dragonbra.javasteam.enums.EAppInfoSection
+import `in`.dragonbra.javasteam.enums.EDepotFileFlag
 import `in`.dragonbra.javasteam.steam.cdn.Server
-import `in`.dragonbra.javasteam.steam.contentdownloader.ContentDownloader
 import `in`.dragonbra.javasteam.steam.handlers.steamcloud.callback.UGCDetailsCallback
+import `in`.dragonbra.javasteam.steam.handlers.steamuser.LogOnDetails
+import `in`.dragonbra.javasteam.types.ChunkData
 import `in`.dragonbra.javasteam.types.DepotManifest
+import `in`.dragonbra.javasteam.types.FileData
 import `in`.dragonbra.javasteam.types.KeyValue
 import `in`.dragonbra.javasteam.types.PublishedFileID
 import `in`.dragonbra.javasteam.types.UGCHandle
+import `in`.dragonbra.javasteam.util.SteamKitWebRequestException
 import `in`.dragonbra.javasteam.util.Strings
 import `in`.dragonbra.javasteam.util.crypto.CryptoHelper
 import `in`.dragonbra.javasteam.util.log.LogManager
@@ -16,15 +20,22 @@ import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
 import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsChannel
+import io.ktor.http.HttpStatusCode
 import io.ktor.utils.io.copyTo
 import kotlinx.coroutines.*
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.io.File
+import java.io.FileWriter
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.channels.FileChannel
+import java.nio.file.Files
 import java.nio.file.Paths
 import java.nio.file.StandardOpenOption
 import java.time.LocalDateTime
+import java.util.concurrent.ConcurrentLinkedQueue
+import kotlin.math.log
 
 object ContentDownloader {
 
@@ -43,6 +54,8 @@ object ContentDownloader {
     private val STAGING_DIR = Paths.get(CONFIG_DIR, "staging").toString()
 
     private val logger = LogManager.getLogger(ContentDownloader::class.java)
+
+    private val mutex = Mutex()
 
     fun createDirectories(depotId: Int, depotVersion: Int): DirectoryResult = runCatching {
         val installDir: String?
@@ -257,6 +270,41 @@ object ContentDownloader {
         return info["name"].asString()
     }
 
+    fun initializeSteam3(username: String?, password: String): Boolean {
+        var loginToken: String? = null
+
+        if (username != null && config.rememberPassword) {
+            loginToken = AccountSettingsStore.instance!!.loginTokens[username]
+        }
+
+        steam3 = Steam3Session(
+            details = LogOnDetails().apply {
+                this.username = username!!
+                this.password = if (loginToken == null) password else null
+                this.shouldRememberPassword = config.rememberPassword
+                this.accessToken = loginToken
+                this.loginID = config.loginID?.takeIf { it > 0 } ?: 0x4A564D53 // "JVMS"
+            }
+        )
+
+        if (!steam3!!.waitForCredentials()) {
+            logger.error("Unable to get steam3 credentials.")
+            return false;
+        }
+
+        CoroutineScope(Dispatchers.Default).launch {
+            steam3!!.tickCallbacks(this)
+        }
+
+        return true
+    }
+
+    fun shutdownSteam3() {
+        cdnPool?.shutdown()
+        cdnPool = null
+
+        steam3?.disconnect()
+    }
 
     suspend fun downloadPubfile(appId: Int, publishedFileId: Long) {
         val details = steam3!!.getPublishedFileDetails(appId, PublishedFileID(publishedFileId))
@@ -353,7 +401,7 @@ object ContentDownloader {
     ): Unit = withContext(Dispatchers.IO) {
         var depotManifestIds = depotManifestIds.toMutableList()
 
-        cdnPool = CDNClientPool(steam3!!.steamClient, appId, this)
+        cdnPool = CDNClientPool(steam3!!, appId, this)
 
         // Load our configuration data containing the depots currently installed
         var configPath = config.installDirectory
@@ -658,9 +706,567 @@ object ContentDownloader {
                             }
                         }
 
+                        logger.debug(
+                            "Downloading manifest ${depot.manifestId} from $connection with " +
+                                "${if (cdnPool!!.proxyServer != null) cdnPool!!.proxyServer else "no proxy"}"
+                        )
+
+                        newManifest = cdnPool!!.cdnClient.downloadManifest(
+                            depotId = depot.depotId,
+                            manifestId = depot.manifestId,
+                            manifestRequestCode = manifestRequestCode,
+                            server = connection,
+                            depotKey = depot.depotKey,
+                            proxyServer = cdnPool!!.proxyServer,
+                            cdnAuthToken = cdnToken,
+                        )
+
+                        cdnPool!!.returnConnection(connection)
                         // TODO
+                    } catch (e: CancellationException) {
+                        logger.error(
+                            "Connection timeout downloading depot manifest " +
+                                "${depot.depotId} ${depot.manifestId}. Retrying.", e
+                        )
+
+                    } catch (e: SteamKitWebRequestException) {
+                        // If the CDN returned 403, attempt to get a cdn auth if we didn't yet
+                        if (e.statusCode == 403 && !steam3!!.cdnAuthTokens.containsKey(depot.depotId to connection!!.host)) {
+                            steam3!!.requestCDNAuthToken(depot.appId, depot.depotId, connection)
+
+                            continue
+                        }
+
+                        cdnPool!!.returnBrokenConnection(connection)
+
+                        if (e.statusCode == 401 || e.statusCode == 403) {
+                            logger.error("Encountered ${depot.depotId} for depot manifest ${depot.manifestId} ${e.statusCode}. Aborting.")
+                            break
+                        }
+
+                        if (e.statusCode == 404) {
+                            logger.error("Encountered 404 for depot manifest ${depot.depotId} ${depot.manifestId}. Aborting.")
+                            break
+                        }
+
+                        logger.error("Encountered error downloading depot manifest ${depot.depotId} ${depot.manifestId}: ${e.statusCode}")
                     }
                 } while (newManifest == null)
+
+                if (newManifest == null) {
+                    logger.error("\nUnable to download manifest ${depot.manifestId} for depot ${depot.depotId}")
+                    // TODO cts cancel
+                }
+
+                // Throw the cancellation exception if requested so that this task is marked failed
+                // TODO ?? cts.Token.ThrowIfCancellationRequested()
+
+                Util.saveManifestToFile(configDir.toString(), newManifest!!)
+            }
+        }
+
+        logger.debug("Manifest $depot (${newManifest})")
+
+        if (config.downloadManifestOnly) {
+            dumpManifestToTextFile(depot, newManifest)
+            return null
+        }
+
+        val stagingDir = Paths.get(depot.installDir, STAGING_DIR)
+
+        val filesAfterExclusions = newManifest.files.asSequence()
+            .filter { testIsFileIncluded(it.fileName) }
+            .toList()
+        val allFileNames = hashSetOf<String>()
+
+        // Pre-process
+        filesAfterExclusions.forEach { file ->
+            allFileNames.add(file.fileName)
+
+            val fileFinalPath = Paths.get(depot.installDir, file.fileName)
+            val fileStagingPath = Paths.get(stagingDir.toString(), file.fileName)
+
+            if (file.flags.contains(EDepotFileFlag.Directory)) {
+                Files.createDirectories(fileFinalPath.parent)
+                Files.createDirectories(fileStagingPath.parent)
+            } else {
+                // Some manifests don't explicitly include all necessary directories
+                Files.createDirectories(fileFinalPath.parent)
+                Files.createDirectories(fileStagingPath.parent)
+
+                downloadCounter.completeDownloadSize += file.totalSize
+                depotCounter.completeDownloadSize += file.totalSize
+            }
+        }
+
+        return DepotFilesData(
+            depotDownloadInfo = depot,
+            depotCounter = depotCounter,
+            stagingDir = stagingDir.toString(),
+            manifest = newManifest,
+            previousManifest = oldManifest,
+            filteredFiles = filesAfterExclusions.toMutableList(),
+            allFileNames = allFileNames
+        )
+    }
+
+    private suspend fun downloadSteam3DepotFiles(
+        downloadCounter: GlobalDownloadCounter,
+        depotFilesData: DepotFilesData,
+        allFileNamesAllDepots: HashSet<String>,
+    ) {
+        val depot = depotFilesData.depotDownloadInfo
+        val depotCounter = depotFilesData.depotCounter
+
+        logger.debug("Downloading depot ${depot.depotId}")
+
+        val files = depotFilesData.filteredFiles
+            .filter { !it.flags.contains(EDepotFileFlag.Directory) }
+            .toList()
+
+        val networkChunkQueue = ConcurrentLinkedQueue<Triple<FileStreamData, FileData, ChunkData>>()
+
+        // TODO maybe properly do coroutines here.
+
+        // Download files
+        Util.invokeAsync(
+            files.map { file ->
+                suspend {
+                    withContext(Dispatchers.Default) {
+                        downloadSteam3DepotFile(downloadCounter, depotFilesData, file, networkChunkQueue)
+                    }
+                }
+            },
+            maxDegreeOfParallelism = config.maxDownloads
+        )
+
+        // Download chunks
+        Util.invokeAsync(
+            networkChunkQueue.map { (fileStreamData, fileData, chunk) ->
+                suspend {
+                    withContext(Dispatchers.Default) {
+                        downloadSteam3DepotFileChunk(
+                            downloadCounter,
+                            depotFilesData,
+                            fileData,
+                            fileStreamData,
+                            chunk,
+                            this,
+                        )
+                    }
+                }
+            },
+            maxDegreeOfParallelism = config.maxDownloads
+        )
+
+        // Check for deleted files if updating the depot.
+        if (depotFilesData.previousManifest != null) {
+            val previousFilteredFiles = depotFilesData.previousManifest.files
+                .asSequence()
+                .filter { testIsFileIncluded(it.fileName) }
+                .map { it.fileName }
+                .toHashSet()
+
+            // Check if we are writing to a single output directory. If not, each depot folder is managed independently
+            if (config.installDirectory.isNullOrBlank()) {
+                // Of the list of files in the previous manifest, remove any file names that exist in the current set of all file names
+                previousFilteredFiles.removeAll(depotFilesData.allFileNames)
+            } else {
+                // Of the list of files in the previous manifest, remove any file names that exist in the current set of all file names across all depots being downloaded
+                previousFilteredFiles.removeAll(allFileNamesAllDepots)
+            }
+
+            previousFilteredFiles.forEach { existingFileName ->
+                var fileFinalPath = Paths.get(depot.installDir, existingFileName)
+
+                if (!Files.exists(fileFinalPath))
+                    return@forEach
+
+                Files.delete(fileFinalPath)
+                logger.debug("Deleted $fileFinalPath")
+            }
+        }
+
+        DepotConfigStore.instance!!.installedManifestIDs[depot.depotId] = depot.manifestId
+        DepotConfigStore.save()
+
+        logger.debug(
+            "Depot ${depot.depotId} - Downloaded ${depotCounter.depotBytesCompressed} " +
+                "bytes (${depotCounter.depotBytesUncompressed} bytes uncompressed)",
+        )
+    }
+
+    // TODO finish conversion
+//    private suspend fun downloadSteam3DepotFile(
+//        downloadCounter: GlobalDownloadCounter,
+//        depotFilesData: DepotFilesData,
+//        file: FileData,
+//        networkChunkQueue: ConcurrentLinkedQueue<Triple<FileStreamData, FileData, ChunkData>>
+//    ) {
+//        var depot = depotFilesData.depotDownloadInfo;
+//        var stagingDir = depotFilesData.stagingDir;
+//        var depotDownloadCounter = depotFilesData.depotCounter;
+//        var oldProtoManifest = depotFilesData.previousManifest;
+//        DepotManifest.FileData oldManifestFile = null;
+//        if (oldProtoManifest != null) {
+//            oldManifestFile = oldProtoManifest.Files.SingleOrDefault(f => f . FileName == file . FileName);
+//        }
+//
+//        var fileFinalPath = Path.Combine(depot.InstallDir, file.FileName);
+//        var fileStagingPath = Path.Combine(stagingDir, file.FileName);
+//
+//        // This may still exist if the previous run exited before cleanup
+//        if (File.Exists(fileStagingPath)) {
+//            File.Delete(fileStagingPath);
+//        }
+//
+//        List<DepotManifest.ChunkData> neededChunks;
+//        var fi = new FileInfo (fileFinalPath);
+//        var fileDidExist = fi.Exists;
+//        if (!fileDidExist) {
+//            Console.WriteLine("Pre-allocating {0}", fileFinalPath);
+//
+//            // create new file. need all chunks
+//            using
+//            var fs = File.Create(fileFinalPath);
+//            try {
+//                fs.SetLength((long) file . TotalSize);
+//            } catch (IOException ex) {
+//                throw new ContentDownloaderException (string.Format(
+//                    "Failed to allocate file {0}: {1}",
+//                    fileFinalPath,
+//                    ex.Message
+//                ));
+//            }
+//
+//            neededChunks = new List < DepotManifest . ChunkData >(file.Chunks);
+//        } else {
+//            // open existing
+//            if (oldManifestFile != null) {
+//                neededChunks = [];
+//
+//                var hashMatches = oldManifestFile.FileHash.SequenceEqual(file.FileHash);
+//                if (Config.VerifyAll || !hashMatches) {
+//                    // we have a version of this file, but it doesn't fully match what we want
+//                    if (Config.VerifyAll) {
+//                        Console.WriteLine("Validating {0}", fileFinalPath);
+//                    }
+//
+//                    var matchingChunks = new List < ChunkMatch >();
+//
+//                    foreach(var chunk in file . Chunks)
+//                    {
+//                        var oldChunk =
+//                            oldManifestFile.Chunks.FirstOrDefault(c => c . ChunkID . SequenceEqual (chunk.ChunkID));
+//                        if (oldChunk != null) {
+//                            matchingChunks.Add(new ChunkMatch (oldChunk, chunk));
+//                        } else {
+//                            neededChunks.Add(chunk);
+//                        }
+//                    }
+//
+//                    var orderedChunks = matchingChunks.OrderBy(x => x . OldChunk . Offset);
+//
+//                    var copyChunks = new List < ChunkMatch >();
+//
+//                    using(var fsOld = File . Open (fileFinalPath, FileMode.Open))
+//                    {
+//                        foreach(var match in orderedChunks)
+//                        {
+//                            fsOld.Seek((long) match . OldChunk . Offset, SeekOrigin.Begin);
+//
+//                            var adler = Util.AdlerHash(fsOld, (int) match . OldChunk . UncompressedLength);
+//                            if (!adler.SequenceEqual(BitConverter.GetBytes(match.OldChunk.Checksum))) {
+//                                neededChunks.Add(match.NewChunk);
+//                            } else {
+//                                copyChunks.Add(match);
+//                            }
+//                        }
+//                    }
+//
+//                    if (!hashMatches || neededChunks.Count > 0) {
+//                        File.Move(fileFinalPath, fileStagingPath);
+//
+//                        using(var fsOld = File . Open (fileStagingPath, FileMode.Open))
+//                        {
+//                            using
+//                            var fs = File.Open(fileFinalPath, FileMode.Create);
+//                            try {
+//                                fs.SetLength((long) file . TotalSize);
+//                            } catch (IOException ex) {
+//                                throw new ContentDownloaderException (string.Format(
+//                                    "Failed to resize file to expected size {0}: {1}",
+//                                    fileFinalPath,
+//                                    ex.Message
+//                                ));
+//                            }
+//
+//                            foreach(var match in copyChunks)
+//                            {
+//                                fsOld.Seek((long) match . OldChunk . Offset, SeekOrigin.Begin);
+//
+//                                var tmp = new byte [match.OldChunk.UncompressedLength];
+//                                fsOld.ReadExactly(tmp);
+//
+//                                fs.Seek((long) match . NewChunk . Offset, SeekOrigin.Begin);
+//                                fs.Write(tmp, 0, tmp.Length);
+//                            }
+//                        }
+//
+//                        File.Delete(fileStagingPath);
+//                    }
+//                }
+//            } else {
+//                // No old manifest or file not in old manifest. We must validate.
+//
+//                using
+//                var fs = File.Open(fileFinalPath, FileMode.Open);
+//                if ((ulong) fi . Length != file . TotalSize) {
+//                    try {
+//                        fs.SetLength((long) file . TotalSize);
+//                    } catch (IOException ex) {
+//                        throw new ContentDownloaderException (string.Format(
+//                            "Failed to allocate file {0}: {1}",
+//                            fileFinalPath,
+//                            ex.Message
+//                        ));
+//                    }
+//                }
+//
+//                Console.WriteLine("Validating {0}", fileFinalPath);
+//                neededChunks = Util.ValidateSteam3FileChecksums(fs, [..file.Chunks.OrderBy(x => x . Offset)]);
+//            }
+//
+//            if (neededChunks.Count == 0) {
+//                lock(depotDownloadCounter)
+//                {
+//                    depotDownloadCounter.sizeDownloaded += file.TotalSize;
+//                    Console.WriteLine(
+//                        "{0,6:#00.00}% {1}",
+//                        (depotDownloadCounter.sizeDownloaded / (float) depotDownloadCounter . completeDownloadSize) * 100.0f,
+//                        fileFinalPath
+//                    );
+//                }
+//
+//                lock(downloadCounter)
+//                {
+//                    downloadCounter.completeDownloadSize -= file.TotalSize;
+//                }
+//
+//                return;
+//            }
+//
+//            var sizeOnDisk = (file.TotalSize - (ulong) neededChunks . Select (x => (long)x.UncompressedLength).Sum());
+//            lock(depotDownloadCounter)
+//            {
+//                depotDownloadCounter.sizeDownloaded += sizeOnDisk;
+//            }
+//
+//            lock(downloadCounter)
+//            {
+//                downloadCounter.completeDownloadSize -= sizeOnDisk;
+//            }
+//        }
+//
+//        var fileIsExecutable = file.Flags.HasFlag(EDepotFileFlag.Executable);
+//        if (fileIsExecutable && (!fileDidExist || oldManifestFile == null || !oldManifestFile.Flags.HasFlag(
+//                EDepotFileFlag.Executable
+//            ))
+//        ) {
+//            PlatformUtilities.SetExecutable(fileFinalPath, true);
+//        } else if (!fileIsExecutable && oldManifestFile != null && oldManifestFile.Flags.HasFlag(EDepotFileFlag.Executable)) {
+//            PlatformUtilities.SetExecutable(fileFinalPath, false);
+//        }
+//
+//        var fileStreamData = new FileStreamData
+//            {
+//                fileStream = null,
+//                fileLock = new SemaphoreSlim (1),
+//                chunksToDownload = neededChunks.Count
+//            };
+//
+//        foreach(var chunk in neededChunks)
+//        {
+//            networkChunkQueue.Enqueue((fileStreamData, file, chunk));
+//        }
+//    }
+
+    private suspend fun downloadSteam3DepotFileChunk(
+        downloadCounter: GlobalDownloadCounter,
+        depotFilesData: DepotFilesData,
+        file: FileData,
+        fileStreamData: FileStreamData,
+        chunk: ChunkData,
+        scope: CoroutineScope,
+    ) {
+        if (scope.isActive.not()) {
+            throw CancellationException()
+        }
+
+        var depot = depotFilesData.depotDownloadInfo;
+        var depotDownloadCounter = depotFilesData.depotCounter;
+
+        val chunkID = chunk.chunkID!!.joinToString("") { "%02x".format(it) }
+
+        var written = 0
+        var chunkBuffer = ByteArray(chunk.uncompressedLength)
+
+        try {
+            do {
+               scope. ensureActive()
+
+                var connection: Server? = null
+
+                try {
+                    connection = cdnPool!!.getConnection().await()
+
+                    var cdnToken: String? = null
+                    val authTokenCallbackPromise = steam3!!.cdnAuthTokens[depot.depotId to connection!!.host]
+                    if (authTokenCallbackPromise != null) {
+                        var result = authTokenCallbackPromise.await()
+                        cdnToken = result.token
+                    }
+
+                    logger.debug(
+                        "Downloading chunk $chunkID from $connection with " +
+                            "${if (cdnPool!!.proxyServer != null) cdnPool!!.proxyServer else "no proxy"}"
+                    )
+
+                    written = cdnPool!!.cdnClient.downloadDepotChunk(
+                        depot.depotId,
+                        chunk,
+                        connection,
+                        chunkBuffer,
+                        depot.depotKey,
+                        cdnPool!!.proxyServer,
+                        cdnToken
+                    );
+
+                    cdnPool!!.returnConnection(connection);
+
+                    break
+                } catch (e: CancellationException) {
+                    logger.error("Connection timeout downloading chunk ${chunkID}")
+                } catch (e: SteamKitWebRequestException) {
+                    // If the CDN returned 403, attempt to get a cdn auth if we didn't yet,
+                    // if auth task already exists, make sure it didn't complete yet, so that it gets awaited above
+                    val authTokenCallbackPromise = steam3!!.cdnAuthTokens[depot.depotId to connection!!.host]
+                    if (e.statusCode == 403 && authTokenCallbackPromise != null || !authTokenCallbackPromise!!.isCompleted){
+                        steam3!!.requestCDNAuthToken(depot.appId, depot.depotId, connection)
+
+                        cdnPool!!.returnConnection(connection)
+
+                        continue
+                    }
+
+                    cdnPool!!.returnBrokenConnection(connection);
+
+                    if (e.statusCode == 401 || e.statusCode == 43) {
+                        logger.error("Encountered ${e.statusCode} for chunk $chunkID. Aborting.")
+                        break;
+                    }
+
+                    logger.error("Encountered error downloading chunk $chunkID: ${e.statusCode}")
+                } catch (e: Exception) {
+                    cdnPool!!.returnBrokenConnection(connection);
+                    logger.error("Encountered unexpected error downloading chunk $chunkID: ${e.message}");
+                }
+            } while (written == 0)
+
+            if (written == 0) {
+                logger.error("Failed to find any server with chunk ${chunkID} for depot ${depot.depotId}. Aborting.");
+                scope.cancel()
+            }
+
+            // Throw the cancellation exception if requested so that this task is marked failed
+           scope. ensureActive()
+
+            // TODO
+            // try {
+            //     fileStreamData.fileLock.WaitAsync().ConfigureAwait(false);
+            //
+            //     if (fileStreamData.fileStream == null) {
+            //         var fileFinalPath = Paths.get(depot.installDir, file.fileName);
+            //         fileStreamData.fileStream = File.Open(fileFinalPath, FileMode.Open);
+            //     }
+            //
+            //     fileStreamData.fileStream.Seek((long) chunk . Offset, SeekOrigin.Begin);
+            //     fileStreamData.fileStream.WriteAsync(chunkBuffer.AsMemory(0, written), cts.Token);
+            // } finally {
+            //     fileStreamData.fileLock.release();
+            // }
+
+        } finally {
+            chunkBuffer.fill(0)
+        }
+
+        val remainingChunks = fileStreamData.chunksToDownload.decrementAndGet()
+        if (remainingChunks == 0) {
+            fileStreamData.fileStream?.close()
+            fileStreamData.fileLock.release()
+        }
+
+        var sizeDownloaded = 0L
+        mutex.withLock {
+            sizeDownloaded = depotDownloadCounter.sizeDownloaded + written
+            depotDownloadCounter.sizeDownloaded = sizeDownloaded
+            depotDownloadCounter.depotBytesCompressed += chunk.compressedLength
+            depotDownloadCounter.depotBytesUncompressed += chunk.uncompressedLength
+        }
+
+        mutex.withLock {
+            downloadCounter.totalBytesCompressed += chunk.compressedLength
+            downloadCounter.totalBytesUncompressed += chunk.uncompressedLength;
+
+            // TODO Callback
+            // Ansi.Progress(downloadCounter.totalBytesUncompressed, downloadCounter.completeDownloadSize);
+        }
+
+        if (remainingChunks == 0) {
+            var fileFinalPath = Paths.get(depot.installDir, file.fileName)
+
+            // TODO probably not good for logging
+            logger.debug(
+                "%6.2f%% %s".format(
+                    (sizeDownloaded.toFloat() / depotDownloadCounter.completeDownloadSize.toFloat()) * 100.0f,
+                    fileFinalPath
+                )
+            )
+        }
+    }
+
+    @JvmStatic
+    fun dumpManifestToTextFile(depot: DepotDownloadInfo, manifest: DepotManifest) {
+        val txtManifest =
+            Paths.get(depot.installDir, "manifest_${depot.depotId}_${depot.manifestId}.txt").toString()
+        FileWriter(txtManifest).use { writer ->
+            writer.write("Content Manifest for Depot ${depot.depotId}\n\n")
+            writer.write("Manifest ID / date     : ${depot.manifestId} / ${manifest.creationTime}\n")
+
+            val uniqueChunks = HashSet<ByteArray>()
+            manifest.files.forEach { file ->
+                file.chunks.forEach { chunk ->
+                    chunk.chunkID?.let { uniqueChunks.add(it) }
+                }
+            }
+
+            writer.write("Total number of files  : ${manifest.files.size}\n")
+            writer.write("Total number of chunks : ${uniqueChunks.size}\n")
+            writer.write("Total bytes on disk    : ${manifest.totalUncompressedSize}\n")
+            writer.write("Total bytes compressed : ${manifest.totalCompressedSize}\n\n\n")
+            writer.write("          Size Chunks File SHA                                 Flags Name\n")
+
+            manifest.files.forEach { file ->
+                val sha1Hash = file.fileHash.joinToString("") { "%02x".format(it) }
+                writer.write(
+                    "%14d %6d %s %5x %s\n".format(
+                        file.totalSize,
+                        file.chunks.size,
+                        sha1Hash,
+                        EDepotFileFlag.code(file.flags),
+                        file.fileName
+                    )
+                )
             }
         }
     }

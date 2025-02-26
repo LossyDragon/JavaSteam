@@ -1,77 +1,22 @@
 package `in`.dragonbra.javasteam.steam.contentdownloader
 
-import `in`.dragonbra.javasteam.enums.EDepotFileFlag
-import `in`.dragonbra.javasteam.protobufs.steamclient.*
-import `in`.dragonbra.javasteam.steam.steamclient.SteamClient
-import `in`.dragonbra.javasteam.types.DepotManifest
-import `in`.dragonbra.javasteam.util.log.LogManager
-import `in`.dragonbra.javasteam.util.log.Logger
-import kotlinx.coroutines.*
-import java.io.FileWriter
-import java.nio.file.Paths
-
-@Suppress("unused", "SpellCheckingInspection")
-class ContentDownloader(val steamClient: SteamClient, private val config: DownloadConfig) {
-
-  private  companion object {
-        private const val HTTP_UNAUTHORIZED = 401
-        private const val HTTP_FORBIDDEN = 403
-        private const val HTTP_NOT_FOUND = 404
-        private const val SERVICE_UNAVAILABLE = 503
-
-        internal const val INVALID_APP_ID = Int.MAX_VALUE
-        internal const val INVALID_DEPOT_ID = Int.MAX_VALUE
-        internal const val INVALID_MANIFEST_ID = Long.MAX_VALUE
-        internal const val DEFAULT_BRANCH = "public"
-
-        private val logger: Logger = LogManager.getLogger(ContentDownloader::class.java)
-
-        @JvmStatic
-        fun dumpManifestToTextFile(depot: DepotDownloadInfo, manifest: DepotManifest) {
-            val txtManifest =
-                Paths.get(depot.installDir, "manifest_${depot.depotId}_${depot.manifestId}.txt").toString()
-            FileWriter(txtManifest).use { writer ->
-                writer.write("Content Manifest for Depot ${depot.depotId}\n\n")
-                writer.write("Manifest ID / date     : ${depot.manifestId} / ${manifest.creationTime}\n")
-
-                val uniqueChunks = HashSet<ByteArray>()
-                manifest.files.forEach { file ->
-                    file.chunks.forEach { chunk ->
-                        chunk.chunkID?.let { uniqueChunks.add(it) }
-                    }
-                }
-
-                writer.write("Total number of files  : ${manifest.files.size}\n")
-                writer.write("Total number of chunks : ${uniqueChunks.size}\n")
-                writer.write("Total bytes on disk    : ${manifest.totalUncompressedSize}\n")
-                writer.write("Total bytes compressed : ${manifest.totalCompressedSize}\n\n\n")
-                writer.write("          Size Chunks File SHA                                 Flags Name\n")
-
-                manifest.files.forEach { file ->
-                    val sha1Hash = file.fileHash.joinToString("") { "%02x".format(it) }
-                    writer.write(
-                        "%14d %6d %s %5x %s\n".format(
-                            file.totalSize,
-                            file.chunks.size,
-                            sha1Hash,
-                            EDepotFileFlag.code(file.flags),
-                            file.fileName
-                        )
-                    )
-                }
-            }
-        }
-    }
-
-    private val defaultScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-
-    private var cdnPool: CDNClientPool? = null
-
-
-
-
-
-// -- Old stuff --
+//@Suppress("unused", "SpellCheckingInspection")
+//class ContentDownloader(val steamClient: SteamClient, private val config: DownloadConfig) {
+//
+//  private  companion object {
+//      private const val HTTP_UNAUTHORIZED = 401
+//      private const val HTTP_FORBIDDEN = 403
+//      private const val HTTP_NOT_FOUND = 404
+//      private const val SERVICE_UNAVAILABLE = 503
+//
+//      internal const val INVALID_APP_ID = Int.MAX_VALUE
+//      internal const val INVALID_DEPOT_ID = Int.MAX_VALUE
+//      internal const val INVALID_MANIFEST_ID = Long.MAX_VALUE
+//      internal const val DEFAULT_BRANCH = "public"
+//
+//      private val logger: Logger = LogManager.getLogger(ContentDownloader::class.java)
+//
+//  }
 //    private fun requestDepotKey(
 //        appId: Int,
 //        depotId: Int,
@@ -734,4 +679,4 @@ class ContentDownloader(val steamClient: SteamClient, private val config: Downlo
 //
 //        return@async newProtoManifest
 //    }
-}
+//}

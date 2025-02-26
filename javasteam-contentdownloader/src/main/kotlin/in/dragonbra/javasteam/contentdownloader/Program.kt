@@ -1,6 +1,6 @@
 package `in`.dragonbra.javasteam.contentdownloader
 
-import `in`.dragonbra.javasteam.contentdownloader.ContentDownloader
+import `in`.dragonbra.javasteam.contentdownloader.ContentDownloader.DepotManifestIds
 import `in`.dragonbra.javasteam.steam.cdn.ClientLancache
 import `in`.dragonbra.javasteam.util.log.LogListener
 import `in`.dragonbra.javasteam.util.log.LogManager
@@ -23,7 +23,7 @@ fun main(args: Array<String>) {
 
         //region Common Options
 
-        // Not using `in`.dragonbra.javasteam.contentdownloader.hasParameter because it is case-insensitive
+        // Not using hasParameter because it is case-insensitive
         if (args.size == 1 && (args[0] == "-V" || args[0] == "--version")) {
             printVersion(true)
             return@launch
@@ -151,6 +151,7 @@ fun main(args: Array<String>) {
                             println(e.message)
                             return@launch
                         }
+
                         else -> {
                             println("Download failed to due to an unhandled exception: ${e.message}")
                             throw e
@@ -172,13 +173,14 @@ fun main(args: Array<String>) {
 
             if (initializeSteam(username, password)) {
                 try {
-                     ContentDownloader.downloadUGC(appId!!, ugcId!!)
+                    ContentDownloader.downloadUGC(appId!!, ugcId!!)
                 } catch (e: Exception) {
                     when {
                         e is ContentDownloaderException || e is CancellationException -> {
                             println(e.message)
                             return@launch
                         }
+
                         else -> {
                             println("Download failed to due to an unhandled exception: ${e.message}")
                             throw e
@@ -230,7 +232,7 @@ fun main(args: Array<String>) {
 
             val lv = hasParameter(args, "-lowviolence")
 
-            val depotManifestIds = mutableMapOf<Int, Long>()
+            val depotManifestIds = mutableListOf<DepotManifestIds>()
             val isUGC = false
 
             val depotIdList = getParameterList<Int>(args, "-depot")
@@ -242,23 +244,24 @@ fun main(args: Array<String>) {
                 }
 
                 depotIdList.forEachIndexed { index, depotId ->
-                    depotManifestIds[depotId] = manifestIdList[index]
+                    depotManifestIds.add(DepotManifestIds(depotId, manifestIdList[index]))
                 }
             } else {
                 depotIdList.forEach { depotId ->
-                    depotManifestIds[depotId] = ContentDownloader.INVALID_MANIFEST_ID
+                    depotManifestIds.add(DepotManifestIds(depotId, ContentDownloader.INVALID_MANIFEST_ID))
                 }
             }
 
             if (initializeSteam(username, password)) {
                 try {
-                     ContentDownloader . downloadApp(appId!!, depotManifestIds, branch, os, arch, language, lv, isUGC)
+                    ContentDownloader.downloadApp(appId!!, depotManifestIds, branch, os, arch, language, lv, isUGC)
                 } catch (e: Exception) {
                     when {
                         e is ContentDownloaderException || e is CancellationException -> {
                             println(e.message)
                             return@launch
                         }
+
                         else -> println("Download failed to due to an unhandled exception: ${e.message}")
                     }
                     throw e
@@ -284,7 +287,7 @@ fun initializeSteam(username: String?, password: String?): Boolean {
     if (!ContentDownloader.config.useQrCode) {
         if (username != null && finalPassword == null &&
             (!ContentDownloader.config.rememberPassword ||
-                !AccountSettingsStore.instance.loginTokens.containsKey(username))
+                !AccountSettingsStore.instance!!.loginTokens.containsKey(username))
         ) {
 
             do {
@@ -303,7 +306,7 @@ fun initializeSteam(username: String?, password: String?): Boolean {
         }
     }
 
-    return ContentDownloader.initializeSteam3(username, finalPassword)
+    return ContentDownloader.initializeSteam3(username, finalPassword!!)
 }
 
 fun indexOfParam(args: Array<String>, param: String): Int {
@@ -333,7 +336,7 @@ private inline fun <reified T> getParameter(args: Array<String>, param: String, 
             Boolean::class -> strParam.toBoolean() as T
             else -> strParam as T
         }
-    } catch (e: Exception) {
+    } catch (_: Exception) {
         defaultValue
     }
 }
@@ -359,7 +362,7 @@ private inline fun <reified T> getParameterList(args: Array<String>, param: Stri
                 else -> strParam as T
             }
             list.add(value)
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             // Skip values that can't be converted
         }
 

@@ -2,6 +2,7 @@ package `in`.dragonbra.javasteam.contentdownloader
 
 import kotlinx.coroutines.sync.Semaphore
 import java.nio.channels.FileChannel
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * @author Oxters
@@ -11,5 +12,5 @@ import java.nio.channels.FileChannel
 data class FileStreamData(
     var fileStream: FileChannel?,
     val fileLock: Semaphore,
-    var chunksToDownload: Int,
+    var chunksToDownload: AtomicInteger,
 )

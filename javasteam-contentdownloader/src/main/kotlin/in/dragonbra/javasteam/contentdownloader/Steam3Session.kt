@@ -130,9 +130,9 @@ class Steam3Session {
     }
 
     // TODO
-    suspend fun tickCallbacks() {
+    suspend fun tickCallbacks(scope: CoroutineScope) {
         try {
-            while (true) {
+            while (scope.isActive) {
                 println("Waiting for callbacks...")
                 callbacks.runWaitCallbackAsync()
             }

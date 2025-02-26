@@ -2,17 +2,13 @@ package `in`.dragonbra.javasteam.contentdownloader
 
 import `in`.dragonbra.javasteam.types.DepotManifest
 import `in`.dragonbra.javasteam.util.log.LogManager
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import org.apache.commons.lang3.SystemUtils
 import java.io.File
 import java.io.IOException
 import java.security.MessageDigest
-
-class ContentDownloaderException(value: String) : Exception(value)
-
-sealed class DirectoryResult {
-    data class Success(val installDir: String) : DirectoryResult()
-    data object Failed : DirectoryResult()
-}
 
 object Util {
 
@@ -81,6 +77,54 @@ object Util {
         File(filename).inputStream().use { fs ->
             val sha = MessageDigest.getInstance("SHA-1")
             return sha.digest(fs.readBytes())
+        }
+    }
+
+    @JvmStatic
+    fun saveManifestToFile(directory: String, manifest: DepotManifest): Boolean {
+        return try {
+            val filename = "$directory/${manifest.depotID}_${manifest.manifestGID}.manifest"
+            manifest.saveToFile(filename)
+            File("$filename.sha").writeBytes(fileSHAHash(filename))
+            true // If everything completes without throwing an exception, return true
+        } catch (e: Exception) {
+            false // Return false if an error occurs
+        }
+    }
+
+    suspend fun invokeAsync(taskFactories: List<suspend () -> Unit>, maxDegreeOfParallelism: Int) {
+        require(taskFactories.isNotEmpty()) { "Task factories list cannot be null or empty" }
+        require(maxDegreeOfParallelism > 0) { "Max degree of parallelism must be greater than 0" }
+
+        val queue = taskFactories.toList()
+        if (queue.isEmpty()) {
+            return
+        }
+
+        coroutineScope {
+            val activeJobs = mutableListOf<Job>()
+            var index = 0
+
+            do {
+                // Launch new coroutines until we reach the max degree of parallelism
+                while (activeJobs.size < maxDegreeOfParallelism && index < queue.size) {
+                    val taskFactory = queue[index++]
+                    val job = launch {
+                        taskFactory()
+                    }
+                    activeJobs.add(job)
+                }
+
+                // Wait for any job to complete
+                val completedJob = activeJobs.firstOrNull { it.isCompleted }
+                    ?: activeJobs.first().also {
+                        // If no job is complete yet, wait for the first one
+                        it.join()
+                    }
+
+                // Remove the completed job
+                activeJobs.remove(completedJob)
+            } while (index < queue.size || activeJobs.isNotEmpty())
         }
     }
 }
