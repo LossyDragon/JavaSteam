@@ -76,6 +76,7 @@ sentry.bin
 server_list.bin
 /steamapps/
 /userfiles/
+account.config
 
 # Kotlin 2.0
 /.kotlin/sessions/
