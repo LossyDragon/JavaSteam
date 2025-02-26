@@ -1,7 +1,7 @@
-package `in`.dragonbra.javasteam.steam.contentdownloader
+// package `in`.dragonbra.javasteam.steam.contentdownloader
 
-//@Suppress("unused", "SpellCheckingInspection")
-//class ContentDownloader(val steamClient: SteamClient, private val config: DownloadConfig) {
+// @Suppress("unused", "SpellCheckingInspection")
+// class ContentDownloader(val steamClient: SteamClient, private val config: DownloadConfig) {
 //
 //  private  companion object {
 //      private const val HTTP_UNAUTHORIZED = 401
@@ -679,4 +679,4 @@ package `in`.dragonbra.javasteam.steam.contentdownloader
 //
 //        return@async newProtoManifest
 //    }
-//}
+// }

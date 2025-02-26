@@ -4,12 +4,23 @@ import `in`.dragonbra.javasteam.contentdownloader.ContentDownloader.DepotManifes
 import `in`.dragonbra.javasteam.steam.cdn.ClientLancache
 import `in`.dragonbra.javasteam.util.log.LogListener
 import `in`.dragonbra.javasteam.util.log.LogManager
-import kotlinx.coroutines.*
-import kotlinx.coroutines.future.*
+import kotlinx.coroutines.future.await
+import kotlinx.coroutines.runBlocking
 import java.io.File
 import kotlin.coroutines.cancellation.CancellationException
 
 private const val VERSION = "1.0.0"
+
+// TODOs
+// Waiting for callbacks...
+// Got depot key for 736261 result: OK
+// Download failed to due to an unhandled exception: null
+// Waiting for callbacks...
+
+// Failed to load account settings: Unexpected JSON token at offset 0: Expected start of the object '{', but had 'x' instead at path: $
+// JSON input: x��e�x�e�Oo�0ſ��
+// L�mzK�fk.....
+// Connecting to Steam3...
 
 fun main(args: Array<String>) {
     if (args.isEmpty()) {
@@ -18,7 +29,7 @@ fun main(args: Array<String>) {
         return
     }
 
-    CoroutineScope(Dispatchers.IO).launch {
+    runBlocking {
         AccountSettingsStore.loadFromFile("account.config")
 
         //region Common Options
@@ -26,7 +37,7 @@ fun main(args: Array<String>) {
         // Not using hasParameter because it is case-insensitive
         if (args.size == 1 && (args[0] == "-V" || args[0] == "--version")) {
             printVersion(true)
-            return@launch
+            return@runBlocking
         }
 
         if (hasParameter(args, "-debug")) {
@@ -54,12 +65,12 @@ fun main(args: Array<String>) {
         if (username == null) {
             if (ContentDownloader.config.rememberPassword) {
                 println("Error: -remember-password can not be used without -username.")
-                return@launch
+                return@runBlocking
             }
 
             if (ContentDownloader.config.useQrCode) {
                 println("Error: -qr can not be used without -username.")
-                return@launch
+                return@runBlocking
             }
         }
 
@@ -105,7 +116,9 @@ fun main(args: Array<String>) {
         ContentDownloader.config.installDirectory =
             getParameter<String>(args, "-dir")
         ContentDownloader.config.verifyAll =
-            hasParameter(args, "-verify-all") || hasParameter(args, "-verify_all") || hasParameter(args, "-validate")
+            hasParameter(args, "-verify-all") ||
+            hasParameter(args, "-verify_all") ||
+            hasParameter(args, "-validate")
         ContentDownloader.config.maxServers =
             getParameter(args, "-max-servers", 20)!!
 
@@ -134,7 +147,7 @@ fun main(args: Array<String>) {
         val appId = getParameter(args, "-app", ContentDownloader.INVALID_APP_ID)
         if (appId == ContentDownloader.INVALID_APP_ID) {
             println("Error: -app not specified!")
-            return@launch
+            return@runBlocking
         }
 
         val pubFile = getParameter(args, "-pubfile", ContentDownloader.INVALID_MANIFEST_ID)
@@ -149,7 +162,7 @@ fun main(args: Array<String>) {
                     when {
                         e is ContentDownloaderException || e is CancellationException -> {
                             println(e.message)
-                            return@launch
+                            return@runBlocking
                         }
 
                         else -> {
@@ -157,14 +170,12 @@ fun main(args: Array<String>) {
                             throw e
                         }
                     }
-
-
                 } finally {
                     ContentDownloader.shutdownSteam3()
                 }
             } else {
                 println("Error: InitializeSteam failed")
-                return@launch
+                return@runBlocking
             }
 
             //endregion
@@ -178,7 +189,7 @@ fun main(args: Array<String>) {
                     when {
                         e is ContentDownloaderException || e is CancellationException -> {
                             println(e.message)
-                            return@launch
+                            return@runBlocking
                         }
 
                         else -> {
@@ -191,7 +202,7 @@ fun main(args: Array<String>) {
                 }
             } else {
                 println("Error: InitializeSteam failed")
-                return@launch
+                return@runBlocking
             }
 
             //endregion
@@ -199,7 +210,7 @@ fun main(args: Array<String>) {
             //region App downloading
 
             val branch = getParameter<String>(args, "-branch") ?: getParameter<String>(args, "-beta")
-            ?: ContentDownloader.DEFAULT_BRANCH
+                ?: ContentDownloader.DEFAULT_BRANCH
 
             ContentDownloader.config.betaPassword =
                 getParameter<String>(args, "-branchpassword") ?: getParameter<String>(args, "-betapassword")
@@ -210,7 +221,7 @@ fun main(args: Array<String>) {
 
             if (ContentDownloader.config.downloadAllPlatforms && !os.isNullOrEmpty()) {
                 println("Error: Cannot specify -os when -all-platforms is specified.")
-                return@launch
+                return@runBlocking
             }
 
             ContentDownloader.config.downloadAllArchs = hasParameter(args, "-all-archs")
@@ -219,7 +230,7 @@ fun main(args: Array<String>) {
 
             if (ContentDownloader.config.downloadAllArchs && !arch.isNullOrEmpty()) {
                 println("Error: Cannot specify -osarch when -all-archs is specified.")
-                return@launch
+                return@runBlocking
             }
 
             ContentDownloader.config.downloadAllLanguages = hasParameter(args, "-all-languages")
@@ -227,7 +238,7 @@ fun main(args: Array<String>) {
 
             if (ContentDownloader.config.downloadAllLanguages && !language.isNullOrEmpty()) {
                 println("Error: Cannot specify -language when -all-languages is specified.")
-                return@launch
+                return@runBlocking
             }
 
             val lv = hasParameter(args, "-lowviolence")
@@ -240,7 +251,7 @@ fun main(args: Array<String>) {
             if (manifestIdList.isNotEmpty()) {
                 if (depotIdList.size != manifestIdList.size) {
                     println("Error: -manifest requires one id for every -depot specified")
-                    return@launch
+                    return@runBlocking
                 }
 
                 depotIdList.forEachIndexed { index, depotId ->
@@ -259,7 +270,7 @@ fun main(args: Array<String>) {
                     when {
                         e is ContentDownloaderException || e is CancellationException -> {
                             println(e.message)
-                            return@launch
+                            return@runBlocking
                         }
 
                         else -> println("Download failed to due to an unhandled exception: ${e.message}")
@@ -270,13 +281,13 @@ fun main(args: Array<String>) {
                 }
             } else {
                 println("Error: InitializeSteam failed")
-                return@launch
+                return@runBlocking
             }
 
             //endregion
         }
 
-        return@launch
+        return@runBlocking
         //endregion
     }
 }
@@ -285,11 +296,13 @@ fun initializeSteam(username: String?, password: String?): Boolean {
     var finalPassword = password
 
     if (!ContentDownloader.config.useQrCode) {
-        if (username != null && finalPassword == null &&
-            (!ContentDownloader.config.rememberPassword ||
-                !AccountSettingsStore.instance!!.loginTokens.containsKey(username))
+        if (username != null &&
+            finalPassword == null &&
+            (
+                !ContentDownloader.config.rememberPassword ||
+                    !AccountSettingsStore.instance!!.loginTokens.containsKey(username)
+                )
         ) {
-
             do {
                 print("Enter account password for \"$username\": ")
                 finalPassword = if (System.console() == null) {
@@ -300,31 +313,30 @@ fun initializeSteam(username: String?, password: String?): Boolean {
                 }
                 println()
             } while (finalPassword.isNullOrEmpty())
-
         } else if (username == null) {
             println("No username given. Using anonymous account with dedicated server subscription.")
         }
     }
 
-    return ContentDownloader.initializeSteam3(username, finalPassword!!)
+    return ContentDownloader.initializeSteam3(username, finalPassword)
 }
 
 fun indexOfParam(args: Array<String>, param: String): Int {
     for (x in args.indices) {
-        if (args[x].equals(param, ignoreCase = true))
+        if (args[x].equals(param, ignoreCase = true)) {
             return x
+        }
     }
     return -1
 }
 
-fun hasParameter(args: Array<String>, param: String): Boolean {
-    return indexOfParam(args, param) > -1
-}
+fun hasParameter(args: Array<String>, param: String): Boolean = indexOfParam(args, param) > -1
 
 private inline fun <reified T> getParameter(args: Array<String>, param: String, defaultValue: T? = null): T? {
     val index = indexOfParam(args, param)
-    if (index == -1 || index == args.size - 1)
+    if (index == -1 || index == args.size - 1) {
         return defaultValue
+    }
 
     val strParam = args[index + 1]
     return try {
@@ -344,8 +356,9 @@ private inline fun <reified T> getParameter(args: Array<String>, param: String, 
 private inline fun <reified T> getParameterList(args: Array<String>, param: String): List<T> {
     val list = mutableListOf<T>()
     var index = indexOfParam(args, param)
-    if (index == -1 || index == args.size - 1)
+    if (index == -1 || index == args.size - 1) {
         return list
+    }
 
     index++
     while (index < args.size) {
@@ -418,7 +431,6 @@ private fun printUsage() {
     println("  -loginid <#>             - a unique 32-bit integer Steam LogonID in decimal, required if running multiple instances of DepotDownloader concurrently.")
     println("  -use-lancache            - forces downloads over the local network via a Lancache instance.")
 }
-
 
 private fun printVersion(printExtra: Boolean = false) {
     println("JavaSteam DepotDownloader $VERSION")

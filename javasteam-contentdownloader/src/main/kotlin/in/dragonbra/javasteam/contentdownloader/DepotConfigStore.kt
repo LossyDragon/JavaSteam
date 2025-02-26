@@ -17,7 +17,7 @@ class DepotConfigStore {
     companion object {
         var instance: DepotConfigStore? = null
 
-        val loaded: Boolean
+        private val loaded: Boolean
             get() = instance != null
 
         @JvmStatic

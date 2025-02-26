@@ -74,6 +74,8 @@ class UnifiedInterfaceTest {
             "ParentalClient.kt",
             "Player.kt",
             "PlayerClient.kt",
+            "PublishedFile.kt",
+            "PublishedFileClient.kt",
             "RemoteClient.kt",
             "RemoteClientSteamClient.kt",
             "TwoFactor.kt",

@@ -2,11 +2,18 @@ package `in`.dragonbra.javasteam.contentdownloader
 
 import `in`.dragonbra.javasteam.steam.cdn.Client
 import `in`.dragonbra.javasteam.steam.cdn.Server
-import `in`.dragonbra.javasteam.steam.handlers.steamcontent.SteamContent
-import `in`.dragonbra.javasteam.steam.steamclient.SteamClient
 import `in`.dragonbra.javasteam.util.log.LogManager
 import `in`.dragonbra.javasteam.util.log.Logger
-import kotlinx.coroutines.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import java.util.concurrent.ConcurrentLinkedDeque
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.CountDownLatch
@@ -142,14 +149,14 @@ class CDNClientPool(
     }
 
     internal fun returnConnection(server: Server?) {
-        server?.let { server ->
+        server?.let {
             activeConnectionPool.push(server)
         }
     }
 
     @Suppress("unused")
     internal fun returnBrokenConnection(server: Server?) {
-        server?.let { server ->
+        server?.let {
             // Broken connections are not returned to the pool
         }
     }

@@ -46,11 +46,10 @@ object Util {
         directory: String,
         depotId: Int,
         manifestId: Long,
-        badHashWarning: Boolean
+        badHashWarning: Boolean,
     ): DepotManifest? {
-
         // Try loading Steam format manifest first
-        var filename = File(directory, "${depotId}_${manifestId}.manifest").path
+        val filename = File(directory, "${depotId}_$manifestId.manifest").path
 
         if (File(filename).exists()) {
             val expectedChecksum: ByteArray? = try {
@@ -81,15 +80,13 @@ object Util {
     }
 
     @JvmStatic
-    fun saveManifestToFile(directory: String, manifest: DepotManifest): Boolean {
-        return try {
-            val filename = "$directory/${manifest.depotID}_${manifest.manifestGID}.manifest"
-            manifest.saveToFile(filename)
-            File("$filename.sha").writeBytes(fileSHAHash(filename))
-            true // If everything completes without throwing an exception, return true
-        } catch (e: Exception) {
-            false // Return false if an error occurs
-        }
+    fun saveManifestToFile(directory: String, manifest: DepotManifest): Boolean = try {
+        val filename = "$directory/${manifest.depotID}_${manifest.manifestGID}.manifest"
+        manifest.saveToFile(filename)
+        File("$filename.sha").writeBytes(fileSHAHash(filename))
+        true // If everything completes without throwing an exception, return true
+    } catch (e: Exception) {
+        false // Return false if an error occurs
     }
 
     suspend fun invokeAsync(taskFactories: List<suspend () -> Unit>, maxDegreeOfParallelism: Int) {

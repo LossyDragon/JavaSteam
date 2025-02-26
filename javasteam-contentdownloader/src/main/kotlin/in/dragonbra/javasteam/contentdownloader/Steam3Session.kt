@@ -1,7 +1,8 @@
 package `in`.dragonbra.javasteam.contentdownloader
 
 import `in`.dragonbra.javasteam.enums.EResult
-import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesPublishedfileSteamclient.*
+import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesPublishedfileSteamclient.PublishedFileDetails
+import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesPublishedfileSteamclient.CPublishedFile_GetDetails_Request
 import `in`.dragonbra.javasteam.rpc.service.PublishedFile
 import `in`.dragonbra.javasteam.steam.authentication.AuthSession
 import `in`.dragonbra.javasteam.steam.authentication.AuthSessionDetails
@@ -29,8 +30,12 @@ import `in`.dragonbra.javasteam.steam.steamclient.configuration.SteamConfigurati
 import `in`.dragonbra.javasteam.types.PublishedFileID
 import `in`.dragonbra.javasteam.types.PublishedFileID.Companion.toLong
 import `in`.dragonbra.javasteam.types.UGCHandle
-import kotlinx.coroutines.*
-import kotlinx.coroutines.future.*
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.future.await
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import pro.leaco.console.qrcode.ConsoleQrcode
 import java.util.concurrent.*
 import java.util.concurrent.locks.*
@@ -74,7 +79,7 @@ class Steam3Session {
 
     private val steamLock = ReentrantLock()
 
-    //input
+    // input
     var logonDetails: LogOnDetails
         private set
 
@@ -84,7 +89,7 @@ class Steam3Session {
         authenticatedUser = details.username.isNotEmpty() || ContentDownloader.config.useQrCode
 
         val clientConfiguration = SteamConfiguration.create { _ ->
-            //config.withHttpClient()
+            // config.withHttpClient()
         }
         steamClient = SteamClient(clientConfiguration)
 
@@ -122,8 +127,9 @@ class Steam3Session {
     }
 
     fun waitForCredentials(): Boolean {
-        if (isLoggedOn || bAborted)
+        if (isLoggedOn || bAborted) {
             return isLoggedOn
+        }
 
         waitUntilCallback({ }, { isLoggedOn })
         return isLoggedOn
@@ -142,8 +148,9 @@ class Steam3Session {
     }
 
     suspend fun requestAppInfo(appId: Int, bForce: Boolean = false) {
-        if ((appInfo.containsKey(appId) && !bForce) || bAborted)
+        if ((appInfo.containsKey(appId) && !bForce) || bAborted) {
             return
+        }
 
         val appTokens = steamApps.picsGetAccessTokens(listOf(appId), emptyList()).await()
         if (appTokens.appTokensDenied.contains(appId)) {
@@ -176,8 +183,9 @@ class Steam3Session {
         val packages = packageIds.toMutableList()
         packages.removeAll { packageInfo.containsKey(it) }
 
-        if (packages.isEmpty() || bAborted)
+        if (packages.isEmpty() || bAborted) {
             return
+        }
 
         val packageRequests = mutableListOf<PICSRequest>()
         for (packageId in packages) {
@@ -200,19 +208,18 @@ class Steam3Session {
         }
     }
 
-    suspend fun requestFreeAppLicense(appId: Int): Boolean {
-        return try {
-            val resultInfo = steamApps.requestFreeLicense(appId).await()
-            resultInfo.grantedApps.contains(appId)
-        } catch (ex: Exception) {
-            println("Failed to request FreeOnDemand license for app $appId: ${ex.message}")
-            false
-        }
+    suspend fun requestFreeAppLicense(appId: Int): Boolean = try {
+        val resultInfo = steamApps.requestFreeLicense(appId).await()
+        resultInfo.grantedApps.contains(appId)
+    } catch (ex: Exception) {
+        println("Failed to request FreeOnDemand license for app $appId: ${ex.message}")
+        false
     }
 
     suspend fun requestDepotKey(depotId: Int, appId: Int = 0) {
-        if (depotKeys.containsKey(depotId) || bAborted)
+        if (depotKeys.containsKey(depotId) || bAborted) {
             return
+        }
 
         val depotKey = steamApps.getDepotDecryptionKey(depotId, appId).await()
         println("Got depot key for ${depotKey.depotID} result: ${depotKey.result}")
@@ -228,10 +235,11 @@ class Steam3Session {
         depotId: Int,
         appId: Int,
         manifestId: Long,
-        branch: String
+        branch: String,
     ): Long {
-        if (bAborted)
+        if (bAborted) {
             return 0L
+        }
 
         val requestCode = steamContent.getManifestRequestCode(
             depotId = depotId,
@@ -470,7 +478,7 @@ class Steam3Session {
                 connectionBackoff += 1
 
                 if (bConnecting) {
-                    println("Connection to Steam failed. Trying again (${connectionBackoff})...")
+                    println("Connection to Steam failed. Trying again ($connectionBackoff)...")
                 } else {
                     println("Lost connection to Steam. Reconnecting")
                 }
@@ -487,14 +495,15 @@ class Steam3Session {
     private fun logOnCallback(loggedOn: LoggedOnCallback) {
         val isSteamGuard = loggedOn.result == EResult.AccountLogonDenied
         val is2FA = loggedOn.result == EResult.AccountLoginDeniedNeedTwoFactor
-        val isAccessToken = ContentDownloader.config.rememberPassword && logonDetails.accessToken != null &&
+        val isAccessToken = ContentDownloader.config.rememberPassword &&
+            logonDetails.accessToken != null &&
             loggedOn.result in listOf(
-            EResult.InvalidPassword,
-            EResult.InvalidSignature,
-            EResult.AccessDenied,
-            EResult.Expired,
-            EResult.Revoked
-        )
+                EResult.InvalidPassword,
+                EResult.InvalidSignature,
+                EResult.AccessDenied,
+                EResult.Expired,
+                EResult.Revoked
+            )
 
         if (isSteamGuard || is2FA || isAccessToken) {
             bExpectingDisconnectRemote = true

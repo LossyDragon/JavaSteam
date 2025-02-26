@@ -1,18 +1,20 @@
 package `in`.dragonbra.javasteam.contentdownloader
 
-import kotlinx.serialization.*
-import kotlinx.serialization.json.*
-import java.util.concurrent.ConcurrentHashMap
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.Transient
+import kotlinx.serialization.json.Json
 import java.io.File
+import java.util.concurrent.ConcurrentHashMap
 import java.util.zip.*
 
 @Serializable
-class AccountSettingsStore() {
+class AccountSettingsStore {
 
     @Transient
     private lateinit var fileName: String
 
     private val _contentServerPenalty: MutableMap<String, Int> = mutableMapOf()
+
     @Transient
     val contentServerPenalty: ConcurrentHashMap<String, Int> = ConcurrentHashMap<String, Int>().also { map ->
         map.putAll(_contentServerPenalty)
