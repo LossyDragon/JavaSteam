@@ -273,7 +273,10 @@ fun main(args: Array<String>) {
                             return@runBlocking
                         }
 
-                        else -> println("Download failed to due to an unhandled exception: ${e.message}")
+                        else -> {
+                            println("Download failed to due to an unhandled exception: ${e.message}")
+                            println(e)
+                        }
                     }
                     throw e
                 } finally {

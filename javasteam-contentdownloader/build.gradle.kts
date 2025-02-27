@@ -35,6 +35,7 @@ dependencies {
     implementation(libs.commons.lang3)
     implementation(libs.commons.validator)
     implementation(libs.bundles.ktor)
+    implementation(libs.bouncyCastle)
 
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.0")
 }

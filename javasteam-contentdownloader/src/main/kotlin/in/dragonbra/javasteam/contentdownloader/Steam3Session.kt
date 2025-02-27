@@ -1,8 +1,8 @@
 package `in`.dragonbra.javasteam.contentdownloader
 
 import `in`.dragonbra.javasteam.enums.EResult
-import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesPublishedfileSteamclient.PublishedFileDetails
 import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesPublishedfileSteamclient.CPublishedFile_GetDetails_Request
+import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesPublishedfileSteamclient.PublishedFileDetails
 import `in`.dragonbra.javasteam.rpc.service.PublishedFile
 import `in`.dragonbra.javasteam.steam.authentication.AuthSession
 import `in`.dragonbra.javasteam.steam.authentication.AuthSessionDetails
@@ -139,7 +139,7 @@ class Steam3Session {
     suspend fun tickCallbacks(scope: CoroutineScope) {
         try {
             while (scope.isActive) {
-                println("Waiting for callbacks...")
+                // println("Waiting for callbacks...")
                 callbacks.runWaitCallbackAsync()
             }
         } catch (e: CancellationException) {
@@ -236,9 +236,9 @@ class Steam3Session {
         appId: Int,
         manifestId: Long,
         branch: String,
-    ): Long {
+    ): ULong {
         if (bAborted) {
-            return 0L
+            return 0UL
         }
 
         val requestCode = steamContent.getManifestRequestCode(
@@ -249,7 +249,7 @@ class Steam3Session {
             parentScope = steamClient.defaultScope
         ).await()
 
-        if (requestCode == 0L) {
+        if (requestCode == 0UL) {
             println("No manifest request code was returned for depot $depotId from app $appId, manifest $manifestId")
         } else {
             println("Got manifest request code for depot $depotId from app $appId, manifest $manifestId, result: $requestCode")

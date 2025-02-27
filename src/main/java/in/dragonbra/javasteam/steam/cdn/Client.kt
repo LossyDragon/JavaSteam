@@ -121,14 +121,14 @@ class Client(steamClient: SteamClient) : Closeable {
     suspend fun downloadManifest(
         depotId: Int,
         manifestId: Long,
-        manifestRequestCode: Long,
+        manifestRequestCode: ULong,
         server: Server,
         depotKey: ByteArray? = null,
         proxyServer: Server? = null,
         cdnAuthToken: String? = null,
     ): DepotManifest {
         val manifestVersion = 5 // Constant value
-        val url = if (manifestRequestCode > 0) {
+        val url = if (manifestRequestCode > 0UL) {
             "depot/$depotId/manifest/$manifestId/$manifestVersion/$manifestRequestCode"
         } else {
             "depot/$depotId/manifest/$manifestId/$manifestVersion"
@@ -150,6 +150,8 @@ class Client(steamClient: SteamClient) : Closeable {
                     message = "Response status code does not indicate success: ${response.code} (${response.message})",
                     response = response
                 )
+            } else {
+                logger.error("Download manifest success: ${response.code}")
             }
 
             var contentLength = -1
@@ -190,20 +192,23 @@ class Client(steamClient: SteamClient) : Closeable {
                     }
 
                     // Decompress the zipped manifest data
-                    ZipInputStream(ms).use { zip ->
-                        var entryCount = 0
-                        while (zip.nextEntry != null) {
-                            entryCount++
+                    ms.use { inputStream ->
+                        val entryCount = ZipInputStream(inputStream).use { zip ->
+                            generateSequence { zip.nextEntry }.count()
                         }
+
                         if (entryCount != 1) {
                             logger.debug("Expected the zip to contain only one file")
                         }
-                    }
 
-                    // Open it again because we can't reverse our current entry in a single pass.
-                    ZipInputStream(ms).use { zip ->
-                        zip.nextEntry // Position at first entry
-                        depotManifest = DepotManifest.deserialize(zip)
+                        // Reset stream to beginning
+                        ms.position = 0
+
+                        // Second pass: deserialize the first entry
+                        ZipInputStream(inputStream).use { zip ->
+                            zip.nextEntry // Position at first entry
+                            depotManifest = DepotManifest.deserialize(zip)
+                        }
                     }
 
                     ms.close()
@@ -266,7 +271,7 @@ class Client(steamClient: SteamClient) : Closeable {
         downloadManifest(
             depotId = depotId,
             manifestId = manifestId,
-            manifestRequestCode = manifestRequestCode,
+            manifestRequestCode = manifestRequestCode.toULong(),
             server = server,
             depotKey = depotKey,
             proxyServer = proxyServer,

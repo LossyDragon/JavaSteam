@@ -32,7 +32,6 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
-import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileInputStream
@@ -353,7 +352,7 @@ object ContentDownloader {
         }
 
         if (!details?.url.isNullOrEmpty()) {
-            downloadWebFile(appId, details!!.fileName, details.url)
+            downloadWebFile(appId, details.fileName, details.url)
         } else {
             downloadApp(
                 appId = appId,
@@ -426,6 +425,7 @@ object ContentDownloader {
         }
 
         File(Paths.get(configPath, CONFIG_DIR).toString()).mkdirs()
+        DepotConfigStore.loadFromFile(Paths.get(configPath, CONFIG_DIR, "depot.config").toString())
 
         steam3!!.requestAppInfo(appId)
 
@@ -440,7 +440,6 @@ object ContentDownloader {
                 throw ContentDownloaderException("App $appId ($contentName) is not available from this account.")
             }
         }
-
         val hasSpecificDepots = ids.isNotEmpty()
         val depotIdsFound = mutableListOf<Int>()
         val depotIdsExpected = ids.map { it.depotId }.toMutableList()
@@ -540,6 +539,8 @@ object ContentDownloader {
         } catch (e: CancellationException) {
             logger.error("App $appId was not completely downloaded.", e)
             throw e
+        } catch (e: Exception) {
+            logger.error("downloadSteam3 error", e)
         }
     }
 
@@ -646,7 +647,7 @@ object ContentDownloader {
     private suspend fun processDepotManifestAndFiles(
         depot: DepotDownloadInfo,
         downloadCounter: GlobalDownloadCounter,
-    ): DepotFilesData? {
+    ): DepotFilesData? = withContext(Dispatchers.IO) {
         val depotCounter = DepotDownloadCounter()
 
         logger.debug("Processing depot ${depot.depotId}")
@@ -682,7 +683,7 @@ object ContentDownloader {
             } else {
                 logger.debug("Downloading depot ${depot.depotId} manifest")
 
-                var manifestRequestCode = 0L
+                var manifestRequestCode = 0UL
                 var manifestRequestCodeExpiration = LocalDateTime.MIN
 
                 do {
@@ -702,7 +703,7 @@ object ContentDownloader {
 
                         // In order to download this manifest, we need the current manifest request code
                         // The manifest request code is only valid for a specific period in time
-                        if (manifestRequestCode == 0L || now >= manifestRequestCodeExpiration) {
+                        if (manifestRequestCode == 0UL || now >= manifestRequestCodeExpiration) {
                             manifestRequestCode = steam3!!.getDepotManifestRequestCode(
                                 depot.depotId,
                                 depot.appId,
@@ -714,8 +715,8 @@ object ContentDownloader {
                             manifestRequestCodeExpiration = now.plusMinutes(5)
 
                             // If we could not get the manifest code, this is a fatal error
-                            if (manifestRequestCode == 0L) {
-                                // TODO cancel
+                            if (manifestRequestCode == 0UL) {
+                                cancel()
                             }
                         }
 
@@ -781,7 +782,7 @@ object ContentDownloader {
 
         if (config.downloadManifestOnly) {
             dumpManifestToTextFile(depot, newManifest)
-            return null
+            return@withContext null
         }
 
         val stagingDir = Paths.get(depot.installDir, STAGING_DIR)
@@ -811,7 +812,7 @@ object ContentDownloader {
             }
         }
 
-        return DepotFilesData(
+        return@withContext DepotFilesData(
             depotDownloadInfo = depot,
             depotCounter = depotCounter,
             stagingDir = stagingDir.toString(),
@@ -844,9 +845,7 @@ object ContentDownloader {
         Util.invokeAsync(
             files.map { file ->
                 suspend {
-                    withContext(Dispatchers.Default) {
-                        downloadSteam3DepotFile(downloadCounter, depotFilesData, file, networkChunkQueue)
-                    }
+                    downloadSteam3DepotFile(downloadCounter, depotFilesData, file, networkChunkQueue)
                 }
             },
             maxDegreeOfParallelism = config.maxDownloads
@@ -856,16 +855,13 @@ object ContentDownloader {
         Util.invokeAsync(
             networkChunkQueue.map { (fileStreamData, fileData, chunk) ->
                 suspend {
-                    withContext(Dispatchers.Default) {
-                        downloadSteam3DepotFileChunk(
-                            downloadCounter = downloadCounter,
-                            depotFilesData = depotFilesData,
-                            file = fileData,
-                            fileStreamData = fileStreamData,
-                            chunk = chunk,
-                            scope = this,
-                        )
-                    }
+                    downloadSteam3DepotFileChunk(
+                        downloadCounter = downloadCounter,
+                        depotFilesData = depotFilesData,
+                        file = fileData,
+                        fileStreamData = fileStreamData,
+                        chunk = chunk,
+                    )
                 }
             },
             maxDegreeOfParallelism = config.maxDownloads
@@ -915,6 +911,10 @@ object ContentDownloader {
         file: FileData,
         networkChunkQueue: ConcurrentLinkedQueue<Triple<FileStreamData, FileData, ChunkData>>,
     ) = withContext(Dispatchers.IO) {
+        if (!isActive) {
+            throw CancellationException()
+        }
+
         val depot = depotFilesData.depotDownloadInfo
         val stagingDir = depotFilesData.stagingDir
         val depotDownloadCounter = depotFilesData.depotCounter
@@ -1093,9 +1093,8 @@ object ContentDownloader {
         file: FileData,
         fileStreamData: FileStreamData,
         chunk: ChunkData,
-        scope: CoroutineScope,
     ) = withContext(Dispatchers.IO) {
-        if (scope.isActive.not()) {
+        if (!isActive) {
             throw CancellationException()
         }
 
@@ -1109,7 +1108,7 @@ object ContentDownloader {
 
         try {
             do {
-                scope.ensureActive()
+                ensureActive()
 
                 var connection: Server? = null
 
@@ -1142,7 +1141,7 @@ object ContentDownloader {
 
                     break
                 } catch (e: CancellationException) {
-                    logger.error("Connection timeout downloading chunk $chunkID")
+                    logger.error("Connection timeout downloading chunk $chunkID", e)
                 } catch (e: SteamKitWebRequestException) {
                     // If the CDN returned 403, attempt to get a cdn auth if we didn't yet,
                     // if auth task already exists, make sure it didn't complete yet, so that it gets awaited above
@@ -1171,11 +1170,11 @@ object ContentDownloader {
 
             if (written == 0) {
                 logger.error("Failed to find any server with chunk $chunkID for depot ${depot.depotId}. Aborting.")
-                scope.cancel()
+                cancel()
             }
 
             // Throw the cancellation exception if requested so that this task is marked failed
-            scope.ensureActive()
+            ensureActive()
 
             try {
                 fileStreamData.fileLock.acquire()
@@ -1201,23 +1200,24 @@ object ContentDownloader {
         val remainingChunks = fileStreamData.chunksToDownload.decrementAndGet()
         if (remainingChunks == 0) {
             fileStreamData.fileStream?.close()
-            fileStreamData.fileLock.release()
+            // fileStreamData.fileLock.()
         }
 
-        var sizeDownloaded: Long = 0L
-        mutex.withLock {
+        var sizeDownloaded = 0L
+        synchronized(depotDownloadCounter) {
             sizeDownloaded = depotDownloadCounter.sizeDownloaded + written
             depotDownloadCounter.sizeDownloaded = sizeDownloaded
             depotDownloadCounter.depotBytesCompressed += chunk.compressedLength
             depotDownloadCounter.depotBytesUncompressed += chunk.uncompressedLength
         }
 
-        mutex.withLock {
+        synchronized(downloadCounter) {
             downloadCounter.totalBytesCompressed += chunk.compressedLength
             downloadCounter.totalBytesUncompressed += chunk.uncompressedLength
 
             // TODO Callback
             // Ansi.Progress(downloadCounter.totalBytesUncompressed, downloadCounter.completeDownloadSize)
+            logger.debug("${downloadCounter.totalBytesUncompressed} -> ${downloadCounter.completeDownloadSize}")
         }
 
         if (remainingChunks == 0) {

@@ -67,7 +67,7 @@ class SteamContent : ClientMsgHandler() {
         branch: String? = null,
         branchPasswordHash: String? = null,
         parentScope: CoroutineScope,
-    ): Deferred<Long> = parentScope.async {
+    ): Deferred<ULong> = parentScope.async {
         var localBranch = branch
         var localBranchPasswordHash = branchPasswordHash
 
@@ -92,7 +92,7 @@ class SteamContent : ClientMsgHandler() {
         // can't really do HandleMsg because it requires parsing the service like its done in HandleServiceMethod
         val response = contentService.getManifestRequestCode(request).await()
 
-        return@async response.body.manifestRequestCode
+        return@async response.body.manifestRequestCode.toULong()
     }
 
     /**
