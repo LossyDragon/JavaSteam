@@ -3,7 +3,6 @@ package `in`.dragonbra.javasteam.steam.steamclient.configuration
 import `in`.dragonbra.javasteam.enums.EClientPersonaStateFlag
 import `in`.dragonbra.javasteam.enums.EUniverse
 import `in`.dragonbra.javasteam.networking.steam3.ProtocolTypes
-import `in`.dragonbra.javasteam.steam.contentdownloader.IManifestProvider
 import `in`.dragonbra.javasteam.steam.discovery.IServerListProvider
 import okhttp3.OkHttpClient
 import java.util.*
@@ -92,7 +91,7 @@ interface ISteamConfigurationBuilder {
      * @param provider The depot manifest provider to use.
      * @return A builder with modified configuration.
      */
-    fun withManifestProvider(provider: IManifestProvider): ISteamConfigurationBuilder
+    // fun withManifestProvider(provider: IManifestProvider): ISteamConfigurationBuilder
 
     /**
      * Configures the Universe that this [SteamConfiguration] belongs to.

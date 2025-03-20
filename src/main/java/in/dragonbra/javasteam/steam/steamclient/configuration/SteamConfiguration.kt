@@ -3,7 +3,6 @@ package `in`.dragonbra.javasteam.steam.steamclient.configuration
 import `in`.dragonbra.javasteam.enums.EClientPersonaStateFlag
 import `in`.dragonbra.javasteam.enums.EUniverse
 import `in`.dragonbra.javasteam.networking.steam3.ProtocolTypes
-import `in`.dragonbra.javasteam.steam.contentdownloader.IManifestProvider
 import `in`.dragonbra.javasteam.steam.discovery.IServerListProvider
 import `in`.dragonbra.javasteam.steam.discovery.SmartCMServerList
 import `in`.dragonbra.javasteam.steam.steamclient.SteamClient
@@ -64,8 +63,8 @@ class SteamConfiguration internal constructor(private val state: SteamConfigurat
     /**
      * The depot manifest provider to use.
      */
-    val depotManifestProvider: IManifestProvider
-        get() = state.depotManifestProvider
+    // val depotManifestProvider: IManifestProvider
+    //     get() = state.depotManifestProvider
 
     /**
      * The Universe to connect to. This should always be [EUniverse.Public] unless you work at Valve and are using this internally. If this is you, hello there.
