@@ -1,175 +1,134 @@
-package in.dragonbra.javasteam.util;
+package `in`.dragonbra.javasteam.util
 
-import in.dragonbra.javasteam.enums.EOSType;
-import in.dragonbra.javasteam.types.ChunkData;
-import org.apache.commons.lang3.SystemUtils;
-
-import java.io.IOException;
-import java.io.RandomAccessFile;
-import java.nio.channels.ClosedChannelException;
-import java.util.Map;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.zip.CRC32;
-import java.util.zip.Checksum;
+import `in`.dragonbra.javasteam.enums.EOSType
+import `in`.dragonbra.javasteam.types.ChunkData
+import org.apache.commons.lang3.SystemUtils
+import java.io.IOException
+import java.nio.ByteBuffer
+import java.nio.channels.FileChannel
+import java.util.zip.*
 
 /**
  * @author lngtr
  * @since 2018-02-23
  */
-public class Utils {
+@Suppress("unused")
+object Utils {
+    private val JAVA_RUNTIME: String? = getSystemProperty("java.runtime.name")
 
-    private static final String JAVA_RUNTIME = getSystemProperty("java.runtime.name");
+    private val WIN_OS_MAP = mapOf(
+        SystemUtils.IS_OS_WINDOWS_95 to EOSType.Win95,
+        SystemUtils.IS_OS_WINDOWS_98 to EOSType.Win98,
+        SystemUtils.IS_OS_WINDOWS_ME to EOSType.WinME,
+        SystemUtils.IS_OS_WINDOWS_NT to EOSType.WinNT,
+        SystemUtils.IS_OS_WINDOWS_2000 to EOSType.Win2000,
+        SystemUtils.IS_OS_WINDOWS_XP to EOSType.WinXP,
+        SystemUtils.IS_OS_WINDOWS_VISTA to EOSType.WinVista,
+        SystemUtils.IS_OS_WINDOWS_7 to EOSType.Windows7,
+        SystemUtils.IS_OS_WINDOWS_8 to EOSType.Windows8,
+        SystemUtils.IS_OS_WINDOWS_10 to EOSType.Windows10,
+        SystemUtils.IS_OS_WINDOWS_11 to EOSType.Win11,
+        SystemUtils.IS_OS_WINDOWS_2003 to EOSType.Win2003,
+        SystemUtils.IS_OS_WINDOWS_2008 to EOSType.Win2008,
+        SystemUtils.IS_OS_WINDOWS_2012 to EOSType.Win2012,
+        checkOS("Windows Server 2016", "10.0") to EOSType.Win2016,
+        checkOS("Windows Server 2019", "10.0") to EOSType.Win2019,
+        checkOS("Windows Server 2022", "10.0") to EOSType.Win2022
+    )
 
-    private static final Map<Boolean, EOSType> WIN_OS_MAP = new LinkedHashMap<>();
+    private val OSX_OS_MAP = mapOf(
+        SystemUtils.IS_OS_MAC_OSX_TIGER to EOSType.MacOS104,
+        SystemUtils.IS_OS_MAC_OSX_LEOPARD to EOSType.MacOS105,
+        SystemUtils.IS_OS_MAC_OSX_SNOW_LEOPARD to EOSType.MacOS106,
+        SystemUtils.IS_OS_MAC_OSX_LION to EOSType.MacOS107,
+        SystemUtils.IS_OS_MAC_OSX_MOUNTAIN_LION to EOSType.MacOS108,
+        SystemUtils.IS_OS_MAC_OSX_MAVERICKS to EOSType.MacOS109,
+        SystemUtils.IS_OS_MAC_OSX_YOSEMITE to EOSType.MacOS1010,
+        SystemUtils.IS_OS_MAC_OSX_EL_CAPITAN to EOSType.MacOS1011,
+        SystemUtils.IS_OS_MAC_OSX_SIERRA to EOSType.MacOS1012,
+        SystemUtils.IS_OS_MAC_OSX_HIGH_SIERRA to EOSType.Macos1013,
+        SystemUtils.IS_OS_MAC_OSX_MOJAVE to EOSType.Macos1014,
+        SystemUtils.IS_OS_MAC_OSX_CATALINA to EOSType.Macos1015,
+        SystemUtils.IS_OS_MAC_OSX_BIG_SUR to EOSType.MacOS11,
+        SystemUtils.IS_OS_MAC_OSX_MONTEREY to EOSType.MacOS12,
+        SystemUtils.IS_OS_MAC_OSX_VENTURA to EOSType.MacOS13,
+        SystemUtils.IS_OS_MAC_OSX_SONOMA to EOSType.MacOS14,
+        checkOS("Mac OS X", "15") to EOSType.MacOS15
+    )
 
-    private static final Map<Boolean, EOSType> OSX_OS_MAP = new LinkedHashMap<>();
+    private val LINUX_OS_MAP = mapOf(
+        "2.2" to EOSType.Linux22,
+        "2.4" to EOSType.Linux24,
+        "2.6" to EOSType.Linux26,
+        "3.2" to EOSType.Linux32,
+        "3.5" to EOSType.Linux35,
+        "3.6" to EOSType.Linux36,
+        "3.10" to EOSType.Linux310,
+        "3.16" to EOSType.Linux316,
+        "3.18" to EOSType.Linux318,
+        "4.1" to EOSType.Linux41,
+        "4.4" to EOSType.Linux44,
+        "4.9" to EOSType.Linux49,
+        "4.14" to EOSType.Linux414,
+        "4.19" to EOSType.Linux419,
+        "5.4" to EOSType.Linux54,
+        "5.10" to EOSType.Linux510
+    )
 
-    private static final Map<String, EOSType> LINUX_OS_MAP = new LinkedHashMap<>();
+    private val GENERIC_LINUX_OS_MAP = mapOf(
+        "3x" to EOSType.Linux3x,
+        "4x" to EOSType.Linux4x,
+        "5x" to EOSType.Linux5x,
+        "6x" to EOSType.Linux6x,
+        "7x" to EOSType.Linux7x
+    )
 
-    private static final Map<String, EOSType> GENERIC_LINUX_OS_MAP = new LinkedHashMap<>();
+    @JvmStatic
+    val oSType: EOSType
+        get() = when {
+            SystemUtils.IS_OS_WINDOWS -> {
+                WIN_OS_MAP.entries.find { it.key }?.value ?: EOSType.WinUnknown
+            }
+            SystemUtils.IS_OS_MAC -> {
+                OSX_OS_MAP.entries.find { it.key }?.value ?: EOSType.MacOSUnknown
+            }
+            JAVA_RUNTIME?.startsWith("Android") == true -> {
+                EOSType.AndroidUnknown
+            }
+            SystemUtils.IS_OS_LINUX -> {
+                getLinuxOSType()
+            }
+            else -> EOSType.Unknown
+        }
 
-    static {
-        WIN_OS_MAP.put(SystemUtils.IS_OS_WINDOWS_95, EOSType.Win95);
-        WIN_OS_MAP.put(SystemUtils.IS_OS_WINDOWS_98, EOSType.Win98);
-        WIN_OS_MAP.put(SystemUtils.IS_OS_WINDOWS_ME, EOSType.WinME);
-        WIN_OS_MAP.put(SystemUtils.IS_OS_WINDOWS_NT, EOSType.WinNT);
-        WIN_OS_MAP.put(SystemUtils.IS_OS_WINDOWS_2000, EOSType.Win2000);
-        WIN_OS_MAP.put(SystemUtils.IS_OS_WINDOWS_XP, EOSType.WinXP);
-        WIN_OS_MAP.put(SystemUtils.IS_OS_WINDOWS_VISTA, EOSType.WinVista);
-        WIN_OS_MAP.put(SystemUtils.IS_OS_WINDOWS_7, EOSType.Windows7);
-        WIN_OS_MAP.put(SystemUtils.IS_OS_WINDOWS_8, EOSType.Windows8);
-        WIN_OS_MAP.put(SystemUtils.IS_OS_WINDOWS_10, EOSType.Windows10);
-        WIN_OS_MAP.put(SystemUtils.IS_OS_WINDOWS_11, EOSType.Win11);
-        WIN_OS_MAP.put(SystemUtils.IS_OS_WINDOWS_2003, EOSType.Win2003);
-        WIN_OS_MAP.put(SystemUtils.IS_OS_WINDOWS_2008, EOSType.Win2008);
-        WIN_OS_MAP.put(SystemUtils.IS_OS_WINDOWS_2012, EOSType.Win2012);
-        WIN_OS_MAP.put(checkOS("Windows Server 2016", "10.0"), EOSType.Win2016);
-        WIN_OS_MAP.put(checkOS("Windows Server 2019", "10.0"), EOSType.Win2019);
-        WIN_OS_MAP.put(checkOS("Windows Server 2022", "10.0"), EOSType.Win2022);
+    private fun getLinuxOSType(): EOSType {
+        val linuxOsVersion = getSystemProperty("os.version") ?: return EOSType.LinuxUnknown
+        val osVersion = linuxOsVersion.split(".")
 
-        OSX_OS_MAP.put(SystemUtils.IS_OS_MAC_OSX_TIGER, EOSType.MacOS104);
-        OSX_OS_MAP.put(SystemUtils.IS_OS_MAC_OSX_LEOPARD, EOSType.MacOS105);
-        OSX_OS_MAP.put(SystemUtils.IS_OS_MAC_OSX_SNOW_LEOPARD, EOSType.MacOS106);
-        OSX_OS_MAP.put(SystemUtils.IS_OS_MAC_OSX_LION, EOSType.MacOS107);
-        OSX_OS_MAP.put(SystemUtils.IS_OS_MAC_OSX_MOUNTAIN_LION, EOSType.MacOS108);
-        OSX_OS_MAP.put(SystemUtils.IS_OS_MAC_OSX_MAVERICKS, EOSType.MacOS109);
-        OSX_OS_MAP.put(SystemUtils.IS_OS_MAC_OSX_YOSEMITE, EOSType.MacOS1010);
-        OSX_OS_MAP.put(SystemUtils.IS_OS_MAC_OSX_EL_CAPITAN, EOSType.MacOS1011);
-        OSX_OS_MAP.put(SystemUtils.IS_OS_MAC_OSX_SIERRA, EOSType.MacOS1012);
-        OSX_OS_MAP.put(SystemUtils.IS_OS_MAC_OSX_HIGH_SIERRA, EOSType.Macos1013);
-        OSX_OS_MAP.put(SystemUtils.IS_OS_MAC_OSX_MOJAVE, EOSType.Macos1014);
-        OSX_OS_MAP.put(SystemUtils.IS_OS_MAC_OSX_CATALINA, EOSType.Macos1015);
-        OSX_OS_MAP.put(SystemUtils.IS_OS_MAC_OSX_BIG_SUR, EOSType.MacOS11);
-        OSX_OS_MAP.put(SystemUtils.IS_OS_MAC_OSX_MONTEREY, EOSType.MacOS12);
-        OSX_OS_MAP.put(SystemUtils.IS_OS_MAC_OSX_VENTURA, EOSType.MacOS13);
-        OSX_OS_MAP.put(SystemUtils.IS_OS_MAC_OSX_SONOMA, EOSType.MacOS14);
-        OSX_OS_MAP.put(checkOS("Mac OS X", "15"), EOSType.MacOS15);
+        if (osVersion.size < 2) {
+            return EOSType.LinuxUnknown
+        }
 
-        LINUX_OS_MAP.put("2.2", EOSType.Linux22);
-        LINUX_OS_MAP.put("2.4", EOSType.Linux24);
-        LINUX_OS_MAP.put("2.6", EOSType.Linux26);
-        LINUX_OS_MAP.put("3.2", EOSType.Linux32);
-        LINUX_OS_MAP.put("3.5", EOSType.Linux35);
-        LINUX_OS_MAP.put("3.6", EOSType.Linux36);
-        LINUX_OS_MAP.put("3.10", EOSType.Linux310);
-        LINUX_OS_MAP.put("3.16", EOSType.Linux316);
-        LINUX_OS_MAP.put("3.18", EOSType.Linux318);
-        LINUX_OS_MAP.put("4.1", EOSType.Linux41);
-        LINUX_OS_MAP.put("4.4", EOSType.Linux44);
-        LINUX_OS_MAP.put("4.9", EOSType.Linux49);
-        LINUX_OS_MAP.put("4.14", EOSType.Linux414);
-        LINUX_OS_MAP.put("4.19", EOSType.Linux419);
-        LINUX_OS_MAP.put("5.4", EOSType.Linux54);
-        LINUX_OS_MAP.put("5.10", EOSType.Linux510);
+        val version = "${osVersion[0]}.${osVersion[1]}"
 
-        GENERIC_LINUX_OS_MAP.put("3x", EOSType.Linux3x);
-        GENERIC_LINUX_OS_MAP.put("4x", EOSType.Linux4x);
-        GENERIC_LINUX_OS_MAP.put("5x", EOSType.Linux5x);
-        GENERIC_LINUX_OS_MAP.put("6x", EOSType.Linux6x);
-        GENERIC_LINUX_OS_MAP.put("7x", EOSType.Linux7x);
+        // Try to find exact version match
+        LINUX_OS_MAP[version]?.let { return it }
+
+        // Try to find generic version match
+        val majorVersion = "${osVersion[0]}x"
+        GENERIC_LINUX_OS_MAP[majorVersion]?.let { return it }
+
+        return EOSType.LinuxUnknown
     }
 
-    // Sorted in history order by each OS release.
-    public static EOSType getOSType() {
-        // Windows
-        if (SystemUtils.IS_OS_WINDOWS) {
-            for (Map.Entry<Boolean, EOSType> winEntry : WIN_OS_MAP.entrySet()) {
-                if (winEntry.getKey()) {
-                    return winEntry.getValue();
-                }
-            }
+    private fun checkOS(namePrefix: String, versionPrefix: String): Boolean =
+        SystemUtils.OS_NAME.startsWith(namePrefix) && SystemUtils.OS_VERSION.startsWith(versionPrefix)
 
-            return EOSType.WinUnknown;
-        }
-
-        // Mac OS
-        if (SystemUtils.IS_OS_MAC) {
-            for (Map.Entry<Boolean, EOSType> osxEntry : OSX_OS_MAP.entrySet()) {
-                if (osxEntry.getKey()) {
-                    return osxEntry.getValue();
-                }
-            }
-
-            return EOSType.MacOSUnknown;
-        }
-
-        // Android
-        if (JAVA_RUNTIME != null && JAVA_RUNTIME.startsWith("Android")) {
-            return EOSType.AndroidUnknown;
-        }
-
-        // Linux
-        if (SystemUtils.IS_OS_LINUX) {
-            String linuxOsVersion = getSystemProperty("os.version");
-
-            if (linuxOsVersion == null) {
-                return EOSType.LinuxUnknown;
-            }
-
-            String[] osVersion = linuxOsVersion.split("\\.");
-
-            if (osVersion.length < 2) {
-                return EOSType.LinuxUnknown;
-            }
-
-            String version = osVersion[0] + "." + osVersion[1];
-
-            EOSType linuxVersion = LINUX_OS_MAP.get(version);
-            if (linuxVersion != null) {
-                // Found Major/Minor version
-                return linuxVersion;
-            }
-
-            String majorVersion = osVersion[0] + "x";
-            for (Map.Entry<String, EOSType> linuxEntry : GENERIC_LINUX_OS_MAP.entrySet()) {
-                if (linuxEntry.getKey().equals(majorVersion)) {
-                    // Found generic Linux version
-                    return linuxEntry.getValue();
-                }
-            }
-
-            return EOSType.LinuxUnknown;
-        }
-
-        // Unknown OS
-        return EOSType.Unknown;
-    }
-
-    @SuppressWarnings("SameParameterValue")
-    private static boolean checkOS(String namePrefix, String versionPrefix) {
-        return SystemUtils.OS_NAME.startsWith(namePrefix) && SystemUtils.OS_VERSION.startsWith(versionPrefix);
-    }
-
-    private static String getSystemProperty(final String property) {
-        try {
-            return System.getProperty(property);
-        } catch (final SecurityException ex) {
-            // we are not allowed to look at this property
-            return null;
-        }
+    private fun getSystemProperty(property: String): String? = try {
+        System.getProperty(property)
+    } catch (_: SecurityException) {
+        // we are not allowed to look at this property
+        null
     }
 
     /**
@@ -178,9 +137,8 @@ public class Utils {
      * @param s the string
      * @return long value of the CRC32
      */
-    public static long crc32(String s) {
-        return crc32(s.getBytes());
-    }
+    @JvmStatic
+    fun crc32(s: String): Long = crc32(s.toByteArray())
 
     /**
      * Convenience method for calculating the CRC2 checksum of a byte array.
@@ -188,59 +146,78 @@ public class Utils {
      * @param bytes the byte array
      * @return long value of the CRC32
      */
-    public static long crc32(byte[] bytes) {
-        Checksum checksum = new CRC32();
-        checksum.update(bytes, 0, bytes.length);
-        return checksum.getValue();
-    }
+    @JvmStatic
+    fun crc32(bytes: ByteArray): Long = CRC32().apply {
+        update(bytes, 0, bytes.size)
+    }.value
 
     /**
      * Performs an Adler32 on the given input
      */
-    public static int adlerHash(byte[] input) {
-        int a = 0, b = 0;
-        for (byte value : input) {
+    @JvmStatic
+    fun adlerHash(input: ByteArray): Int {
+        var a = 0
+        var b = 0
+        for (value in input) {
             // Use bitwise AND with 0xFF to treat byte as unsigned
-            a = (a + (value & 0xFF)) % 65521;
-            b = (b + a) % 65521;
+            a = (a + (value.toInt() and 0xFF)) % 65521
+            b = (b + a) % 65521
         }
 
-        return a | (b << 16);
+        return a or (b shl 16)
+    }
+
+    /**
+     * Performs an Adler32 hash on the specified amount of data from the channel
+     *
+     * @param channel FileChannel to read from
+     * @param length Number of bytes to read and hash
+     * @return Byte array containing the hash
+     * @throws IOException If there's an error reading from the channel
+     */
+    @JvmStatic
+    fun adlerHash(channel: FileChannel, length: Int): ByteArray {
+        val buffer = ByteBuffer.allocate(length)
+        channel.read(buffer)
+        buffer.flip()
+
+        val bytes = ByteArray(buffer.remaining())
+        buffer.get(bytes)
+
+        var a = 0
+        var b = 0
+
+        for (value in bytes) {
+            a = (a + (value.toInt() and 0xFF)) % 65521
+            b = (b + a) % 65521
+        }
+
+        val checksum = (b shl 16) or a
+        return ByteBuffer.allocate(4).putInt(checksum).array()
     }
 
     /**
      * Validate a file against Steam3 Chunk data
      *
-     * @param fs        FileInputStream to read from
+     * @param channel FileChannel to read from
      * @param chunkData Array of ChunkData to validate against
-     * @return List of ChunkData that are needed
-     * @throws IOException              If there's an error reading the file
-     * @throws ClosedChannelException   If this channel is closed
-     * @throws IllegalArgumentException If the new position is negative
+     * @return List of [ChunkData] that are needed
+     * @throws IOException If there's an error reading from the channel
      */
-    @SuppressWarnings("resource")
-    public static List<ChunkData> validateSteam3FileChecksums(RandomAccessFile fs, ChunkData[] chunkData) throws IOException {
-        List<ChunkData> neededChunks = new ArrayList<>();
-        int read;
+    @Throws(IOException::class)
+    @JvmStatic
+    fun validateSteam3FileChecksums(channel: FileChannel, chunkData: Array<ChunkData>): List<ChunkData> {
+        val neededChunks = mutableListOf<ChunkData>()
 
-        for (ChunkData data : chunkData) {
-            byte[] chunk = new byte[data.getUncompressedLength()];
-            fs.getChannel().position(data.getOffset());
-            read = fs.read(chunk, 0, data.getUncompressedLength());
+        for (data in chunkData) {
+            channel.position(data.offset)
+            val adler = adlerHash(channel, data.uncompressedLength.toInt())
 
-            byte[] tempChunk;
-            if (read > 0 && read < data.getUncompressedLength()) {
-                tempChunk = Arrays.copyOf(chunk, read);
-            } else {
-                tempChunk = chunk;
-            }
-
-            int adler = adlerHash(tempChunk);
-            if (adler != data.getChecksum()) {
-                neededChunks.add(data);
+            if (!adler.contentEquals(ByteBuffer.allocate(4).putInt(data.checksum).array())) {
+                neededChunks.add(data)
             }
         }
 
-        return neededChunks;
+        return neededChunks
     }
 }

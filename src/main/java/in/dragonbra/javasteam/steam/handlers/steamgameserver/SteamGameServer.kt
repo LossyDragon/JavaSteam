@@ -57,7 +57,7 @@ class SteamGameServer : ClientMsgHandler() {
 
         logon.body.protocolVersion = MsgClientLogon.CurrentProtocol
 
-        logon.body.clientOsType = Utils.getOSType().code()
+        logon.body.clientOsType = Utils.oSType.code()
         logon.body.gameServerAppId = details.appID
         logon.body.machineId = ByteString.copyFrom(HardwareUtils.getMachineID())
 
@@ -92,7 +92,7 @@ class SteamGameServer : ClientMsgHandler() {
 
         logon.body.protocolVersion = MsgClientLogon.CurrentProtocol
 
-        logon.body.clientOsType = Utils.getOSType().code()
+        logon.body.clientOsType = Utils.oSType.code()
         logon.body.gameServerAppId = appId
         logon.body.machineId = ByteString.copyFrom(HardwareUtils.getMachineID())
 

@@ -47,7 +47,7 @@ data class LogOnDetails(
     var accountInstance: Long = SteamID.DESKTOP_INSTANCE,
     var accountID: Long = 0L,
     var requestSteam2Ticket: Boolean = false,
-    var clientOSType: EOSType = Utils.getOSType(),
+    var clientOSType: EOSType = Utils.oSType,
     var clientLanguage: String = "english",
     var machineName: String = HardwareUtils.getMachineName(true),
     var chatMode: ChatMode = ChatMode.DEFAULT,

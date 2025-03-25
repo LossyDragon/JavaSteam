@@ -123,7 +123,7 @@ object DepotChunk {
 
         val dataCrc = Utils.adlerHash(destination.sliceArray(0 until writtenDecompressed))
 
-        if (dataCrc != info.checksum) {
+        if (dataCrc.toInt() != info.checksum) {
             throw IOException("Processed data checksum is incorrect ($dataCrc != ${info.checksum})! Downloaded depot chunk is corrupt or invalid/wrong depot key?")
         }
 
