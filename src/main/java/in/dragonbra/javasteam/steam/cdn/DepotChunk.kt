@@ -17,6 +17,18 @@ import javax.crypto.spec.SecretKeySpec
  */
 object DepotChunk {
 
+    // JavaSteam optimization.
+    private val decryptBufferPool = ThreadLocal<ByteArray>()
+
+    private fun getDecryptBuffer(minSize: Int): ByteArray {
+        var buffer = decryptBufferPool.get()
+        if (buffer == null || buffer.size < minSize) {
+            buffer = ByteArray(minSize)
+            decryptBufferPool.set(buffer)
+        }
+        return buffer
+    }
+
     /**
      * Processes the specified depot key by decrypting the data with the given depot encryption key, and then by decompressing the data.
      * If the chunk has already been processed, this function does nothing.
@@ -51,7 +63,7 @@ object DepotChunk {
         require(iv.size == ivBytesRead) { "Failed to decrypt depot chunk iv (${iv.size} != $ivBytesRead)" }
 
         // With CBC and padding, the decrypted size will always be smaller
-        val buffer = ByteArray(data.size - iv.size)
+        val buffer = getDecryptBuffer(data.size - iv.size)
         val cbcCipher = Cipher.getInstance("AES/CBC/PKCS7Padding", CryptoHelper.SEC_PROV)
         cbcCipher.init(Cipher.DECRYPT_MODE, keySpec, IvParameterSpec(iv))
 

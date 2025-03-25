@@ -16,6 +16,18 @@ import kotlin.math.max
 @Suppress("SpellCheckingInspection", "unused")
 object VZipUtil {
 
+    // JavaSteam optimization.
+    private val windowBufferPool = ThreadLocal<ByteArray>()
+
+    private fun getWindowBuffer(minSize: Int): ByteArray {
+        var buffer = windowBufferPool.get()
+        if (buffer == null || buffer.size < minSize) {
+            buffer = ByteArray(minSize)
+            windowBufferPool.set(buffer)
+        }
+        return buffer
+    }
+
     private const val VZIP_HEADER: Short = 0x5A56 // "VZ" in hex
     private const val VZIP_FOOTER: Short = 0x767A // "vz" in hex
     private const val HEADER_LENGTH = 7 // magic + version + timestamp/crc
@@ -63,7 +75,8 @@ object VZipUtil {
 
             // If the value of dictionary size in properties is smaller than (1 << 12),
             // the LZMA decoder must set the dictionary size variable to (1 << 12).
-            val windowBuffer = ByteArray(max(1 shl 12, dictionarySize))
+            val minWindowSize = max(1 shl 12, dictionarySize)
+            val windowBuffer = getWindowBuffer(minWindowSize)
             val bytesRead = LZMAInputStream(
                 ms,
                 sizeDecompressed.toLong(),
