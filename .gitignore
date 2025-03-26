@@ -68,6 +68,7 @@ fabric.properties
 /netlogs/
 /buildSrc/build/
 /javasteam-tf/build/
+/javasteam-downloader/build/
 
 # JavaSteam Samples
 cellid.txt
@@ -76,6 +77,13 @@ sentry.bin
 server_list.bin
 /steamapps/
 /userfiles/
+
+# JavaSteam Downloader
+/depots/
+/depots/.DepotDownloader
+/src/main/kotlin/BuildConfig.kt
+account.config
+depot.config
 
 # Kotlin 2.0
 /.kotlin/sessions/

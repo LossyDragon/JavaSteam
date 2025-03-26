@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package in.dragonbra.javasteam.depotdownloader;
+
+option java_package = "in.dragonbra.javasteam.depotdownloader.protobufs";
+option java_outer_classname = "AccountSettingsProto";
+
+message AccountSettings {
+  map<string, int32> content_server_penalty = 2;
+
+  map<string, string> login_tokens = 4;
+
+  map<string, string> guard_data = 5;
+}

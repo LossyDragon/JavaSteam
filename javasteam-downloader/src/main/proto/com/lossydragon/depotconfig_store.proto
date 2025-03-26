@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+package in.dragonbra.javasteam.depotdownloader;
+
+option java_package = "in.dragonbra.javasteam.depotdownloader.protobufs";
+option java_outer_classname = "DepotConfigProto";
+
+message DepotConfig {
+  map<uint32, uint64> installed_manifest_ids = 1;
+}
