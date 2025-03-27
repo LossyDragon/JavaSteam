@@ -14,7 +14,7 @@ import kotlin.coroutines.cancellation.CancellationException
 
 private const val MAX_PASSWORD_SIZE = 64
 
-fun main(args: Array<String>): Unit = runBlocking {
+fun main(args: Array<String>) = runBlocking<Unit> {
     if (args.isEmpty()) {
         printVersion()
         printUsage()
@@ -151,6 +151,7 @@ fun main(args: Array<String>): Unit = runBlocking {
         // region Pubfile Downloading
 
         if (initializeSteam(username, password)) {
+            val progressJob = monitorDownloadProgress()
             try {
                 ContentDownloader.downloadPubfileAsync(appId!!, pubFile!!)
             } catch (ex: Exception) {
@@ -168,6 +169,7 @@ fun main(args: Array<String>): Unit = runBlocking {
                     }
                 }
             } finally {
+                progressJob.cancel()
                 ContentDownloader.shutdownSteam3()
             }
         } else {
@@ -180,6 +182,7 @@ fun main(args: Array<String>): Unit = runBlocking {
         // region UGC Downloading
 
         if (initializeSteam(username, password)) {
+            val progressJob = monitorDownloadProgress()
             try {
                 ContentDownloader.downloadUGCAsync(appId!!, ugcId!!)
             } catch (ex: Exception) {
@@ -197,6 +200,7 @@ fun main(args: Array<String>): Unit = runBlocking {
                     }
                 }
             } finally {
+                progressJob.cancel()
                 ContentDownloader.shutdownSteam3()
             }
         } else {
@@ -262,6 +266,7 @@ fun main(args: Array<String>): Unit = runBlocking {
         }
 
         if (initializeSteam(username, password)) {
+            val progressJob = monitorDownloadProgress()
             try {
                 ContentDownloader.downloadAppAsync(appId!!, depotManifestIds, branch, os, arch, language, lv, isUGC)
             } catch (ex: Exception) {
@@ -279,6 +284,7 @@ fun main(args: Array<String>): Unit = runBlocking {
                     }
                 }
             } finally {
+                progressJob.cancel()
                 ContentDownloader.shutdownSteam3()
             }
         } else {

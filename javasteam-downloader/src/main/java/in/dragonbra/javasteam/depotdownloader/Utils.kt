@@ -52,12 +52,7 @@ fun fileSHAHash(filename: Path): ByteArray {
     }
 }
 
-fun loadManifestFromFile(
-    directory: Path,
-    depotId: Int,
-    manifestId: Long,
-    badHashWarning: Boolean,
-): DepotManifest? {
+fun loadManifestFromFile(directory: Path, depotId: Int, manifestId: Long, badHashWarning: Boolean): DepotManifest? {
     // Try loading Steam format manifest first.
     val filename = directory.resolve("${depotId}_$manifestId.manifest")
 
@@ -100,10 +95,7 @@ fun decodeHexString(hex: String): ByteArray = Strings.decodeHex(hex)
 /**
  * Decrypts using AES/ECB/PKCS7
  */
-fun symmetricDecryptECB(
-    input: ByteArray,
-    key: ByteArray,
-): ByteArray {
+fun symmetricDecryptECB(input: ByteArray, key: ByteArray): ByteArray {
     val cipher = Cipher.getInstance("AES/ECB/PKCS7Padding", CryptoHelper.SEC_PROV)
 
     val keySpec = SecretKeySpec(key, "AES")

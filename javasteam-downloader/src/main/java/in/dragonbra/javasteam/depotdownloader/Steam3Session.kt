@@ -1,7 +1,8 @@
 package `in`.dragonbra.javasteam.depotdownloader
 
 import `in`.dragonbra.javasteam.enums.EResult
-import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesPublishedfile
+import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesPublishedfile.CPublishedFile_GetDetails_Request
+import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesPublishedfile.PublishedFileDetails
 import `in`.dragonbra.javasteam.rpc.service.PublishedFile
 import `in`.dragonbra.javasteam.steam.authentication.AuthSession
 import `in`.dragonbra.javasteam.steam.authentication.AuthSessionDetails
@@ -25,7 +26,6 @@ import `in`.dragonbra.javasteam.steam.steamclient.SteamClient
 import `in`.dragonbra.javasteam.steam.steamclient.callbackmgr.CallbackManager
 import `in`.dragonbra.javasteam.steam.steamclient.callbacks.ConnectedCallback
 import `in`.dragonbra.javasteam.steam.steamclient.callbacks.DisconnectedCallback
-import `in`.dragonbra.javasteam.steam.steamclient.configuration.SteamConfiguration
 import `in`.dragonbra.javasteam.types.PublishedFileID
 import `in`.dragonbra.javasteam.types.UGCHandle
 import `in`.dragonbra.javasteam.util.Versions
@@ -53,15 +53,7 @@ import kotlin.time.DurationUnit
 
 typealias WaitCondition = () -> Boolean
 
-class Steam3Session(
-    details: LogOnDetails,
-) {
-    companion object {
-        private fun displayQrCode(challengeUrl: String) {
-            logI("Use the Steam Mobile App to sign in with this QR code:")
-            ConsoleQrcode.print(challengeUrl)
-        }
-    }
+class Steam3Session(details: LogOnDetails) {
 
     var isLoggedOn: Boolean = false
         private set
@@ -96,20 +88,18 @@ class Steam3Session(
     var seq: Int = 0 // more hack fixes
     var authSession: AuthSession? = null
 
-    // input
     private var logonDetails: LogOnDetails = details
 
     init {
         authenticatedUser = details.username.isNotEmpty() || ContentDownloader.config.useQrCode
 
-        val clientConfiguration = SteamConfiguration.create { _ -> }
-
-        this.steamClient = SteamClient(clientConfiguration)
+        // val clientConfiguration = SteamConfiguration.create { _ -> }
+        steamClient = SteamClient()
 
         steamUser = steamClient.getHandler<SteamUser>()!!
         steamApps = steamClient.getHandler<SteamApps>()!!
         steamCloud = steamClient.getHandler<SteamCloud>()!!
-        val steamUnifiedMessages = this.steamClient.getHandler<SteamUnifiedMessages>()!!
+        val steamUnifiedMessages = steamClient.getHandler<SteamUnifiedMessages>()!!
         steamPublishedFile = steamUnifiedMessages.createService<PublishedFile>()
         steamContent = steamClient.getHandler<SteamContent>()!!
 
@@ -177,7 +167,7 @@ class Steam3Session(
             return
         }
 
-        val appTokens = steamApps.picsGetAccessTokens(listOf(appId), listOf()).await()
+        val appTokens = steamApps.picsGetAccessTokens(appIds = listOf(appId), packageIds = listOf()).await()
 
         if (appTokens.appTokensDenied.contains(appId)) {
             logI("Insufficient privileges to get access token for app $appId")
@@ -194,7 +184,7 @@ class Steam3Session(
             request.accessToken = token
         }
 
-        val appInfoMultiple = steamApps.picsGetProductInfo(listOf(request), listOf()).await()
+        val appInfoMultiple = steamApps.picsGetProductInfo(apps = listOf(request), packages = listOf()).await()
 
         appInfoMultiple.results.forEach { appInfo ->
             appInfo.apps.forEach { (_, v) ->
@@ -276,38 +266,30 @@ class Steam3Session(
         appId: Int,
         manifestId: Long,
         branch: String,
-    ): Long =
-        withContext(Dispatchers.IO) {
-            if (bAborted) {
-                return@withContext 0L
-            }
-
-            val requestCode =
-                steamContent
-                    .getManifestRequestCode(
-                        depotId = depotId,
-                        appId = appId,
-                        manifestId = manifestId,
-                        branch = branch,
-                        branchPasswordHash = null,
-                        parentScope = this,
-                    ).await()
-                    .toLong()
-
-            if (requestCode == 0L) {
-                logI("No manifest request code was returned for depot $depotId from app $appId, manifest $manifestId")
-            } else {
-                logI("Got manifest request code for depot $depotId from app $appId, manifest $manifestId, result: $requestCode")
-            }
-
-            return@withContext requestCode
+    ): Long = withContext(Dispatchers.IO) {
+        if (bAborted) {
+            return@withContext 0L
         }
 
-    suspend fun requestCDNAuthToken(
-        appid: Int,
-        depotid: Int,
-        server: Server,
-    ) = withContext(Dispatchers.IO) {
+        val requestCode = steamContent.getManifestRequestCode(
+            depotId = depotId,
+            appId = appId,
+            manifestId = manifestId,
+            branch = branch,
+            branchPasswordHash = null,
+            parentScope = this,
+        ).await().toLong()
+
+        if (requestCode == 0L) {
+            logI("No manifest request code was returned for depot $depotId from app $appId, manifest $manifestId")
+        } else {
+            logI("Got manifest request code for depot $depotId from app $appId, manifest $manifestId, result: $requestCode")
+        }
+
+        return@withContext requestCode
+    }
+
+    suspend fun requestCDNAuthToken(appid: Int, depotid: Int, server: Server) = withContext(Dispatchers.IO) {
         val cdnKey = depotid to server.host
         val completion = CompletableFuture<CDNAuthToken>()
 
@@ -316,6 +298,7 @@ class Steam3Session(
         }
 
         logI("Requesting CDN auth token for ${server.host}")
+
         val cdnAuth = steamContent.getCDNAuthToken(appid, depotid, server.host, this).await()
         logI("Got CDN auth token for ${server.host} result: ${cdnAuth.result} (expires ${cdnAuth.expiration})")
 
@@ -326,10 +309,7 @@ class Steam3Session(
         completion.complete(cdnAuth)
     }
 
-    suspend fun checkAppBetaPassword(
-        appid: Int,
-        password: String,
-    ) {
+    suspend fun checkAppBetaPassword(appid: Int, password: String) {
         val appPassword = steamApps.checkAppBetaPassword(appid, password).await()
 
         logI("Retrieved ${appPassword.betaPasswords.size} beta keys with result: ${appPassword.result}")
@@ -339,17 +319,13 @@ class Steam3Session(
         }
     }
 
-    suspend fun getPublishedFileDetails(
-        appId: Int,
-        pubFile: PublishedFileID,
-    ): SteammessagesPublishedfile.PublishedFileDetails? {
-        val pubFileRequest =
-            SteammessagesPublishedfile.CPublishedFile_GetDetails_Request
-                .newBuilder()
-                .apply {
-                    this.appid = appId
-                    this.addPublishedfileids(PublishedFileID.toLong(pubFile))
-                }.build()
+    suspend fun getPublishedFileDetails(appId: Int, pubFile: PublishedFileID): PublishedFileDetails? {
+        val pubFileRequest = CPublishedFile_GetDetails_Request
+            .newBuilder()
+            .apply {
+                this.appid = appId
+                this.addPublishedfileids(PublishedFileID.toLong(pubFile))
+            }.build()
 
         val details = steamPublishedFile.getDetails(pubFileRequest).await()
 
@@ -388,8 +364,9 @@ class Steam3Session(
         steamClient.connect()
     }
 
+    // TODO combine this with disconnect.
     private fun abort(sendLogOff: Boolean = true) {
-        disconnect(sendLogOff)
+        disconnect(sendLogOff = sendLogOff)
     }
 
     fun disconnect(sendLogOff: Boolean = true) {
@@ -407,7 +384,7 @@ class Steam3Session(
 
         // flush callbacks until our disconnected event
         while (!bDidDisconnect) {
-            callbacks.runWaitAllCallbacks(100)
+            callbacks.runWaitAllCallbacks(timeout = 100)
         }
     }
 
@@ -437,53 +414,47 @@ class Steam3Session(
                     if (logonDetails.username.isNotEmpty() && logonDetails.password != null && logonDetails.accessToken == null) {
                         try {
                             val guardData = AccountSettingsStore.instance!!.guardData[logonDetails.username]
-                            val friendlyName = "JavaSteam - Content Downloader ${Versions.getVersion()}"
-                            authSession =
-                                steamClient.authentication
-                                    .beginAuthSessionViaCredentials(
-                                        authSessionDetails =
-                                        AuthSessionDetails().apply {
-                                            this.username = logonDetails.username
-                                            this.password = logonDetails.password
-                                            this.persistentSession = ContentDownloader.config.rememberPassword
-                                            this.guardData = guardData
-                                            this.authenticator = UserConsoleAuthenticator()
-                                            this.deviceFriendlyName = friendlyName
-                                        },
-                                        parentScope = this,
-                                    ).await()
+                            val friendlyName = "JavaSteam - Depot Downloader ${Versions.getVersion()}"
+                            authSession = steamClient.authentication.beginAuthSessionViaCredentials(
+                                authSessionDetails = AuthSessionDetails().apply {
+                                    this.username = logonDetails.username
+                                    this.password = logonDetails.password
+                                    this.persistentSession = ContentDownloader.config.rememberPassword
+                                    this.guardData = guardData
+                                    this.authenticator = UserConsoleAuthenticator()
+                                    this.deviceFriendlyName = friendlyName
+                                },
+                                parentScope = this,
+                            ).await()
                         } catch (ex: CancellationException) {
                             ex.printStackTrace()
                             return@launch
                         } catch (ex: Exception) {
                             logE("(Credentials) Failed to authenticate with Steam: ${ex.message}")
                             ex.printStackTrace()
-                            abort(false)
+                            abort(sendLogOff = false)
                             return@launch
                         }
                     } else if (logonDetails.accessToken == null && ContentDownloader.config.useQrCode) {
                         logI("Logging in with QR code...")
 
                         try {
-                            val session = steamClient.authentication
-                                .beginAuthSessionViaQR(
-                                    authSessionDetails =
-                                    AuthSessionDetails().apply {
-                                        persistentSession = ContentDownloader.config.rememberPassword
-                                        authenticator = UserConsoleAuthenticator()
-                                    },
-                                    parentScope = this,
-                                ).await()
+                            val session = steamClient.authentication.beginAuthSessionViaQR(
+                                authSessionDetails = AuthSessionDetails().apply {
+                                    persistentSession = ContentDownloader.config.rememberPassword
+                                    authenticator = UserConsoleAuthenticator()
+                                },
+                                parentScope = this,
+                            ).await()
 
                             authSession = session
 
                             // Steam will periodically refresh the challenge url, so we need a new QR code.
-                            session.challengeUrlChanged =
-                                IChallengeUrlChanged { qr ->
-                                    logI()
-                                    logI("The QR code has changed:")
-                                    qr?.challengeUrl?.let(::displayQrCode)
-                                }
+                            session.challengeUrlChanged = IChallengeUrlChanged { qr ->
+                                logI()
+                                logI("The QR code has changed:")
+                                qr?.challengeUrl?.let(::displayQrCode)
+                            }
 
                             // Draw initial QR code immediately
                             displayQrCode(session.challengeUrl)
@@ -507,12 +478,14 @@ class Steam3Session(
                         logonDetails.password = null
                         logonDetails.accessToken = result.refreshToken
 
-                        if (result.newGuardData != null) {
-                            AccountSettingsStore.instance!!.guardData[result.accountName] =
-                                result.newGuardData.orEmpty()
-                        } else {
-                            AccountSettingsStore.instance!!.guardData.remove(result.accountName)
+                        with(AccountSettingsStore.instance!!) {
+                            if (result.newGuardData != null) {
+                                guardData[result.accountName] = result.newGuardData.orEmpty()
+                            } else {
+                                guardData.remove(result.accountName)
+                            }
                         }
+
                         AccountSettingsStore.instance!!.loginTokens[result.accountName] = result.refreshToken
                         AccountSettingsStore.save()
                     } catch (ex: CancellationException) {
@@ -521,14 +494,14 @@ class Steam3Session(
                     } catch (ex: Exception) {
                         logE("Failed to authenticate with Steam: ${ex.message}")
                         ex.printStackTrace()
-                        abort(false)
+                        abort(sendLogOff = false)
                         return@launch
                     }
 
                     authSession = null
                 }
 
-                steamUser.logOn(logonDetails)
+                steamUser.logOn(details = logonDetails)
             }
         }
     }
@@ -537,7 +510,8 @@ class Steam3Session(
         bDidDisconnect = true
 
         logI(
-            "Disconnected: bIsConnectionRecovery = $bIsConnectionRecovery, " +
+            "Disconnected: " +
+                "bIsConnectionRecovery = $bIsConnectionRecovery, " +
                 "UserInitiated = ${disconnected.isUserInitiated}, " +
                 "bExpectingDisconnectRemote = $bExpectingDisconnectRemote",
         )
@@ -550,7 +524,7 @@ class Steam3Session(
             bAborted = true
         } else if (connectionBackoff >= 10) {
             logI("Could not connect to Steam after 10 tries")
-            abort(false)
+            abort(sendLogOff = false)
         } else if (!bAborted) {
             connectionBackoff += 1
 
@@ -571,21 +545,19 @@ class Steam3Session(
     private fun onLogOnCallback(loggedOn: LoggedOnCallback) {
         val isSteamGuard = loggedOn.result == EResult.AccountLogonDenied
         val is2FA = loggedOn.result == EResult.AccountLoginDeniedNeedTwoFactor
-        val isAccessToken =
-            ContentDownloader.config.rememberPassword &&
-                logonDetails.accessToken != null &&
-                loggedOn.result in
-                listOf(
-                    EResult.InvalidPassword,
-                    EResult.InvalidSignature,
-                    EResult.AccessDenied,
-                    EResult.Expired,
-                    EResult.Revoked,
-                )
+        val isAccessToken = ContentDownloader.config.rememberPassword &&
+            logonDetails.accessToken != null &&
+            loggedOn.result in listOf(
+                EResult.InvalidPassword,
+                EResult.InvalidSignature,
+                EResult.AccessDenied,
+                EResult.Expired,
+                EResult.Revoked,
+            )
 
         if (isSteamGuard || is2FA || isAccessToken) {
             bExpectingDisconnectRemote = true
-            abort(false)
+            abort(sendLogOff = false)
 
             if (!isAccessToken) {
                 logI("This account is protected by Steam Guard.")
@@ -602,7 +574,7 @@ class Steam3Session(
 
                 // TODO: Handle gracefully by falling back to password prompt?
                 logI("Access token was rejected (${loggedOn.result}).")
-                abort(false)
+                abort(sendLogOff = false)
                 return
             } else {
                 do {
@@ -627,7 +599,7 @@ class Steam3Session(
 
         if (loggedOn.result == EResult.ServiceUnavailable) {
             logI("Unable to login to Steam3: ${loggedOn.result}")
-            abort(false)
+            abort(sendLogOff = false)
 
             return
         }
@@ -639,7 +611,7 @@ class Steam3Session(
             return
         }
 
-        this.seq++
+        seq++
         isLoggedOn = true
 
         if (ContentDownloader.config.cellID == 0) {
@@ -664,5 +636,10 @@ class Steam3Session(
                 packageTokens[license.packageID] = license.accessToken
             }
         }
+    }
+
+    private fun displayQrCode(challengeUrl: String) {
+        logI("Use the Steam Mobile App to sign in with this QR code:")
+        ConsoleQrcode.print(content = challengeUrl)
     }
 }

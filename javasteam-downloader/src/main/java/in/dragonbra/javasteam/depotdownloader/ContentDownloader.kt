@@ -20,7 +20,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.future.await
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -43,7 +46,37 @@ import kotlin.coroutines.cancellation.CancellationException
 
 @Suppress("unused")
 object ContentDownloader {
+
     class ContentDownloaderException(value: String) : Exception(value)
+
+    sealed class DownloadProgress {
+        object Idle : DownloadProgress()
+        data class Preparing(val appId: Int, val totalDepots: Int = 0) : DownloadProgress()
+        data class Error(val message: String, val appId: Int = 0, val depotId: Int = 0) : DownloadProgress()
+
+        // TODO Completed and Downloading, use Counter class?
+
+        // TODO this may show all zero's ??
+        data class Completed(
+            val bytesDownloaded: Long,
+            val compressed: Long,
+            val uncompressed: Long,
+            val depots: Int,
+        ) : DownloadProgress()
+
+        // TODO speed and eta time ??
+        data class Downloading(
+            val percentageComplete: Float,
+            val bytesDownloaded: Long,
+            val totalBytes: Long,
+            val currentFile: String,
+            val depotId: Int = 0,
+        ) : DownloadProgress()
+    }
+
+    // State flow to use in console or android apps.
+    private val _downloadProgress = MutableStateFlow<DownloadProgress>(DownloadProgress.Idle)
+    val downloadProgress: StateFlow<DownloadProgress> = _downloadProgress
 
     const val INVALID_APP_ID = Int.MAX_VALUE
     const val INVALID_DEPOT_ID = Int.MAX_VALUE
@@ -338,6 +371,7 @@ object ContentDownloader {
 
         steam3!!.disconnect()
         BufferPool.clear()
+        _downloadProgress.value = DownloadProgress.Idle
     }
 
     suspend fun downloadPubfileAsync(appId: Int, publishedFileId: Long) {
@@ -541,7 +575,7 @@ object ContentDownloader {
                     depotIdsFound.add(id)
 
                     if (!hasSpecificDepots) {
-                        innerDepotManifestIds.add(Pair(id, INVALID_MANIFEST_ID))
+                        innerDepotManifestIds.add(id to INVALID_MANIFEST_ID)
                     }
                 }
             }
@@ -681,6 +715,11 @@ object ContentDownloader {
         scope: CoroutineScope,
         depots: List<DepotDownloadInfo>,
     ) = withContext(scope.coroutineContext) {
+        _downloadProgress.value = DownloadProgress.Preparing(
+            appId = depots.firstOrNull()?.appId ?: 0,
+            totalDepots = depots.size
+        )
+
         cdnPool.updateServerList()
 
         val downloadCounter = GlobalDownloadCounter()
@@ -718,14 +757,30 @@ object ContentDownloader {
                 downloadSteam3AsyncDepotFiles(this, downloadCounter, depotFileData, allFileNamesAllDepots)
             }
 
-            logI(
-                "Total downloaded: ${downloadCounter.totalBytesCompressed} " +
-                    "bytes (${downloadCounter.totalBytesUncompressed} bytes uncompressed) " +
-                    "from ${depots.size} depots",
+            // logI(
+            //     "Total downloaded: ${downloadCounter.totalBytesCompressed} " +
+            //         "bytes (${downloadCounter.totalBytesUncompressed} bytes uncompressed) " +
+            //         "from ${depots.size} depots",
+            // )
+
+            _downloadProgress.value = DownloadProgress.Completed(
+                bytesDownloaded = downloadCounter.totalBytesCompressed,
+                compressed = downloadCounter.totalBytesCompressed,
+                uncompressed = downloadCounter.totalBytesUncompressed,
+                depots = depots.size
             )
+        } catch (e: Exception) {
+            // Set error state
+            _downloadProgress.value = DownloadProgress.Error(
+                message = e.message ?: "Unknown error occurred during download",
+                appId = depots.firstOrNull()?.appId ?: 0
+            )
+            throw e
         } finally {
+            delay(100) // Artificial delay to allow state flows to complete.
             logI("Clearing buffer pool")
             BufferPool.clear()
+            _downloadProgress.value = DownloadProgress.Idle
         }
     }
 
@@ -1158,24 +1213,26 @@ object ContentDownloader {
                     }
 
                     logI("Validating $fileFinalPath")
-                    neededChunks = Utils
-                        .validateSteam3FileChecksums(
-                            channel,
-                            file.chunks.sortedBy { it.offset }.toTypedArray(),
-                        )
-                        .toMutableList()
+                    neededChunks = Utils.validateSteam3FileChecksums(
+                        channel,
+                        file.chunks.sortedBy { it.offset }.toTypedArray(),
+                    ).toMutableList()
                 }
             }
 
             if (neededChunks.isEmpty()) {
                 synchronized(depotDownloadCounter) {
                     depotDownloadCounter.sizeDownloaded += file.totalSize
-                    val percentage = (
-                        depotDownloadCounter.sizeDownloaded.toFloat() /
-                            depotDownloadCounter.completeDownloadSize.toFloat()
-                        ) * 100.0f
 
-                    logI("${String.format("%6.2f", percentage)}% $fileFinalPath")
+                    val percentage =
+                        (depotDownloadCounter.sizeDownloaded.toFloat() / depotDownloadCounter.completeDownloadSize.toFloat()) * 100.0f
+                    _downloadProgress.value = DownloadProgress.Downloading(
+                        percentageComplete = percentage,
+                        bytesDownloaded = depotDownloadCounter.sizeDownloaded,
+                        totalBytes = depotDownloadCounter.completeDownloadSize,
+                        currentFile = file.fileName,
+                        depotId = depot.depotId
+                    )
                 }
 
                 synchronized(downloadCounter) {
@@ -1248,7 +1305,8 @@ object ContentDownloader {
                             cdnToken = result.token
                         }
 
-                        logI("Downloading chunk $chunkID from $connection with ${cdnPool.proxyServer ?: "no proxy"}")
+                        // TODO state flow this?
+                        // logI("Downloading chunk $chunkID from $connection with ${cdnPool.proxyServer ?: "no proxy"}")
 
                         written = cdnPool.cdnClient.downloadDepotChunk(
                             depotId = depot.depotId,
@@ -1348,11 +1406,19 @@ object ContentDownloader {
 
         if (remainingChunks == 0) {
             val fileFinalPath = depot.installDir.resolve(fileData.fileName)
-            val msg = String.format(
-                "%6.2f",
-                (sizeDownloaded.toFloat() / depotDownloadCounter.completeDownloadSize.toFloat()) * 100.0f,
+            val percentage = (sizeDownloaded.toFloat() / depotDownloadCounter.completeDownloadSize.toFloat()) * 100.0f
+            val msg = String.format("%6.2f", percentage)
+
+            // TODO stateflow this?
+            // logI("$msg% $fileFinalPath")
+
+            _downloadProgress.value = DownloadProgress.Downloading(
+                percentageComplete = percentage,
+                bytesDownloaded = depotDownloadCounter.sizeDownloaded,
+                totalBytes = depotDownloadCounter.completeDownloadSize,
+                currentFile = fileData.fileName,
+                depotId = depot.depotId
             )
-            logI("$msg% $fileFinalPath")
         }
     }
 
