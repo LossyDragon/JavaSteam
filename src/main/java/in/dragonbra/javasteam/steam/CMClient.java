@@ -88,7 +88,7 @@ public abstract class CMClient {
     private final EventHandler<DisconnectedEventArgs> disconnected = new EventHandler<>() {
         @Override
         public void handleEvent(Object sender, DisconnectedEventArgs e) {
-            logger.debug("EventHandler `disconnected` called");
+            logger.debug("EventHandler `disconnected` called. " + e.isUserInitiated() + " - " + expectDisconnection);
 
             isConnected = false;
 
@@ -154,6 +154,9 @@ public abstract class CMClient {
      * @param cmServer The {@link ServerRecord} of the CM server to connect to.
      */
     public void connect(ServerRecord cmServer) {
+        // extra logging
+        logger.debug("Connect called");
+
         synchronized (connectionLock) {
             try {
                 disconnect(true);
