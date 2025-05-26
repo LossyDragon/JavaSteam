@@ -1,72 +1,42 @@
-package in.dragonbra.javasteam.base;
+package `in`.dragonbra.javasteam.base
 
-import in.dragonbra.javasteam.generated.MsgGCHdrProtoBuf;
-import in.dragonbra.javasteam.types.JobID;
-
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
+import `in`.dragonbra.javasteam.generated.MsgGCHdrProtoBuf
+import `in`.dragonbra.javasteam.types.JobID
+import java.io.ByteArrayInputStream
 
 /**
  * Represents a protobuf backed packet message.
+ *
+ * @constructor Initializes a new instance of the [PacketClientGCMsgProtobuf] class.
+ * @param eMsg The network message type for this packet message.
+ * @param data The data.
  */
-public class PacketClientGCMsgProtobuf implements IPacketGCMsg {
+class PacketClientGCMsgProtobuf(
+    private val eMsg: Int,
+    data: ByteArray,
+) : IPacketGCMsg {
 
-    private final int msgType;
+    private val payload: ByteArray = data
 
-    private final JobID targetJobID;
+    private val protobufHeader = MsgGCHdrProtoBuf()
 
-    private final JobID sourceJobID;
+    override val isProto: Boolean
+        get() = true
 
-    private final byte[] payload;
+    override val msgType: Int
+        get() = eMsg
 
-    /**
-     * Initializes a new instance of the {@link PacketClientGCMsgProtobuf} class.
-     *
-     * @param eMsg The network message type for this packet message.
-     * @param data The data.
-     */
-    public PacketClientGCMsgProtobuf(int eMsg, byte[] data) {
-        if (data == null) {
-            throw new IllegalArgumentException("data is null");
-        }
+    override val targetJobID: JobID
+        get() = JobID(protobufHeader.proto.jobidTarget)
 
-        msgType = eMsg;
-        payload = data;
+    override val sourceJobID: JobID
+        get() = JobID(protobufHeader.proto.jobidSource)
 
-        MsgGCHdrProtoBuf protobufHeader = new MsgGCHdrProtoBuf();
+    override val data: ByteArray
+        get() = payload
 
+    init {
         // we need to pull out the job ids, so we deserialize the protobuf header
-        try (var bais = new ByteArrayInputStream(data)) {
-            protobufHeader.deserialize(bais);
-        } catch (IOException ignored) {
-        }
-
-        targetJobID = new JobID(protobufHeader.getProto().getJobidTarget());
-        sourceJobID = new JobID(protobufHeader.getProto().getJobidSource());
-    }
-
-    @Override
-    public boolean isProto() {
-        return true;
-    }
-
-    @Override
-    public int getMsgType() {
-        return msgType;
-    }
-
-    @Override
-    public JobID getTargetJobID() {
-        return targetJobID;
-    }
-
-    @Override
-    public JobID getSourceJobID() {
-        return sourceJobID;
-    }
-
-    @Override
-    public byte[] getData() {
-        return payload;
+        ByteArrayInputStream(data).use(protobufHeader::deserialize)
     }
 }

@@ -1,71 +1,50 @@
-package in.dragonbra.javasteam.base;
+package `in`.dragonbra.javasteam.base
 
-import in.dragonbra.javasteam.enums.EMsg;
-import in.dragonbra.javasteam.generated.MsgHdrProtoBuf;
-
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
+import `in`.dragonbra.javasteam.enums.EMsg
+import `in`.dragonbra.javasteam.generated.MsgHdrProtoBuf
+import java.io.ByteArrayInputStream
+import java.io.IOException
+import kotlin.jvm.Throws
 
 /**
  * Represents a protobuf backed packet message.
+ *
+ * @constructor Initializes a new instance of the [PacketClientMsgProtobuf] class.
+ * @param eMsg The network message type for this packet message.
+ * @param data The data.
+ * @throws IOException exception while deserializing the data
  */
-public class PacketClientMsgProtobuf implements IPacketMsg {
+class PacketClientMsgProtobuf
+@Throws(IOException::class)
+constructor(
+    private val eMsg: EMsg,
+    data: ByteArray,
+) : IPacketMsg {
 
-    private final EMsg msgType;
-
-    private final byte[] payload;
-
-    private final MsgHdrProtoBuf header;
-
-    /**
-     * Initializes a new instance of the {@link PacketClientMsgProtobuf} class.
-     *
-     * @param eMsg The network message type for this packet message.
-     * @param data The data.
-     * @throws IOException exception while deserializing the data
-     */
-    public PacketClientMsgProtobuf(EMsg eMsg, byte[] data) throws IOException {
-        this.msgType = eMsg;
-        this.payload = data;
-
-        header = new MsgHdrProtoBuf();
-
-        try (var stream = new ByteArrayInputStream(data)) {
-            header.deserialize(stream);
-        }
-    }
+    private val payload: ByteArray = data
 
     /**
      * Gets the header for this packet message.
-     *
      * @return The header.
      */
-    public MsgHdrProtoBuf getHeader() {
-        return header;
-    }
+    val header: MsgHdrProtoBuf = MsgHdrProtoBuf()
 
-    @Override
-    public boolean isProto() {
-        return true;
-    }
+    override val isProto: Boolean
+        get() = true
 
-    @Override
-    public EMsg getMsgType() {
-        return msgType;
-    }
+    override val msgType: EMsg
+        get() = eMsg
 
-    @Override
-    public long getTargetJobID() {
-        return header.getProto().getJobidTarget();
-    }
+    override val targetJobID: Long
+        get() = header.proto.jobidTarget
 
-    @Override
-    public long getSourceJobID() {
-        return header.getProto().getJobidSource();
-    }
+    override val sourceJobID: Long
+        get() = header.proto.jobidSource
 
-    @Override
-    public byte[] getData() {
-        return payload;
+    override val data: ByteArray
+        get() = payload
+
+    init {
+        ByteArrayInputStream(data).use(header::deserialize)
     }
 }

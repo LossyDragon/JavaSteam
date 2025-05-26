@@ -1,67 +1,46 @@
-package in.dragonbra.javasteam.base;
+package `in`.dragonbra.javasteam.base
 
-import in.dragonbra.javasteam.enums.EMsg;
-import in.dragonbra.javasteam.generated.MsgHdr;
-
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
+import `in`.dragonbra.javasteam.enums.EMsg
+import `in`.dragonbra.javasteam.generated.MsgHdr
+import java.io.ByteArrayInputStream
+import java.io.IOException
+import kotlin.jvm.Throws
 
 /**
  * Represents a packet message with basic header information.
+ *
+ * @constructor Initializes a new instance of the[PacketMsg] class.
+ * @param eMsg The network message type for this packet message.
+ * @param data The data.
+ * @throws IOException exception while deserializing the data
  */
-public class PacketMsg implements IPacketMsg {
+class PacketMsg
+@Throws(IOException::class)
+constructor(
+    private val eMsg: EMsg,
+    data: ByteArray,
+) : IPacketMsg {
 
-    private final EMsg msgType;
+    private val msgHdr = MsgHdr()
 
-    private final long targetJobID;
+    private val payload: ByteArray = data
 
-    private final long sourceJobID;
+    override val isProto: Boolean
+        get() = false
 
-    private final byte[] payload;
+    override val msgType: EMsg
+        get() = eMsg
 
-    /**
-     * Initializes a new instance of the{@link PacketMsg} class.
-     *
-     * @param eMsg The network message type for this packet message.
-     * @param data The data.
-     * @throws IOException exception while deserializing the data
-     */
-    public PacketMsg(EMsg eMsg, byte[] data) throws IOException {
-        this.msgType = eMsg;
-        this.payload = data;
+    override val targetJobID: Long
+        get() = msgHdr.targetJobID
 
-        MsgHdr msgHdr = new MsgHdr();
+    override val sourceJobID: Long
+        get() = msgHdr.sourceJobID
 
-        try (var stream = new ByteArrayInputStream(data)) {
-            msgHdr.deserialize(stream);
-        }
+    override val data: ByteArray
+        get() = payload
 
-        targetJobID = msgHdr.getTargetJobID();
-        sourceJobID = msgHdr.getSourceJobID();
-    }
-
-    @Override
-    public boolean isProto() {
-        return false;
-    }
-
-    @Override
-    public EMsg getMsgType() {
-        return this.msgType;
-    }
-
-    @Override
-    public long getTargetJobID() {
-        return this.targetJobID;
-    }
-
-    @Override
-    public long getSourceJobID() {
-        return this.sourceJobID;
-    }
-
-    @Override
-    public byte[] getData() {
-        return payload;
+    init {
+        ByteArrayInputStream(data).use(msgHdr::deserialize)
     }
 }

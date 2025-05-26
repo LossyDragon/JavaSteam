@@ -1,96 +1,55 @@
-package in.dragonbra.javasteam.base;
+package `in`.dragonbra.javasteam.base
 
-import in.dragonbra.javasteam.enums.EMsg;
-import in.dragonbra.javasteam.types.JobID;
-import in.dragonbra.javasteam.types.SteamID;
+import `in`.dragonbra.javasteam.enums.EMsg
+import `in`.dragonbra.javasteam.types.JobID
+import `in`.dragonbra.javasteam.types.SteamID
 
 /**
  * Represents a unified interface into client messages.
  */
-@SuppressWarnings("unused")
-public interface IClientMsg {
+@Suppress("unused")
+interface IClientMsg {
 
     /**
      * Gets a value indicating whether this client message is protobuf backed.
-     *
-     * @return <b>true</b> if this instance is protobuf backed; otherwise, <b>false</b>.
+     * @return **true** if this instance is protobuf backed; otherwise, **false**.
      */
-    boolean isProto();
+    val isProto: Boolean
 
     /**
      * Gets the network message type of this client message.
-     *
-     * @return The message type.
      */
-    EMsg getMsgType();
+    val msgType: EMsg
 
     /**
-     * Gets the session id for this client message.
-     *
-     * @return The session id.
+     * Gets or Sets the session id for this client message.
      */
-    int getSessionID();
+    var sessionID: Int
 
     /**
-     * Sets the session id for this client message.
-     *
-     * @param sessionID The session id.
+     * Gets or Sets the [SteamID] for this client message.
      */
-    void setSessionID(int sessionID);
+    var steamID: SteamID?
 
     /**
-     * Gets the {@link SteamID} for this client message.
-     *
-     * @return The {@link SteamID}.
+     * Gets or Sets the target job id for this client message.
      */
-    SteamID getSteamID();
+    var targetJobID: JobID
 
     /**
-     * Sets the {@link SteamID} for this client message.
-     *
-     * @param steamID The {@link SteamID}.
+     * Gets or Sets the source job id for this client message.
      */
-    void setSteamID(SteamID steamID);
+    var sourceJobID: JobID
 
     /**
-     * Gets the target job id for this client message.
-     *
-     * @return The target job id.
-     */
-    JobID getTargetJobID();
-
-    /**
-     * Sets the target job id for this client message.
-     *
-     * @param jobID The target job id.
-     */
-    void setTargetJobID(JobID jobID);
-
-    /**
-     * Gets the source job id for this client message.
-     *
-     * @return The source job id.
-     */
-    JobID getSourceJobID();
-
-    /**
-     * Sets the source job id for this client message.
-     *
-     * @param jobID The source job id.
-     */
-    void setSourceJobID(JobID jobID);
-
-    /**
-     * serializes this client message instance to a byte array.
-     *
+     * Serializes this client message instance to a byte array.
      * @return Data representing a client message.
      */
-    byte[] serialize();
+    fun serialize(): ByteArray
 
     /**
      * Initializes this client message by deserializing the specified data.
-     *
      * @param data The data representing a client message.
      */
-    void deserialize(byte[] data);
+    fun deserialize(data: ByteArray)
 }

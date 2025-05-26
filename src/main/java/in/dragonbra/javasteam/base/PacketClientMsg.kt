@@ -1,67 +1,45 @@
-package in.dragonbra.javasteam.base;
+package `in`.dragonbra.javasteam.base
 
-import in.dragonbra.javasteam.enums.EMsg;
-import in.dragonbra.javasteam.generated.ExtendedClientMsgHdr;
-
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
+import `in`.dragonbra.javasteam.enums.EMsg
+import `in`.dragonbra.javasteam.generated.ExtendedClientMsgHdr
+import java.io.ByteArrayInputStream
+import java.io.IOException
 
 /**
  * Represents a packet message with extended header information.
+ *
+ * @constructor Initializes a new instance of the [PacketClientMsg] class.
+ * @param eMsg The network message type for this packet message.
+ * @param data The data.
+ * @throws IOException exception while deserializing the data
  */
-public class PacketClientMsg implements IPacketMsg {
+class PacketClientMsg
+@Throws(IOException::class)
+constructor(
+    private val eMsg: EMsg,
+    data: ByteArray,
+) : IPacketMsg {
 
-    private final EMsg msgType;
+    private val extendedHdr = ExtendedClientMsgHdr()
 
-    private final long targetJobID;
+    private val payload = data
 
-    private final long sourceJobID;
+    override val isProto: Boolean
+        get() = false
 
-    private final byte[] payload;
+    override val msgType: EMsg
+        get() = eMsg
 
-    /**
-     * Initializes a new instance of the {@link PacketClientMsg} class.
-     *
-     * @param eMsg The network message type for this packet message.
-     * @param data The data.
-     * @throws IOException exception while deserializing the data
-     */
-    public PacketClientMsg(EMsg eMsg, byte[] data) throws IOException {
-        this.msgType = eMsg;
-        this.payload = data;
+    override val targetJobID: Long
+        get() = extendedHdr.targetJobID
 
-        ExtendedClientMsgHdr extendedHdr = new ExtendedClientMsgHdr();
+    override val sourceJobID: Long
+        get() = extendedHdr.sourceJobID
 
-        try (var stream = new ByteArrayInputStream(data)) {
-            extendedHdr.deserialize(stream);
-        }
+    override val data: ByteArray
+        get() = payload
 
-        targetJobID = extendedHdr.getTargetJobID();
-        sourceJobID = extendedHdr.getSourceJobID();
-    }
-
-    @Override
-    public boolean isProto() {
-        return false;
-    }
-
-    @Override
-    public EMsg getMsgType() {
-        return msgType;
-    }
-
-    @Override
-    public long getTargetJobID() {
-        return targetJobID;
-    }
-
-    @Override
-    public long getSourceJobID() {
-        return sourceJobID;
-    }
-
-    @Override
-    public byte[] getData() {
-        return payload;
+    init {
+        ByteArrayInputStream(data).use(extendedHdr::deserialize)
     }
 }

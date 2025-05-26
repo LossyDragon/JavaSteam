@@ -1,108 +1,73 @@
-package in.dragonbra.javasteam.base;
+package `in`.dragonbra.javasteam.base
 
-import com.google.protobuf.AbstractMessage;
-import com.google.protobuf.GeneratedMessage;
-import in.dragonbra.javasteam.enums.EMsg;
-import in.dragonbra.javasteam.generated.MsgHdrProtoBuf;
-import in.dragonbra.javasteam.util.log.LogManager;
-import in.dragonbra.javasteam.util.log.Logger;
-import in.dragonbra.javasteam.util.stream.BinaryReader;
-import in.dragonbra.javasteam.util.stream.SeekOrigin;
-
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
+import com.google.protobuf.AbstractMessage
+import com.google.protobuf.GeneratedMessage
+import `in`.dragonbra.javasteam.enums.EMsg
+import `in`.dragonbra.javasteam.generated.MsgHdrProtoBuf
+import `in`.dragonbra.javasteam.util.log.LogManager
+import `in`.dragonbra.javasteam.util.log.Logger
+import `in`.dragonbra.javasteam.util.stream.BinaryReader
+import `in`.dragonbra.javasteam.util.stream.SeekOrigin
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
+import java.io.IOException
+import java.lang.reflect.InvocationTargetException
 
 /**
  * Represents a protobuf backed client message.
  *
- * @param <BodyType> The body type of this message.
+ * @constructor Initializes a new instance of the [ClientMsgProtobuf] class.
+ *  This is a client send constructor.
+ * @param BodyType The body type of this message.
+ * @param clazz          the type of the body
+ * @param eMsg           The network message type this client message represents.
+ * @param payloadReserve The number of bytes to initialize the payload capacity to.
+ *
  */
-public class ClientMsgProtobuf<BodyType extends GeneratedMessage.Builder<BodyType>> extends AClientMsgProtobuf {
+@Suppress("UNCHECKED_CAST")
+class ClientMsgProtobuf<BodyType : GeneratedMessage.Builder<BodyType>> @JvmOverloads constructor(
+    private val clazz: Class<out AbstractMessage>,
+    eMsg: EMsg,
+    payloadReserve: Int = 64,
+) : AClientMsgProtobuf(payloadReserve) {
 
-    private static final Logger logger = LogManager.getLogger(ClientMsgProtobuf.class);
-
-    private BodyType body;
-
-    private final Class<? extends AbstractMessage> clazz;
+    companion object {
+        private val logger: Logger = LogManager.getLogger(ClientMsgProtobuf::class.java)
+    }
 
     /**
-     * Initializes a new instance of the {@link ClientMsgProtobuf} class.
+     * Gets or Sets the body of this message.
+     * @return the body structure of this message.
+     */
+    lateinit var body: BodyType
+
+    /**
+     * Initializes a new instance of the [ClientMsgProtobuf] class.
      * This is a client send constructor.
      *
      * @param clazz the type of the body
      * @param msg   The network message type this client message represents.
      */
-    public ClientMsgProtobuf(Class<? extends AbstractMessage> clazz, IPacketMsg msg) {
-        this(clazz, msg, 64);
-        if (!msg.isProto()) {
-            logger.debug("ClientMsgProtobuf<" + clazz.getSimpleName() + "> used for non-proto message!");
+    constructor(clazz: Class<out AbstractMessage>, msg: IPacketMsg) : this(clazz, msg, 64) {
+        if (!msg.isProto) {
+            logger.error("ClientMsgProtobuf<${clazz.getSimpleName()}> used for non-proto message!")
         }
-        deserialize(msg.getData());
+        deserialize(msg.data)
     }
 
     /**
-     * Initializes a new instance of the {@link ClientMsgProtobuf} class.
+     * Initializes a new instance of the [ClientMsgProtobuf] class.
      * This is a client send constructor.
      *
      * @param clazz          the type of the body
      * @param msg            The network message type this client message represents.
      * @param payloadReserve The number of bytes to initialize the payload capacity to.
      */
-    public ClientMsgProtobuf(Class<? extends AbstractMessage> clazz, IPacketMsg msg, int payloadReserve) {
-        this(clazz, msg.getMsgType(), payloadReserve);
-    }
+    constructor(clazz: Class<out AbstractMessage>, msg: IPacketMsg, payloadReserve: Int) :
+        this(clazz, msg.msgType, payloadReserve)
 
     /**
-     * Initializes a new instance of the {@link ClientMsgProtobuf} class.
-     * This is a client send constructor.
-     *
-     * @param clazz the type of the body
-     * @param eMsg  The network message type this client message represents.
-     */
-    public ClientMsgProtobuf(Class<? extends AbstractMessage> clazz, EMsg eMsg) {
-        this(clazz, eMsg, 64);
-    }
-
-    /**
-     * Initializes a new instance of the {@link ClientMsgProtobuf} class.
-     * This is a client send constructor.
-     *
-     * @param clazz          the type of the body
-     * @param eMsg           The network message type this client message represents.
-     * @param payloadReserve The number of bytes to initialize the payload capacity to.
-     */
-    @SuppressWarnings("unchecked")
-    public ClientMsgProtobuf(Class<? extends AbstractMessage> clazz, EMsg eMsg, int payloadReserve) {
-        super(payloadReserve);
-        this.clazz = clazz;
-
-        try {
-            final Method m = clazz.getMethod("newBuilder");
-            body = (BodyType) m.invoke(null);
-        } catch (IllegalAccessException | NoSuchMethodException | InvocationTargetException e) {
-            logger.debug(e);
-        }
-
-        getHeader().setEMsg(eMsg);
-    }
-
-    /**
-     * Initializes a new instance of the {@link ClientMsgProtobuf} class.
-     * This is a reply constructor.
-     *
-     * @param clazz the type of the body
-     * @param eMsg  The network message type this client message represents.
-     * @param msg   The message that this instance is a reply for.
-     */
-    public ClientMsgProtobuf(Class<? extends AbstractMessage> clazz, EMsg eMsg, MsgBase<MsgHdrProtoBuf> msg) {
-        this(clazz, eMsg, msg, 64);
-    }
-
-    /**
-     * Initializes a new instance of the {@link ClientMsgProtobuf} class.
+     * Initializes a new instance of the [ClientMsgProtobuf] class.
      * This is a reply constructor.
      *
      * @param clazz          the type of the body
@@ -110,67 +75,70 @@ public class ClientMsgProtobuf<BodyType extends GeneratedMessage.Builder<BodyTyp
      * @param msg            The message that this instance is a reply for.
      * @param payloadReserve The number of bytes to initialize the payload capacity to.
      */
-    public ClientMsgProtobuf(Class<? extends AbstractMessage> clazz, EMsg eMsg, MsgBase<MsgHdrProtoBuf> msg, int payloadReserve) {
-        this(clazz, eMsg, payloadReserve);
+    @JvmOverloads
+    constructor(
+        clazz: Class<out AbstractMessage>,
+        eMsg: EMsg,
+        msg: MsgBase<MsgHdrProtoBuf>,
+        payloadReserve: Int = 64,
+    ) : this(clazz, eMsg, payloadReserve) {
         // our target is where the message came from
-        getHeader().getProto().setJobidTarget(msg.getHeader().getProto().getJobidSource());
+        header.proto.setJobidTarget(msg.header.proto.jobidSource)
     }
 
-    /**
-     * @return the body structure of this message.
-     */
-    public BodyType getBody() {
-        return body;
-    }
-
-    /**
-     * Sets the body of this message.
-     *
-     * @param _body the body structure of this message.
-     */
-    public void setBody(BodyType _body) {
-        this.body = _body;
-    }
-
-    @Override
-    public byte[] serialize() {
-        try (var baos = new ByteArrayOutputStream(0)) {
-            getHeader().serialize(baos);
-            baos.write(body.build().toByteArray());
-            baos.write(payload.toByteArray());
-
-            return baos.toByteArray();
-        } catch (IOException e) {
-            logger.debug(e);
-        }
-
-        return new byte[0];
-    }
-
-    @SuppressWarnings("unchecked")
-    @Override
-    public void deserialize(byte[] data) {
-        if (data == null) {
-            throw new IllegalArgumentException("data is null");
-        }
-        BinaryReader ms = new BinaryReader(new ByteArrayInputStream(data));
-
+    init {
         try {
-            getHeader().deserialize(ms);
-            final Method m = clazz.getMethod("newBuilder");
-            body = (BodyType) m.invoke(null);
-            body.mergeFrom(ms);
-            payload.write(data, ms.getPosition(), ms.available());
-            payload.seek(0, SeekOrigin.BEGIN);
-        } catch (IOException | IllegalAccessException | NoSuchMethodException | InvocationTargetException e) {
-            logger.debug(e);
+            val m = clazz.getMethod("newBuilder")
+            body = m.invoke(null) as BodyType
+        } catch (e: IllegalAccessException) {
+            logger.error(e)
+        } catch (e: NoSuchMethodException) {
+            logger.error(e)
+        } catch (e: InvocationTargetException) {
+            logger.error(e)
         }
 
-        // TODO can be MemoryStream?
+        header.setEMsg(eMsg)
+    }
+
+    override fun serialize(): ByteArray {
         try {
-            ms.close();
-        } catch (IOException e) {
-            logger.debug(e);
+            ByteArrayOutputStream(0).use { baos ->
+                header.serialize(baos)
+                baos.write(body.build().toByteArray())
+                baos.write(payload.toByteArray())
+                return baos.toByteArray()
+            }
+        } catch (e: IOException) {
+            logger.error(e)
+        }
+
+        return ByteArray(0)
+    }
+
+    // TODO can be MemoryStream?
+    override fun deserialize(data: ByteArray) {
+        try {
+            BinaryReader(ByteArrayInputStream(data)).use { ms ->
+                try {
+                    header.deserialize(ms)
+                    val m = clazz.getMethod("newBuilder")
+                    body = m.invoke(null) as BodyType
+                    body.mergeFrom(ms)
+                    payload.write(data, ms.position, ms.available())
+                    payload.seek(0, SeekOrigin.BEGIN)
+                } catch (e: IOException) {
+                    logger.debug(e)
+                } catch (e: IllegalAccessException) {
+                    logger.debug(e)
+                } catch (e: NoSuchMethodException) {
+                    logger.debug(e)
+                } catch (e: InvocationTargetException) {
+                    logger.debug(e)
+                }
+            }
+        } catch (e: IOException) {
+            logger.error(e)
         }
     }
 }

@@ -24,7 +24,7 @@ class SteamGameCoordinator : ClientMsgHandler() {
     fun send(msg: IClientGCMsg, appId: Int) {
         val clientMsg = ClientMsgProtobuf<CMsgGCClient.Builder>(CMsgGCClient::class.java, EMsg.ClientToGC).apply {
             protoHeader.routingAppid = appId
-            body.msgtype = MsgUtil.makeGCMsg(msg.getMsgType(), msg.isProto())
+            body.msgtype = MsgUtil.makeGCMsg(msg.msgType, msg.isProto)
             body.appid = appId
 
             body.payload = ByteString.copyFrom(msg.serialize())

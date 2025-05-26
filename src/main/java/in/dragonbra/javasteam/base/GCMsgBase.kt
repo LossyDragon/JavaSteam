@@ -1,54 +1,47 @@
-package in.dragonbra.javasteam.base;
+package `in`.dragonbra.javasteam.base
 
-import in.dragonbra.javasteam.util.log.LogManager;
-import in.dragonbra.javasteam.util.log.Logger;
-
-import java.lang.reflect.InvocationTargetException;
+import `in`.dragonbra.javasteam.util.log.LogManager
+import `in`.dragonbra.javasteam.util.log.Logger
+import java.lang.reflect.InvocationTargetException
 
 /**
  * This is the abstract base class for all available game coordinator messages.
  * It's used to maintain packet payloads and provide a header for all gc messages.
  *
- * @param <HdrType> The header type for this gc message.
+ * @constructor Initializes a new instance of the [GCMsgBase] class.
+ * @param [HdrType] The header type for this gc message.
+ * @param clazz          the type of the header
+ * @param payloadReserve The number of bytes to initialize the payload capacity to.
+ *
  */
-@SuppressWarnings("unused")
-public abstract class GCMsgBase<HdrType extends IGCSerializableHeader> extends AbstractMsgBase implements IClientGCMsg {
+@Suppress("unused")
+abstract class GCMsgBase<HdrType : IGCSerializableHeader> @JvmOverloads constructor(
+    clazz: Class<HdrType>,
+    payloadReserve: Int = 0,
+) : AbstractMsgBase(payloadReserve),
+    IClientGCMsg {
 
-    private static final Logger logger = LogManager.getLogger(MsgBase.class);
-
-    private HdrType header;
-
-    /**
-     * Initializes a new instance of the {@link GCMsgBase} class.
-     *
-     * @param clazz the type of the header
-     */
-    public GCMsgBase(Class<HdrType> clazz) {
-        this(clazz, 0);
-    }
-
-    /**
-     * Initializes a new instance of the {@link GCMsgBase} class.
-     *
-     * @param clazz          the type of the header
-     * @param payloadReserve The number of bytes to initialize the payload capacity to.
-     */
-    public GCMsgBase(Class<HdrType> clazz, int payloadReserve) {
-        super(payloadReserve);
-        try {
-            header = clazz.getDeclaredConstructor().newInstance();
-        } catch (NoSuchMethodException |
-                 InstantiationException |
-                 IllegalAccessException |
-                 InvocationTargetException e) {
-            logger.debug(e);
-        }
+    companion object {
+        private val logger: Logger = LogManager.getLogger(MsgBase::class.java)
     }
 
     /**
      * @return the header for this message type.
      */
-    public HdrType getHeader() {
-        return header;
+    lateinit var header: HdrType
+        private set
+
+    init {
+        try {
+            header = clazz.getDeclaredConstructor().newInstance()
+        } catch (e: NoSuchMethodException) {
+            logger.error(e)
+        } catch (e: InstantiationException) {
+            logger.error(e)
+        } catch (e: IllegalAccessException) {
+            logger.error(e)
+        } catch (e: InvocationTargetException) {
+            logger.error(e)
+        }
     }
 }

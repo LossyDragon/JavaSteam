@@ -1,179 +1,126 @@
-package in.dragonbra.javasteam.base;
+package `in`.dragonbra.javasteam.base
 
-import in.dragonbra.javasteam.generated.MsgGCHdr;
-import in.dragonbra.javasteam.types.JobID;
-import in.dragonbra.javasteam.util.log.LogManager;
-import in.dragonbra.javasteam.util.log.Logger;
-import in.dragonbra.javasteam.util.stream.MemoryStream;
-import in.dragonbra.javasteam.util.stream.SeekOrigin;
-
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.lang.reflect.InvocationTargetException;
+import `in`.dragonbra.javasteam.generated.MsgGCHdr
+import `in`.dragonbra.javasteam.types.JobID
+import `in`.dragonbra.javasteam.util.log.LogManager
+import `in`.dragonbra.javasteam.util.log.Logger
+import `in`.dragonbra.javasteam.util.stream.MemoryStream
+import `in`.dragonbra.javasteam.util.stream.SeekOrigin
+import java.io.ByteArrayOutputStream
+import java.io.IOException
+import java.lang.reflect.InvocationTargetException
 
 /**
  * Represents a struct backed game coordinator message.
  *
- * @param <BodyType> The body type of this message.
+ * @constructor Initializes a new instance of the [ClientGCMsg] class.
+ * @param bodyType       body type
+ * @param payloadReserve The number of bytes to initialize the payload capacity to.
+ * @param [BodyType] The body type of this message.
  */
-@SuppressWarnings("unused")
-public class ClientGCMsg<BodyType extends IGCSerializableMessage> extends GCMsgBase<MsgGCHdr> {
+@Suppress("unused")
+class ClientGCMsg<BodyType : IGCSerializableMessage> @JvmOverloads constructor(
+    bodyType: Class<out BodyType>,
+    payloadReserve: Int = 64,
+) : GCMsgBase<MsgGCHdr>(MsgGCHdr::class.java, payloadReserve) {
 
-    private static final Logger logger = LogManager.getLogger(ClientGCMsg.class);
-
-    private final int msgType;
-
-    private BodyType body;
-
-    /**
-     * Initializes a new instance of the {@link ClientGCMsg} class.
-     *
-     * @param bodyType body type
-     */
-    public ClientGCMsg(Class<? extends BodyType> bodyType) {
-        this(bodyType, 64);
+    companion object {
+        private val logger: Logger = LogManager.getLogger(ClientGCMsg::class.java)
     }
 
-    /**
-     * Initializes a new instance of the {@link ClientGCMsg} class.
-     *
-     * @param bodyType       body type
-     * @param payloadReserve The number of bytes to initialize the payload capacity to.
-     */
-    public ClientGCMsg(Class<? extends BodyType> bodyType, int payloadReserve) {
-        super(MsgGCHdr.class, payloadReserve);
-
-        try {
-            body = bodyType.getDeclaredConstructor().newInstance();
-        } catch (NoSuchMethodException |
-                 InstantiationException |
-                 IllegalAccessException |
-                 InvocationTargetException e) {
-            logger.debug(e);
-        }
-
-        msgType = body.getEMsg();
-    }
+    private lateinit var body: BodyType
 
     /**
-     * Initializes a new instance of the {@link ClientGCMsg} class.
-     * This a reply constructor.
-     *
-     * @param bodyType body type
-     * @param msg      The message that this instance is a reply for.
-     */
-    public ClientGCMsg(Class<? extends BodyType> bodyType, GCMsgBase<MsgGCHdr> msg) {
-        this(bodyType, msg, 64);
-    }
-
-    /**
-     * Initializes a new instance of the {@link ClientGCMsg} class.
+     * Initializes a new instance of the [ClientGCMsg] class.
      * This a reply constructor.
      *
      * @param bodyType       body type
      * @param msg            The message that this instance is a reply for.
      * @param payloadReserve The number of bytes to initialize the payload capacity to.
      */
-    public ClientGCMsg(Class<? extends BodyType> bodyType, GCMsgBase<MsgGCHdr> msg, int payloadReserve) {
-        this(bodyType, payloadReserve);
-
-        if (msg == null) {
-            throw new IllegalArgumentException("msg is null");
-        }
-
+    @JvmOverloads
+    constructor(
+        bodyType: Class<out BodyType>,
+        msg: GCMsgBase<MsgGCHdr>,
+        payloadReserve: Int = 64,
+    ) : this(bodyType, payloadReserve) {
         // our target is where the message came from
-        getHeader().setTargetJobID(msg.getHeader().getSourceJobID());
+        header.targetJobID = msg.header.sourceJobID
     }
 
     /**
-     * Initializes a new instance of the {@link ClientGCMsg} class.
+     * Initializes a new instance of the [ClientGCMsg] class.
      * This a receive constructor.
      *
      * @param bodyType body type
      * @param msg      The packet message to build this client message from.
      */
-    public ClientGCMsg(Class<? extends BodyType> bodyType, IPacketGCMsg msg) {
-        this(bodyType);
-
-        if (msg == null) {
-            throw new IllegalArgumentException("msg is null");
+    constructor(bodyType: Class<out BodyType>, msg: IPacketGCMsg) : this(bodyType) {
+        if (msg.isProto) {
+            logger.error("ClientMsg<${bodyType.getName()}> used for proto message!")
         }
 
-        if (msg.isProto()) {
-            logger.debug("ClientMsg<" + bodyType.getName() + "> used for proto message!");
-        }
-
-        deserialize(msg.getData());
+        deserialize(msg.data)
     }
 
-    @Override
-    public boolean isProto() {
-        return false;
-    }
-
-    @Override
-    public int getMsgType() {
-        return msgType;
-    }
-
-    @Override
-    public JobID getTargetJobID() {
-        return new JobID(getHeader().getTargetJobID());
-    }
-
-    @Override
-    public void setTargetJobID(JobID jobID) {
-        if (jobID == null) {
-            throw new IllegalArgumentException("jobID is null");
-        }
-        getHeader().setTargetJobID(jobID.getValue());
-    }
-
-    @Override
-    public JobID getSourceJobID() {
-        return new JobID(getHeader().getSourceJobID());
-    }
-
-    @Override
-    public void setSourceJobID(JobID jobID) {
-        if (jobID == null) {
-            throw new IllegalArgumentException("jobID is null");
-        }
-        getHeader().setSourceJobID(jobID.getValue());
-    }
-
-    @Override
-    public byte[] serialize() {
-        try (var baos = new ByteArrayOutputStream(0)) {
-            getHeader().serialize(baos);
-            body.serialize(baos);
-            baos.write(payload.toByteArray());
-
-            return baos.toByteArray();
-        } catch (IOException e) {
-            logger.debug(e);
-        }
-
-        return new byte[0];
-    }
-
-    @Override
-    public void deserialize(byte[] data) {
-        if (data == null) {
-            throw new IllegalArgumentException("data is null");
-        }
-        MemoryStream ms = new MemoryStream(data);
-
+    init {
         try {
-            getHeader().deserialize(ms);
-            body.deserialize(ms);
-        } catch (IOException e) {
-            logger.debug(e);
+            body = bodyType.getDeclaredConstructor().newInstance()
+        } catch (e: NoSuchMethodException) {
+            logger.error(e)
+        } catch (e: InstantiationException) {
+            logger.error(e)
+        } catch (e: IllegalAccessException) {
+            logger.error(e)
+        } catch (e: InvocationTargetException) {
+            logger.error(e)
+        }
+    }
+
+    override val isProto: Boolean
+        get() = false
+
+    override val msgType: Int
+        get() = body.eMsg
+
+    override var targetJobID: JobID
+        get() = JobID(header.targetJobID)
+        set(jobID) {
+            header.targetJobID = jobID.value
         }
 
-        payload.write(data, (int) ms.getPosition(), ms.available());
-        payload.seek(0, SeekOrigin.BEGIN);
+    override var sourceJobID: JobID
+        get() = JobID(header.sourceJobID)
+        set(jobID) {
+            header.sourceJobID = jobID.value
+        }
 
-        ms.close();
+    override fun serialize(): ByteArray {
+        try {
+            ByteArrayOutputStream(0).use { baos ->
+                header.serialize(baos)
+                body.serialize(baos)
+                baos.write(payload.toByteArray())
+                return baos.toByteArray()
+            }
+        } catch (e: IOException) {
+            logger.error(e)
+        }
+
+        return ByteArray(0)
+    }
+
+    override fun deserialize(data: ByteArray) {
+        MemoryStream(data).use { ms ->
+            try {
+                header.deserialize(ms)
+                body.deserialize(ms)
+            } catch (e: IOException) {
+                logger.error(e)
+            }
+
+            payload.write(data, ms.position.toInt(), ms.available())
+            payload.seek(0, SeekOrigin.BEGIN)
+        }
     }
 }
