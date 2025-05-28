@@ -1,28 +1,24 @@
-package in.dragonbra.javasteam.util.event;
+package `in`.dragonbra.javasteam.util.event
 
-import java.util.HashSet;
+open class Event<T : EventArgs> {
 
-public class Event<T extends EventArgs> {
+    protected val handlers: HashSet<EventHandler<T>> = HashSet<EventHandler<T>>()
 
-    protected final HashSet<EventHandler<T>> handlers = new HashSet<>();
-
-    public void addEventHandler(EventHandler<T> handler) {
-        synchronized (handlers) {
-            handlers.add(handler);
+    fun addEventHandler(handler: EventHandler<T>) {
+        synchronized(handlers) {
+            handlers.add(handler)
         }
     }
 
-    public void removeEventHandler(EventHandler<T> handler) {
-        synchronized (handlers) {
-            handlers.remove(handler);
+    fun removeEventHandler(handler: EventHandler<T>) {
+        synchronized(handlers) {
+            handlers.remove(handler)
         }
     }
 
-    public void handleEvent(Object sender, T e) {
-        synchronized (handlers) {
-            for (final EventHandler<T> handler : handlers) {
-                handler.handleEvent(sender, e);
-            }
+    fun handleEvent(sender: Any, e: T) {
+        synchronized(handlers) {
+            handlers.forEach { it.handleEvent(sender, e) }
         }
     }
 }
