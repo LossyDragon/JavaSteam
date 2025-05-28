@@ -106,7 +106,7 @@ class SteamUser : ClientMsgHandler() {
         logon.body.clientPackageVersion = 1771 // todo: (SK) determine if this is still required
         logon.body.supportsRateLimitResponse = true
         logon.body.machineName = details.machineName
-        logon.body.machineId = ByteString.copyFrom(HardwareUtils.getMachineID())
+        logon.body.machineId = ByteString.copyFrom(HardwareUtils.machineID)
 
         if (details.chatMode != ChatMode.DEFAULT) {
             logon.body.chatMode = details.chatMode.mode
@@ -161,7 +161,7 @@ class SteamUser : ClientMsgHandler() {
         logon.body.clientLanguage = details.clientLanguage
         logon.body.cellId = details.cellID ?: client.configuration.cellID
 
-        logon.body.machineId = ByteString.copyFrom(HardwareUtils.getMachineID())
+        logon.body.machineId = ByteString.copyFrom(HardwareUtils.machineID)
 
         client.send(logon)
     }

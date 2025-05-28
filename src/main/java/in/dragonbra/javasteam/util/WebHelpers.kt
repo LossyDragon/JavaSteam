@@ -1,41 +1,27 @@
-package in.dragonbra.javasteam.util;
-
-import java.nio.charset.StandardCharsets;
+package `in`.dragonbra.javasteam.util
 
 /**
  * @author lngtr
  * @since 2018-04-16
  */
-public class WebHelpers {
+object WebHelpers {
 
-    private static boolean isUrlSafeChar(char ch) {
-        return ch >= 'a' && ch <= 'z' ||
-                ch >= 'A' && ch <= 'Z' ||
-                ch >= '0' && ch <= '9' ||
-                ch == '-' ||
-                ch == '.' ||
-                ch == '_';
-    }
+    private fun isUrlSafeChar(ch: Char): Boolean =
+        ch in 'a'..'z' || ch in 'A'..'Z' || ch in '0'..'9' || ch == '-' || ch == '.' || ch == '_'
 
-    public static String urlEncode(String input) {
-        return urlEncode(input.getBytes(StandardCharsets.UTF_8));
-    }
+    @JvmStatic
+    fun urlEncode(input: String): String = urlEncode(input.toByteArray(Charsets.UTF_8))
 
-    public static String urlEncode(byte[] input) {
-        StringBuilder encoded = new StringBuilder(input.length * 2);
+    @JvmStatic
+    fun urlEncode(input: ByteArray): String = buildString(input.size * 2) {
+        for (byte in input) {
+            val char = byte.toInt().toChar()
 
-        for (byte i : input) {
-            char inch = (char) i;
-
-            if (isUrlSafeChar(inch)) {
-                encoded.append(inch);
-            } else if (inch == ' ') {
-                encoded.append('+');
-            } else {
-                encoded.append(String.format("%%%02X", i));
+            when {
+                isUrlSafeChar(char) -> append(char)
+                char == ' ' -> append('+')
+                else -> append("%%%02X".format(byte))
             }
         }
-
-        return encoded.toString();
     }
 }

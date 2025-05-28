@@ -464,7 +464,7 @@ class ContentDownloader(val steamClient: SteamClient) {
                     neededChunks = Utils.validateSteam3FileChecksums(
                         fs,
                         file.chunks.sortedBy { it.offset }.toTypedArray()
-                    )
+                    ).toMutableList()
                 }
             }
 

@@ -8,14 +8,6 @@ import java.lang.reflect.Field;
 
 public class HardwareUtilsTest {
 
-    @BeforeEach
-    public void setUp() throws NoSuchFieldException, IllegalAccessException {
-        // Ehh.... This resets the 'MACHINE_NAME' field for every test.
-        Field field = HardwareUtils.class.getDeclaredField("MACHINE_NAME");
-        field.setAccessible(true);
-        field.set(null, null);
-    }
-
     @Test
     public void machineNameWithTag() {
         var name = HardwareUtils.getMachineName(true);
