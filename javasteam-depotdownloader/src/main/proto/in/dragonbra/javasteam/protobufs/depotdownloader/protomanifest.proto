@@ -1,0 +1,28 @@
+syntax = "proto3";
+
+option java_package = "in.dragonbra.javasteam.protobufs.depotdownloader";
+
+option optimize_for = SPEED;
+option java_generic_services = false;
+
+message ProtoManifest {
+  repeated FileData files = 1;
+  uint64 id = 2;
+  int64 creation_time = 3; // Unix timestamp
+}
+
+message FileData {
+  string file_name = 1;
+  repeated ChunkData chunks = 2;
+  uint32 flags = 3;
+  uint64 total_size = 4;
+  bytes file_hash = 5;
+}
+
+message ChunkData {
+  bytes chunk_id = 1; // the SHA-1 hash chunk id.
+  bytes checksum = 2; // the expected Adler32 checksum of this chunk.
+  uint64 offset = 3; // the chunk offset.
+  uint32 compressed_length = 4; // the compressed length of this chunk.
+  uint32 uncompressed_length = 5; // the decompressed length of this chunk.
+}

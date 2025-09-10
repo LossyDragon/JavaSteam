@@ -77,6 +77,9 @@ server_list.bin
 /steamapps/
 /userfiles/
 
+# JavaSteam DepotDownloader
+/javasteam-depotdownloader/build
+
 # Kotlin 2.0
 /.kotlin/sessions/
 *.salive
