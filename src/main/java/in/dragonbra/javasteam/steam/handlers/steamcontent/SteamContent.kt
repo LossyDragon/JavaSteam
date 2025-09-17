@@ -5,9 +5,9 @@ import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesContentsystem
 import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesContentsystemSteamclient.CContentServerDirectory_GetManifestRequestCode_Request
 import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesContentsystemSteamclient.CContentServerDirectory_GetServersForSteamPipe_Request
 import `in`.dragonbra.javasteam.rpc.service.ContentServerDirectory
-import `in`.dragonbra.javasteam.steam.handlers.steamcontent.CDNAuthToken
 import `in`.dragonbra.javasteam.steam.cdn.Server
 import `in`.dragonbra.javasteam.steam.handlers.ClientMsgHandler
+import `in`.dragonbra.javasteam.steam.handlers.steamcontent.CDNAuthToken
 import `in`.dragonbra.javasteam.steam.handlers.steamunifiedmessages.SteamUnifiedMessages
 import `in`.dragonbra.javasteam.steam.webapi.ContentServerDirectoryService
 import kotlinx.coroutines.CoroutineScope

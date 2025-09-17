@@ -5,9 +5,9 @@ package `in`.dragonbra.javasteam.depotdownloader
  */
 @Suppress("ArrayInDataClass")
 data class DepotDownloadInfo(
-    val depotid: UInt,
-    val appId: UInt,
-    val manifestId: ULong,
+    val depotid: Int,
+    val appId: Int,
+    val manifestId: Long,
     val branch: String,
     val installDir: String,
     val depotKey: ByteArray,

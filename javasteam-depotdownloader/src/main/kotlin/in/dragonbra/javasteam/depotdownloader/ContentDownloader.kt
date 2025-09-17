@@ -3,17 +3,20 @@ package `in`.dragonbra.javasteam.depotdownloader
 import `in`.dragonbra.javasteam.enums.EAccountType
 import `in`.dragonbra.javasteam.enums.EAppInfoSection
 import `in`.dragonbra.javasteam.enums.EDepotFileFlag
+import `in`.dragonbra.javasteam.steam.handlers.steamcloud.callback.UGCDetailsCallback
 import `in`.dragonbra.javasteam.types.DepotManifest
 import `in`.dragonbra.javasteam.types.KeyValue
+import `in`.dragonbra.javasteam.types.PublishedFileID
+import `in`.dragonbra.javasteam.types.UGCHandle
 import `in`.dragonbra.javasteam.util.log.LogManager
 import okio.FileSystem
 import okio.Path.Companion.toPath
 import okio.buffer
 import org.apache.commons.lang3.SystemUtils
 
-/**
- * TODO kotlin support first, java compat after.
- */
+// TODO kotlin support first, java compat after.
+// TODO remove suppression
+@Suppress("unused")
 class ContentDownloader(private val steam3: Steam3Session) {
 
     private val config: DownloadConfig
@@ -22,7 +25,7 @@ class ContentDownloader(private val steam3: Steam3Session) {
     /**
      * @return a [Pair] if successful and install directory.
      */
-    private fun createDirectories(depotId: UInt, depotVersion: UInt): Pair<Boolean, String> {
+    private fun createDirectories(depotId: Int, depotVersion: Int): Pair<Boolean, String> {
         return try {
             val installDir = if (config.installDirectory.isBlank()) {
                 if (SystemUtils.IS_OS_ANDROID) {
@@ -77,28 +80,28 @@ class ContentDownloader(private val steam3: Steam3Session) {
         return false
     }
 
-    private suspend fun accountHasAccess(appId: UInt, depotId: UInt): Boolean {
+    private suspend fun accountHasAccess(appId: Int, depotId: Int): Boolean {
         val steamUser = requireNotNull(steam3.steamUser)
         val steamID = requireNotNull(steamUser.steamID)
         if (steam3.licenses.isEmpty() && steamID.accountType != EAccountType.AnonUser) {
             return false
         }
 
-        val licenseQuery = arrayListOf<UInt>()
+        val licenseQuery = arrayListOf<Int>()
         if (steamID.accountType == EAccountType.AnonUser) {
-            licenseQuery.add(17906u)
+            licenseQuery.add(17906)
         } else {
-            licenseQuery.addAll(steam3.licenses.map { it.packageID.toUInt() }.distinct())
+            licenseQuery.addAll(steam3.licenses.map { it.packageID.toInt() }.distinct())
         }
 
         steam3.requestPackageInfo(licenseQuery)
 
         licenseQuery.forEach { license ->
             steam3.packageInfo[license]?.let { pkg ->
-                if (pkg.keyValues["appids"].children.any { child -> child.asUnsignedInteger() == depotId }) {
+                if (pkg.keyValues["appids"].children.any { child -> child.asInteger() == depotId }) {
                     return true
                 }
-                if (pkg.keyValues["depotids"].children.any { child -> child.asUnsignedInteger() == depotId }) {
+                if (pkg.keyValues["depotids"].children.any { child -> child.asInteger() == depotId }) {
                     return true
                 }
             }
@@ -107,7 +110,7 @@ class ContentDownloader(private val steam3: Steam3Session) {
         // Check if this app is free to download without a license
         val info = getSteam3AppSection(appId, EAppInfoSection.Common)
 
-        @Suppress("RedundantIf") // its not a 'Redundant suppression' >:U
+        @Suppress("RedundantIf") // it's not a 'Redundant suppression' >:U
         if (info != null && info["FreeToDownload"].asBoolean()) {
             return true
         }
@@ -115,7 +118,7 @@ class ContentDownloader(private val steam3: Steam3Session) {
         return false
     }
 
-    private fun getSteam3AppSection(appId: UInt, section: EAppInfoSection): KeyValue? {
+    private fun getSteam3AppSection(appId: Int, section: EAppInfoSection): KeyValue? {
         if (steam3.appInfo.isEmpty()) {
             return null
         }
@@ -135,9 +138,9 @@ class ContentDownloader(private val steam3: Steam3Session) {
         return sectionKV
     }
 
-    private fun getSteam3AppBuildNumber(appId: UInt, branch: String): UInt {
+    private fun getSteam3AppBuildNumber(appId: Int, branch: String): Int {
         if (appId == INVALID_APP_ID) {
-            return 0u
+            return 0
         }
 
         val depots = getSteam3AppSection(appId, EAppInfoSection.Depots) ?: KeyValue.INVALID
@@ -145,19 +148,19 @@ class ContentDownloader(private val steam3: Steam3Session) {
         val node = branches[branch]
 
         if (node == KeyValue.INVALID) {
-            return 0u
+            return 0
         }
 
         val buildId = node["buildid"]
 
         if (buildId == KeyValue.INVALID) {
-            return 0u
+            return 0
         }
 
-        return buildId.value!!.toUInt()
+        return buildId.value!!.toInt()
     }
 
-    private fun getSteam3DepotProxyAppId(depotId: UInt, appId: UInt): UInt {
+    private fun getSteam3DepotProxyAppId(depotId: Int, appId: Int): Int {
         val depots = getSteam3AppSection(appId, EAppInfoSection.Depots) ?: KeyValue.INVALID
         val depotChild = depots[depotId.toString()]
 
@@ -167,24 +170,198 @@ class ContentDownloader(private val steam3: Steam3Session) {
         if (depotChild["depotfromapp"] == KeyValue.INVALID)
             return INVALID_APP_ID
 
-        return depotChild["depotfromapp"].asUnsignedInteger()
+        return depotChild["depotfromapp"].asInteger()
     }
 
-    private suspend fun getSteam3DepotManifest(depotId: UInt, appId: UInt, branch: String): ULong {
+    private suspend fun getSteam3DepotManifest(depotId: Int, appId: Int, branch: String): Long {
+        val depots = getSteam3AppSection(appId, EAppInfoSection.Depots)
+        val depotChild = depots?.get(depotId.toString()) ?: KeyValue.INVALID
+
+        if (depotChild == KeyValue.INVALID) {
+            return INVALID_MANIFEST_ID
+        }
+
+        // Shared depots can either provide manifests, or leave you relying on their parent app.
+        // It seems that with the latter, "sharedinstall" will exist (and equals 2 in the one existance I know of).
+        // Rather than relay on the unknown sharedinstall key, just look for manifests. Test cases: 111710, 346680.
+        if (depotChild["manifests"] == KeyValue.INVALID && depotChild["depotfromapp"] != KeyValue.INVALID) {
+            val otherAppId = depotChild["depotfromapp"].asInteger()
+            if (otherAppId == appId) {
+                // This shouldn't ever happen, but ya never know with Valve. Don't infinite loop.
+                logger.error("App $appId, Depot $depotId has depotfromapp of $otherAppId!")
+                return INVALID_MANIFEST_ID
+            }
+
+            steam3.requestAppInfo(otherAppId)
+
+            return getSteam3DepotManifest(depotId, otherAppId, branch)
+        }
+
+        val manifests = depotChild["manifests"]
+
+        if (manifests.children.isEmpty()) {
+            return INVALID_MANIFEST_ID
+        }
+
+        val node = manifests[branch]["gid"]
+
+        // Non passworded branch, found the manifest
+        if (node.value != null) {
+            return node.value!!.toLong()
+        }
+
+        // If we requested public branch, and it had no manifest, nothing to do
+        if (branch.equals(DEFAULT_BRANCH, true)) {
+            return INVALID_MANIFEST_ID
+        }
+
+        // Either the branch just doesn't exist, or it has a password
+        if (config.betaPassword.isEmpty()) {
+            logger.error("Branch $branch for depot $depotId was not found, either it does not exist or it has a password.")
+            return INVALID_MANIFEST_ID
+        }
+
+        if (!steam3.appBetaPasswords.contains(branch)) {
+            // Submit the password to Steam now to get encryption keys
+            steam3.checkAppBetaPassword(appId, config.betaPassword)
+
+            if (!steam3.appBetaPasswords.contains(branch)) {
+                logger.error("Error: Password was invalid for branch $branch (or the branch does not exist)")
+                return INVALID_MANIFEST_ID
+            }
+        }
+
+        // Got the password, request private depot section
+        // TODO: We're probably repeating this request for every depot?
+        val privateDepotSection = steam3.getPrivateBetaDepotSection(appId, branch)
+
+        // Now repeat the same code to get the manifest gid from depot section
         TODO()
     }
 
-    private fun getAppName(appId: UInt): String {
+    private fun getAppName(appId: Int): String {
         val info = getSteam3AppSection(appId, EAppInfoSection.Common) ?: KeyValue.INVALID
         return info["name"].asString() ?: ""
+    }
+
+    suspend fun downloadPubfileAsync(appId: Int, publishedFileId: Long) {
+        val details = steam3.getPublishedFileDetails(appId, PublishedFileID(publishedFileId))
+
+        requireNotNull(details) // TODO maybe?
+
+        if (!details.fileUrl.isNullOrEmpty()) {
+            downloadWebFile(appId, details.filename, details.fileUrl)
+        } else if (details.hcontentFile > 0L) {
+            downloadAppAsync(
+                appId,
+                listOf(appId to details.hcontentFile),
+                DEFAULT_BRANCH,
+                null,
+                null,
+                null,
+                false,
+                true
+            )
+        } else {
+            logger.error("Unable to locate manifest ID for published file $publishedFileId")
+        }
+    }
+
+    suspend fun downloadUGCAsync(appId: Int, ugcId: Long) {
+        var details: UGCDetailsCallback? = null
+
+        if (steam3.steamUser!!.steamID!!.accountType != EAccountType.AnonUser) {
+            details = steam3.getUGCDetails(UGCHandle(ugcId.toLong()))
+        } else {
+            logger.error("Unable to query UGC details for $ugcId from an anonymous account")
+        }
+
+        if (details!!.url.isNotEmpty()) {
+            downloadWebFile(appId, details.fileName, details.url)
+        } else {
+            downloadAppAsync(appId, listOf(appId to ugcId), DEFAULT_BRANCH, null, null, null, false, true)
+        }
+    }
+
+    private suspend fun downloadWebFile(appId: Int, fileName: String, url: String) {
+        // TODO
+    }
+
+    private suspend fun downloadAppAsync(
+        appId: Int,
+        depotManifestIds: List<Pair<Int, Long>>,
+        branch: String,
+        os: String?,
+        arch: String?,
+        language: String?,
+        lv: Boolean,
+        isUgc: Boolean,
+    ) {
+        // TODO
+    }
+
+    private suspend fun getDepotInfo(depotId: Int, appId: Int, manifestId: Long, branch: String): DepotDownloadInfo? {
+        var manifestId = manifestId
+        var branch = branch
+
+        if (appId != INVALID_APP_ID) {
+            steam3.requestAppInfo(appId)
+        }
+
+        if (!accountHasAccess(appId, depotId)) {
+            logger.error("Depot $depotId is not available from this account.")
+            return null
+        }
+
+        if (manifestId == INVALID_MANIFEST_ID) {
+            manifestId = getSteam3DepotManifest(depotId, appId, branch)
+
+            if (manifestId == INVALID_MANIFEST_ID && !branch.equals(DEFAULT_BRANCH, true)) {
+                logger.error("Warning: Depot ${depotId} does not have branch named \"$branch\". Trying $DEFAULT_BRANCH branch.\"")
+                branch = DEFAULT_BRANCH
+                manifestId = getSteam3DepotManifest(depotId, appId, branch)
+            }
+
+            if (manifestId == INVALID_MANIFEST_ID) {
+                logger.error("Depot $depotId missing public subsection or manifest section.")
+                return null
+            }
+        }
+
+        steam3.requestDepotKey(depotId, appId)
+        val depotKey = steam3.depotKeys[depotId]
+        if (depotKey == null) {
+            logger.error("No valid depot key for $depotId, unable to download.")
+            return null
+        }
+
+        val uVersion = getSteam3AppBuildNumber(appId, branch)
+
+        val result = createDirectories(depotId, uVersion)
+        if (!result.first) {
+            logger.error("Error: Unable to create install directories!")
+            return null
+        }
+
+        // For depots that are proxied through depotfromapp, we still need to resolve the proxy app id, unless the app is freetodownload
+        var containingAppId = appId
+        val proxyAppId = getSteam3DepotProxyAppId(depotId, appId)
+        if (proxyAppId != INVALID_APP_ID) {
+            val common = getSteam3AppSection(appId, EAppInfoSection.Common)
+            if (common == null || !common["FreeToDownload"].asBoolean()) {
+                containingAppId = proxyAppId
+            }
+        }
+
+        return DepotDownloadInfo(depotId, containingAppId, manifestId, branch, result.second, depotKey)
     }
 
     companion object {
         private val logger = LogManager.getLogger(ContentDownloader::class.java)
 
-        const val INVALID_APP_ID: UInt = UInt.MAX_VALUE
-        const val INVALID_DEPOT_ID: UInt = UInt.MAX_VALUE
-        const val INVALID_MANIFEST_ID: ULong = ULong.MAX_VALUE
+        const val INVALID_APP_ID: Int = Int.MAX_VALUE
+        const val INVALID_DEPOT_ID: Int = Int.MAX_VALUE
+        const val INVALID_MANIFEST_ID: Long = Long.MAX_VALUE
         const val DEFAULT_BRANCH: String = "public"
 
         private const val DEFAULT_DOWNLOAD_DIR: String = "depots"
@@ -203,7 +380,7 @@ class ContentDownloader(private val steam3: Steam3Session) {
                 val uniqueChunks = mutableSetOf<ChunkId>().apply {
                     manifest.files.forEach { file ->
                         file.chunks.forEach { chunk ->
-                            requireNotNull(chunk.chunkID) { "Found null chunk ID. Help triage" } // TODO verify
+                            requireNotNull(chunk.chunkID) { "Found null chunk ID" } // TODO verify
                             val chunkId = ChunkId(chunk.chunkID!!)
                             add(chunkId)
                         }

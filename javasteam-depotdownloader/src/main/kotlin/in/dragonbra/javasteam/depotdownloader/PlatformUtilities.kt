@@ -1,5 +1,6 @@
 package `in`.dragonbra.javasteam.depotdownloader
 
+import `in`.dragonbra.javasteam.util.log.LogManager
 import java.io.File
 import java.io.IOException
 import java.nio.file.Files
@@ -7,6 +8,8 @@ import java.nio.file.Paths
 import java.nio.file.attribute.PosixFilePermission
 
 object PlatformUtilities {
+
+    private val logger = LogManager.getLogger(PlatformUtilities::class.java)
 
     /**
      * TODO
@@ -40,11 +43,14 @@ object PlatformUtilities {
                 Files.setPosixFilePermissions(filePath, currentPermissions)
             }
         } catch (e: UnsupportedOperationException) {
-            // TODO log 'e'
+            logger.error(e)
+
             File(path).also { file ->
                 file.setExecutable(value)
             }
         } catch (e: IOException) {
+            logger.error(e)
+
             // TODO handle exception
             throw e
         }
