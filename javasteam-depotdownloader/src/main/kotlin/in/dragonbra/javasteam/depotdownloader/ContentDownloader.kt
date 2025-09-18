@@ -9,6 +9,12 @@ import `in`.dragonbra.javasteam.types.KeyValue
 import `in`.dragonbra.javasteam.types.PublishedFileID
 import `in`.dragonbra.javasteam.types.UGCHandle
 import `in`.dragonbra.javasteam.util.log.LogManager
+import io.ktor.client.call.body
+import io.ktor.client.request.get
+import io.ktor.utils.io.ByteReadChannel
+import io.ktor.utils.io.readAvailable
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import okio.FileSystem
 import okio.Path.Companion.toPath
 import okio.buffer
@@ -17,49 +23,51 @@ import org.apache.commons.lang3.SystemUtils
 // TODO kotlin support first, java compat after.
 // TODO remove suppression
 @Suppress("unused")
-class ContentDownloader(private val steam3: Steam3Session) {
+class ContentDownloader(private val steam3: Steam3Session) : AutoCloseable {
 
     private val config: DownloadConfig
         get() = steam3.config
 
+    override fun close() {
+        HttpClientFactory.close()
+    }
+
     /**
      * @return a [Pair] if successful and install directory.
      */
-    private fun createDirectories(depotId: Int, depotVersion: Int): Pair<Boolean, String> {
-        return try {
-            val installDir = if (config.installDirectory.isBlank()) {
-                if (SystemUtils.IS_OS_ANDROID) {
-                    // Android should have install dir.
-                    throw IllegalArgumentException("installDirectory shouldn't be blank on android")
-                }
-
-                // Create default directory structure
-                val defaultDownloadDir = DEFAULT_DOWNLOAD_DIR.toPath()
-                FileSystem.SYSTEM.createDirectories(defaultDownloadDir)
-
-                val depotPath = defaultDownloadDir / depotId.toString()
-                FileSystem.SYSTEM.createDirectories(depotPath)
-
-                val versionPath = depotPath / depotVersion.toString()
-                FileSystem.SYSTEM.createDirectories(versionPath)
-                FileSystem.SYSTEM.createDirectories(versionPath / CONFIG_DIR)
-                FileSystem.SYSTEM.createDirectories(versionPath / STAGING_DIR)
-
-                versionPath.toString()
-            } else {
-                val configDir = steam3.config.installDirectory.toPath()
-                FileSystem.SYSTEM.createDirectories(configDir)
-                FileSystem.SYSTEM.createDirectories(configDir / CONFIG_DIR)
-                FileSystem.SYSTEM.createDirectories(configDir / STAGING_DIR)
-
-                configDir.toString()
+    private fun createDirectories(depotId: Int, depotVersion: Int): Pair<Boolean, String> = try {
+        val installDir = if (config.installDirectory.isBlank()) {
+            if (SystemUtils.IS_OS_ANDROID) {
+                // Android should have install dir.
+                throw IllegalArgumentException("installDirectory shouldn't be blank on android")
             }
 
-            Pair(true, installDir)
-        } catch (e: Exception) {
-            logger.error(e)
-            Pair(false, "")
+            // Create default directory structure
+            val defaultDownloadDir = DEFAULT_DOWNLOAD_DIR.toPath()
+            FileSystem.SYSTEM.createDirectories(defaultDownloadDir)
+
+            val depotPath = defaultDownloadDir / depotId.toString()
+            FileSystem.SYSTEM.createDirectories(depotPath)
+
+            val versionPath = depotPath / depotVersion.toString()
+            FileSystem.SYSTEM.createDirectories(versionPath)
+            FileSystem.SYSTEM.createDirectories(versionPath / CONFIG_DIR)
+            FileSystem.SYSTEM.createDirectories(versionPath / STAGING_DIR)
+
+            versionPath.toString()
+        } else {
+            val configDir = steam3.config.installDirectory.toPath()
+            FileSystem.SYSTEM.createDirectories(configDir)
+            FileSystem.SYSTEM.createDirectories(configDir / CONFIG_DIR)
+            FileSystem.SYSTEM.createDirectories(configDir / STAGING_DIR)
+
+            configDir.toString()
         }
+
+        Pair(true, installDir)
+    } catch (e: Exception) {
+        logger.error(e)
+        Pair(false, "")
     }
 
     private fun testIsFileIncluded(filename: String): Boolean {
@@ -91,7 +99,7 @@ class ContentDownloader(private val steam3: Steam3Session) {
         if (steamID.accountType == EAccountType.AnonUser) {
             licenseQuery.add(17906)
         } else {
-            licenseQuery.addAll(steam3.licenses.map { it.packageID.toInt() }.distinct())
+            licenseQuery.addAll(steam3.licenses.map { it.packageID }.distinct())
         }
 
         steam3.requestPackageInfo(licenseQuery)
@@ -110,12 +118,7 @@ class ContentDownloader(private val steam3: Steam3Session) {
         // Check if this app is free to download without a license
         val info = getSteam3AppSection(appId, EAppInfoSection.Common)
 
-        @Suppress("RedundantIf") // it's not a 'Redundant suppression' >:U
-        if (info != null && info["FreeToDownload"].asBoolean()) {
-            return true
-        }
-
-        return false
+        return info != null && info["FreeToDownload"].asBoolean()
     }
 
     private fun getSteam3AppSection(appId: Int, section: EAppInfoSection): KeyValue? {
@@ -164,18 +167,20 @@ class ContentDownloader(private val steam3: Steam3Session) {
         val depots = getSteam3AppSection(appId, EAppInfoSection.Depots) ?: KeyValue.INVALID
         val depotChild = depots[depotId.toString()]
 
-        if (depotChild == KeyValue.INVALID)
+        if (depotChild == KeyValue.INVALID) {
             return INVALID_APP_ID
+        }
 
-        if (depotChild["depotfromapp"] == KeyValue.INVALID)
+        if (depotChild["depotfromapp"] == KeyValue.INVALID) {
             return INVALID_APP_ID
+        }
 
         return depotChild["depotfromapp"].asInteger()
     }
 
     private suspend fun getSteam3DepotManifest(depotId: Int, appId: Int, branch: String): Long {
         val depots = getSteam3AppSection(appId, EAppInfoSection.Depots)
-        val depotChild = depots?.get(depotId.toString()) ?: KeyValue.INVALID
+        var depotChild = depots?.get(depotId.toString()) ?: KeyValue.INVALID
 
         if (depotChild == KeyValue.INVALID) {
             return INVALID_MANIFEST_ID
@@ -197,13 +202,13 @@ class ContentDownloader(private val steam3: Steam3Session) {
             return getSteam3DepotManifest(depotId, otherAppId, branch)
         }
 
-        val manifests = depotChild["manifests"]
+        var manifests = depotChild["manifests"]
 
         if (manifests.children.isEmpty()) {
             return INVALID_MANIFEST_ID
         }
 
-        val node = manifests[branch]["gid"]
+        var node = manifests[branch]["gid"]
 
         // Non passworded branch, found the manifest
         if (node.value != null) {
@@ -236,7 +241,25 @@ class ContentDownloader(private val steam3: Steam3Session) {
         val privateDepotSection = steam3.getPrivateBetaDepotSection(appId, branch)
 
         // Now repeat the same code to get the manifest gid from depot section
-        TODO()
+        depotChild = privateDepotSection[depotId.toString()]
+
+        if (depotChild == KeyValue.INVALID) {
+            return INVALID_MANIFEST_ID
+        }
+
+        manifests = depotChild["manifests"]
+
+        if (manifests.children.isEmpty()) {
+            return INVALID_MANIFEST_ID
+        }
+
+        node = manifests[branch]["gid"]
+
+        if (node.value == null) {
+            return INVALID_MANIFEST_ID
+        }
+
+        return node.value!!.toLong()
     }
 
     private fun getAppName(appId: Int): String {
@@ -250,17 +273,21 @@ class ContentDownloader(private val steam3: Steam3Session) {
         requireNotNull(details) // TODO maybe?
 
         if (!details.fileUrl.isNullOrEmpty()) {
-            downloadWebFile(appId, details.filename, details.fileUrl)
+            downloadWebFile(
+                appId = appId,
+                fileName = details.filename,
+                url = details.fileUrl
+            )
         } else if (details.hcontentFile > 0L) {
             downloadAppAsync(
-                appId,
-                listOf(appId to details.hcontentFile),
-                DEFAULT_BRANCH,
-                null,
-                null,
-                null,
-                false,
-                true
+                appId = appId,
+                depotManifestIds = listOf(appId to details.hcontentFile),
+                branch = DEFAULT_BRANCH,
+                os = null,
+                arch = null,
+                language = null,
+                lv = false,
+                isUgc = true
             )
         } else {
             logger.error("Unable to locate manifest ID for published file $publishedFileId")
@@ -283,8 +310,52 @@ class ContentDownloader(private val steam3: Steam3Session) {
         }
     }
 
-    private suspend fun downloadWebFile(appId: Int, fileName: String, url: String) {
-        // TODO
+    private suspend fun downloadWebFile(
+        appId: Int,
+        fileName: String,
+        url: String,
+    ) = withContext(Dispatchers.IO) {
+        val result = createDirectories(appId, 0)
+
+        if (!result.first) {
+            logger.error("Error: Unable to create install directories!")
+            return@withContext
+        }
+
+        val fileSystem = FileSystem.SYSTEM
+
+        val installDir = result.second.toPath()
+        val stagingDir = installDir / STAGING_DIR
+        val fileStagingPath = stagingDir / fileName
+        val fileFinalPath = installDir / fileName
+
+        fileSystem.createDirectories(fileFinalPath.parent!!)
+        fileSystem.createDirectories(fileStagingPath.parent!!)
+
+        fileSystem.write(fileStagingPath) {
+            HttpClientFactory.httpClient.use { client ->
+                println("Downloading $fileName")
+
+                val response = client.get(url)
+                val channel = response.body<ByteReadChannel>()
+
+                // Use fixed buffer to avoid allocations
+                val buffer = ByteArray(8192) // Fixed 8KB buffer
+
+                while (!channel.isClosedForRead) {
+                    val bytesRead = channel.readAvailable(buffer)
+                    if (bytesRead > 0) {
+                        write(buffer, 0, bytesRead)
+                    }
+                }
+            }
+        }
+
+        if (fileSystem.exists(fileFinalPath)) {
+            fileSystem.delete(fileFinalPath)
+        }
+
+        fileSystem.atomicMove(fileStagingPath, fileFinalPath)
     }
 
     private suspend fun downloadAppAsync(
@@ -317,7 +388,7 @@ class ContentDownloader(private val steam3: Steam3Session) {
             manifestId = getSteam3DepotManifest(depotId, appId, branch)
 
             if (manifestId == INVALID_MANIFEST_ID && !branch.equals(DEFAULT_BRANCH, true)) {
-                logger.error("Warning: Depot ${depotId} does not have branch named \"$branch\". Trying $DEFAULT_BRANCH branch.\"")
+                logger.error("Warning: Depot $depotId does not have branch named \"$branch\". Trying $DEFAULT_BRANCH branch.\"")
                 branch = DEFAULT_BRANCH
                 manifestId = getSteam3DepotManifest(depotId, appId, branch)
             }
@@ -377,18 +448,15 @@ class ContentDownloader(private val steam3: Steam3Session) {
                 sink.writeUtf8("\n")
                 sink.writeUtf8("Manifest ID / date     : ${depot.manifestId} / ${manifest.creationTime}\n")
 
-                val uniqueChunks = mutableSetOf<ChunkId>().apply {
-                    manifest.files.forEach { file ->
-                        file.chunks.forEach { chunk ->
-                            requireNotNull(chunk.chunkID) { "Found null chunk ID" } // TODO verify
-                            val chunkId = ChunkId(chunk.chunkID!!)
-                            add(chunkId)
-                        }
-                    }
-                }
+                val uniqueChunkCount = manifest.files.asSequence()
+                    .flatMap { it.chunks.asSequence() }
+                    .mapNotNull { it.chunkID }
+                    .map { ChunkId(it) }
+                    .distinct()
+                    .count()
 
                 sink.writeUtf8("Total number of files  : ${manifest.files.size}\n")
-                sink.writeUtf8("Total number of chunks : ${uniqueChunks.size}\n")
+                sink.writeUtf8("Total number of chunks : ${uniqueChunkCount}\n")
                 sink.writeUtf8("Total bytes on disk    : ${manifest.totalUncompressedSize}\n")
                 sink.writeUtf8("Total bytes compressed : ${manifest.totalCompressedSize}\n")
                 sink.writeUtf8("\n")
@@ -396,12 +464,11 @@ class ContentDownloader(private val steam3: Steam3Session) {
                 sink.writeUtf8("          Size Chunks File SHA                                 Flags Name\n")
 
                 manifest.files.forEach { file ->
-                    val size = file.totalSize.toString().padStart(14)
-                    val chunkSize = file.chunks.size.toString().padStart(6)
-                    val sha1Hash = file.fileHash.toHexString().lowercase()
-                    val flags = EDepotFileFlag.code(file.flags).toString().padStart(5)
-
-                    sink.writeUtf8("$size $chunkSize $sha1Hash $flags ${file.fileName}\n")
+                    sink.writeUtf8("${file.totalSize.toString().padStart(14)} ")
+                    sink.writeUtf8("${file.chunks.size.toString().padStart(6)} ")
+                    sink.writeUtf8("${file.fileHash.toHexString().lowercase()} ")
+                    sink.writeUtf8("${EDepotFileFlag.code(file.flags).toString().padStart(5)} ")
+                    sink.writeUtf8("${file.fileName}\n")
                 }
             }
         }

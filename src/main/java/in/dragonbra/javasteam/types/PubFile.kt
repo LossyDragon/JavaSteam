@@ -71,34 +71,9 @@ class PublishedFileID : UInt64Handle {
      * Initializes a new instance of the PublishedFileID class.
      * @param fileId The file id.
      */
-    constructor(fileId: ULong = ULong.MAX_VALUE) : super(fileId)
-
-    /**
-     * Initializes a new instance of the PublishedFileID class.
-     * @param fileId The file id.
-     */
     constructor(fileId: Long = Long.MAX_VALUE) : super(fileId.toULong())
 
     companion object {
-        /**
-         * Performs conversion from PublishedFileID to ULong.
-         * @param file The published file.
-         * @return The result of the conversion.
-         */
-        fun toULong(file: PublishedFileID?): ULong {
-            if (file == null) {
-                throw IllegalArgumentException("file cannot be null")
-            }
-            return file.value
-        }
-
-        /**
-         * Performs conversion from ULong to PublishedFileID.
-         * @param fileId The file id.
-         * @return The result of the conversion.
-         */
-        fun fromULong(fileId: ULong): PublishedFileID = PublishedFileID(fileId)
-
         /**
          * Implements the operator ==.
          * @param a The first published file.

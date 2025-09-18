@@ -4,7 +4,6 @@ import `in`.dragonbra.javasteam.types.ChunkData
 import `in`.dragonbra.javasteam.types.DepotManifest
 import `in`.dragonbra.javasteam.util.crypto.CryptoHelper
 import kotlinx.io.Buffer
-import kotlinx.io.IOException
 import kotlinx.io.readByteArray
 import kotlinx.io.writeIntLe
 import org.apache.commons.lang3.SystemUtils
@@ -18,27 +17,23 @@ object Util {
      * TODO
      */
     @JvmStatic
-    fun getSteamOS(): String {
-        return when {
-            SystemUtils.IS_OS_WINDOWS -> "windows"
-            SystemUtils.IS_OS_MAC_OSX -> "macos"
-            SystemUtils.IS_OS_LINUX -> "linux"
-            SystemUtils.IS_OS_FREE_BSD -> "linux" // Return linux as freebsd steam client doesn't exist yet
-            else -> "unknown"
-        }
+    fun getSteamOS(): String = when {
+        SystemUtils.IS_OS_WINDOWS -> "windows"
+        SystemUtils.IS_OS_MAC_OSX -> "macos"
+        SystemUtils.IS_OS_LINUX -> "linux"
+        SystemUtils.IS_OS_FREE_BSD -> "linux" // Return linux as freebsd steam client doesn't exist yet
+        else -> "unknown"
     }
 
     /**
      * TODO
      */
     @JvmStatic
-    fun getSteamArch(): String {
-        return when {
-            SystemUtils.OS_ARCH.contains("amd64") -> "64"
-            SystemUtils.OS_ARCH.contains("x86_64") -> "64"
-            SystemUtils.OS_ARCH.contains("aarch64") -> "64"
-            else -> "32"
-        }
+    fun getSteamArch(): String = when {
+        SystemUtils.OS_ARCH.contains("amd64") -> "64"
+        SystemUtils.OS_ARCH.contains("x86_64") -> "64"
+        SystemUtils.OS_ARCH.contains("aarch64") -> "64"
+        else -> "32"
     }
 
     // fun readPassword()
@@ -97,72 +92,28 @@ object Util {
      * TODO
      */
     @JvmStatic
-    fun fileSHAHash(filename: String): ByteArray {
-        return File(filename).inputStream().buffered().use { fs ->
-            val sha = MessageDigest.getInstance("SHA-1", CryptoHelper.SEC_PROV)
-            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-            var bytesRead: Int
+    fun fileSHAHash(filename: String): ByteArray = File(filename).inputStream().buffered().use { fs ->
+        val sha = MessageDigest.getInstance("SHA-1", CryptoHelper.SEC_PROV)
+        val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+        var bytesRead: Int
 
-            while (fs.read(buffer).also { bytesRead = it } != -1) {
-                sha.update(buffer, 0, bytesRead)
-            }
-
-            sha.digest()
+        while (fs.read(buffer).also { bytesRead = it } != -1) {
+            sha.update(buffer, 0, bytesRead)
         }
+
+        sha.digest()
     }
 
     /**
-     * TODO
+     *
      */
     @JvmStatic
     fun loadManifestFromFile(
         directory: String,
         depotId: UInt,
         manifestId: ULong,
-        badHashWarning: Boolean
+        badHashWarning: Boolean,
     ): DepotManifest? {
-        // Try loading Steam format manifest first
-        var filename = File(directory, "${depotId}_${manifestId}.manifest").absolutePath
-
-        if (File(filename).exists()) {
-            val expectedChecksum = try {
-                File("$filename.sha").readBytes()
-            } catch (e: IOException) {
-                null
-            }
-
-            val currentChecksum = fileSHAHash(filename)
-
-            if (expectedChecksum != null && expectedChecksum.contentEquals(currentChecksum)) {
-                return DepotManifest.loadFromFile(filename)
-            } else if (badHashWarning) {
-                println("Manifest $manifestId on disk did not match the expected checksum.")
-            }
-        }
-
-        // Try converting legacy manifest format
-        filename = File(directory, "${depotId}_${manifestId}.bin").absolutePath
-
-        if (File(filename).exists()) {
-            val expectedChecksum = try {
-                File("$filename.sha").readBytes()
-            } catch (e: IOException) {
-                null
-            }
-
-            val currentChecksum = ByteArray(0) // This will be populated by loadFromFile
-            val oldManifest = ProtoManifest.loadFromFile(filename, currentChecksum)
-
-            if (oldManifest != null && (expectedChecksum == null || !expectedChecksum.contentEquals(currentChecksum))) {
-                if (badHashWarning) {
-                    println("Manifest $manifestId on disk did not match the expected checksum.")
-                }
-                return null
-            }
-
-            return oldManifest?.convertToSteamManifest(depotId)
-        }
-
-        return null
+        TODO()
     }
 }

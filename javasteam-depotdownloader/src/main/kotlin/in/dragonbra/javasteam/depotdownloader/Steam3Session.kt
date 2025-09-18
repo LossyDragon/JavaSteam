@@ -101,7 +101,7 @@ class Steam3Session(
             return details.body.publishedfiledetailsBuilderList.firstOrNull()?.build()
         }
 
-        throw ContentDownloaderException("EResult ${details.result.code()} (${details.result}) while retrieving file details for pubfile ${pubFile}.")
+        throw ContentDownloaderException("EResult ${details.result.code()} (${details.result}) while retrieving file details for pubfile $pubFile.")
     }
 
     suspend fun getUGCDetails(ugcHandle: UGCHandle): UGCDetailsCallback? {
@@ -151,10 +151,6 @@ class Steam3Session(
         }
     }
 
-    suspend fun requestPackageInfo(packageIds: List<Int>) {
-        TODO()
-    }
-
     suspend fun requestFreeAppLicense(appId: Int): Boolean {
         try {
             val resultInfo = steamApps!!.requestFreeLicense(appId).await()
@@ -192,9 +188,11 @@ class Steam3Session(
     }
 
     suspend fun getPrivateBetaDepotSection(appId: Int, branch: String): KeyValue {
-        val branchPassword = appBetaPasswords[branch] ?: return KeyValue()  // Should be filled by CheckAppBetaPassword
+        // Should be filled by CheckAppBetaPassword
+        val branchPassword = appBetaPasswords[branch] ?: return KeyValue()
 
-        val accessToken = appTokens[appId] ?: 0L // Should be filled by RequestAppInfo
+        // Should be filled by RequestAppInfo
+        val accessToken = appTokens[appId] ?: 0L
 
         val privateBeta = steamApps!!.picsGetPrivateBeta(appId, accessToken, branch, branchPassword).await()
 
