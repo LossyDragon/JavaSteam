@@ -1,5 +1,5 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="javasteam [wrapper --gradle-version 8.12]" type="GradleRunConfiguration" factoryName="Gradle" nameIsGenerated="true">
+  <configuration default="false" name="javasteam [wrapper --gradle-version 9.1.0]" type="GradleRunConfiguration" factoryName="Gradle">
     <ExternalSystemSettings>
       <option name="executionName" />
       <option name="externalProjectPath" value="$PROJECT_DIR$" />

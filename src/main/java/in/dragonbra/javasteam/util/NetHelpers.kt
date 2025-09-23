@@ -18,6 +18,11 @@ import java.nio.ByteBuffer
  */
 object NetHelpers {
 
+    /**
+     * Kotlin extension to convert a [CMsgIPAddress] to [InetAddress]
+     */
+    fun CMsgIPAddress.toInetAddress(): InetAddress = getIPAddress(this)
+
     @JvmStatic
     @Throws(IllegalArgumentException::class)
     fun getIPAddress(ipAddr: InetAddress): Int {

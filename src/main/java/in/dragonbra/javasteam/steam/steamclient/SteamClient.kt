@@ -47,9 +47,10 @@ import java.util.concurrent.atomic.AtomicLong
  */
 @Suppress("unused")
 class SteamClient @JvmOverloads constructor(
-    configuration: SteamConfiguration? = SteamConfiguration.createDefault(),
+    configuration: SteamConfiguration = SteamConfiguration.createDefault(),
+    identifier: String = UUID.randomUUID().toString().replace("-", ""),
     internal val defaultScope: CoroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob()),
-) : CMClient(configuration) {
+) : CMClient(configuration, identifier) {
 
     private val handlers = HashMap<Class<out ClientMsgHandler>, ClientMsgHandler>(HANDLERS_COUNT)
 
@@ -218,17 +219,19 @@ class SteamClient @JvmOverloads constructor(
 
         jobManager.startJob(job)
     }
-//endregion
+    // endregion
 
     /**
      * Called when a client message is received from the network.
      * @param packetMsg The packet message.
      */
-    override fun onClientMsgReceived(packetMsg: IPacketMsg): Boolean {
+    override fun onClientMsgReceived(packetMsg: IPacketMsg?): Boolean {
         // let the underlying CMClient handle this message first
         if (!super.onClientMsgReceived(packetMsg)) {
             return false
         }
+
+        requireNotNull(packetMsg)
 
         // we want to handle some of the clientMsg's before we pass them along to registered handlers
         when (packetMsg.getMsgType()) {

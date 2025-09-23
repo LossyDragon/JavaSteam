@@ -72,6 +72,11 @@ class SteamID {
          * Masking value used for packing chat instance flags into a [SteamID].
          */
         const val ACCOUNT_INSTANCE_MASK: Long = 0x000FFFFFL
+
+        /**
+         * Kotlin extension to convert a [Long] to [SteamID]
+         */
+        fun Long.toSteamID() = SteamID(this)
     }
 
     private val steamID: BitVector64
