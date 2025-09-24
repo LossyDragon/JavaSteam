@@ -2,7 +2,7 @@ package `in`.dragonbra.javasteam.steam.contentdownloader
 
 import `in`.dragonbra.javasteam.enums.EDepotFileFlag
 import `in`.dragonbra.javasteam.enums.EResult
-import `in`.dragonbra.javasteam.steam.cdn.ClientPool
+import `in`.dragonbra.javasteam.steam.cdn.CDNClientPool
 import `in`.dragonbra.javasteam.steam.cdn.Server
 import `in`.dragonbra.javasteam.steam.handlers.steamapps.PICSProductInfo
 import `in`.dragonbra.javasteam.steam.handlers.steamapps.PICSRequest
@@ -192,7 +192,7 @@ class ContentDownloader(val steamClient: SteamClient) {
             return false
         }
 
-        val cdnPool = ClientPool(steamClient, appId, scope)
+        val cdnPool = CDNClientPool(steamClient, appId, scope)
 
         val shiftedAppId: Int
         val manifestId: Long
@@ -284,7 +284,7 @@ class ContentDownloader(val steamClient: SteamClient) {
     }
 
     private fun downloadDepotFiles(
-        cdnPool: ClientPool,
+        cdnPool: CDNClientPool,
         downloadCounter: GlobalDownloadCounter,
         depotFilesData: DepotFilesData,
         maxDownloads: Int,
@@ -515,7 +515,7 @@ class ContentDownloader(val steamClient: SteamClient) {
     }
 
     private fun downloadSteam3DepotFileChunk(
-        cdnPool: ClientPool,
+        cdnPool: CDNClientPool,
         downloadCounter: GlobalDownloadCounter,
         depotFilesData: DepotFilesData,
         file: FileData,
@@ -625,7 +625,7 @@ class ContentDownloader(val steamClient: SteamClient) {
         manifestId: Long,
         branch: String,
         depotKey: ByteArray,
-        cdnPool: ClientPool,
+        cdnPool: CDNClientPool,
         parentScope: CoroutineScope,
     ): Deferred<DepotManifest?> = parentScope.async {
         if (!isActive) {

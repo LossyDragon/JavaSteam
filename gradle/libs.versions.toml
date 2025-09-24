@@ -41,6 +41,7 @@ ktor-client-cio = { module = "io.ktor:ktor-client-cio", version.ref = "ktor" }
 ktor-client-core = { module = "io.ktor:ktor-client-core", version.ref = "ktor" }
 ktor-client-websocket = { module = "io.ktor:ktor-client-websockets", version.ref = "ktor" }
 okHttp = { module = "com.squareup.okhttp3:okhttp", version.ref = "okHttp" }
+okHttp-coroutines = { module = "com.squareup.okhttp3:okhttp-coroutines", version.ref = "okHttp" }
 protobuf-java = { module = "com.google.protobuf:protobuf-java", version.ref = "protobuf" }
 protobuf-protoc = { module = "com.google.protobuf:protoc", version.ref = "protobuf" }
 xz = { module = "org.tukaani:xz", version.ref = "xz" }
@@ -85,4 +86,9 @@ ktor = [
     "ktor-client-core",
     "ktor-client-cio",
     "ktor-client-websocket",
+]
+
+okHttp = [
+    "okHttp",
+    "okHttp-coroutines",
 ]

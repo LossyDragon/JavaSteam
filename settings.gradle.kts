@@ -4,3 +4,4 @@ include(":javasteam-tf")
 include(":javasteam-cs")
 
 include("javasteam-deadlock")
+include("javasteam-depotdownloader")
