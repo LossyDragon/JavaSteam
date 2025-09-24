@@ -1,6 +1,7 @@
 package `in`.dragonbra.javasteam.steam.cdn
 
-import kotlinx.coroutines.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Request
 import java.net.Inet4Address
@@ -50,7 +51,8 @@ object ClientLancache {
      * @param toTest The IP address that will be tested
      * @return Returns true if the IP is a private address, false if it isn't private
      */
-    internal fun isPrivateAddress(toTest: InetAddress): Boolean {
+    @JvmStatic
+    fun isPrivateAddress(toTest: InetAddress): Boolean {
         if (toTest.isLoopbackAddress) {
             return true
         }
@@ -122,4 +124,3 @@ object ClientLancache {
             .build()
     }
 }
-

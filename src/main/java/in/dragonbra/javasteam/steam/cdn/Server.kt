@@ -11,25 +11,23 @@ class Server {
         /**
          * Creates a Server from an InetSocketAddress.
          */
-        fun fromInetSocketAddress(endPoint: InetSocketAddress): Server {
-            return Server().apply {
-                protocol = if (endPoint.port == 443) ConnectionProtocol.HTTPS else ConnectionProtocol.HTTP
-                host = endPoint.address.hostAddress
-                vHost = endPoint.address.hostAddress
-                port = endPoint.port
-            }
+        @JvmStatic
+        fun fromInetSocketAddress(endPoint: InetSocketAddress): Server = Server().apply {
+            protocol = if (endPoint.port == 443) ConnectionProtocol.HTTPS else ConnectionProtocol.HTTP
+            host = endPoint.address.hostAddress
+            vHost = endPoint.address.hostAddress
+            port = endPoint.port
         }
 
         /**
          * Creates a Server from hostname and port.
          */
-        fun fromHostAndPort(hostname: String, port: Int): Server {
-            return Server().apply {
-                protocol = if (port == 443) ConnectionProtocol.HTTPS else ConnectionProtocol.HTTP
-                host = hostname
-                vHost = hostname
-                this.port = port
-            }
+        @JvmStatic
+        fun fromHostAndPort(hostname: String, port: Int): Server = Server().apply {
+            protocol = if (port == 443) ConnectionProtocol.HTTPS else ConnectionProtocol.HTTP
+            host = hostname
+            vHost = hostname
+            this.port = port
         }
     }
 
@@ -45,7 +43,7 @@ class Server {
         /**
          * Server advertises it supports HTTPS, connection made over HTTPS
          */
-        HTTPS
+        HTTPS,
     }
 
     /**
