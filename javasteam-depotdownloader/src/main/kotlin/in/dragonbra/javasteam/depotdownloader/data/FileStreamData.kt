@@ -1,10 +1,12 @@
 package `in`.dragonbra.javasteam.depotdownloader.data
 
-import kotlinx.coroutines.sync.Semaphore
-import okio.BufferedSink
+import kotlinx.coroutines.sync.Mutex
+import java.io.RandomAccessFile
+import kotlin.concurrent.atomics.AtomicInt
+import kotlin.concurrent.atomics.ExperimentalAtomicApi
 
-private data class FileStreamData(
-    var sink: BufferedSink,
-    val fileLock: Semaphore = Semaphore(1),
-    var chunksToDownload: Int = 0
+data class FileStreamData @ExperimentalAtomicApi constructor(
+    var fileStream: RandomAccessFile? = null,
+    val fileLock: Mutex = Mutex(),
+    var chunksToDownload: AtomicInt = AtomicInt(0)
 )

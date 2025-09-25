@@ -14,6 +14,7 @@ java {
 dependencies {
     implementation(rootProject)
     implementation(project(":javasteam-cs"))
+    implementation(project(":javasteam-depotdownloader"))
 
     implementation(libs.bouncyCastle)
     implementation(libs.gson)

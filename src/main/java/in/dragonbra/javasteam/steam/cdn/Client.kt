@@ -8,7 +8,11 @@ import `in`.dragonbra.javasteam.util.SteamKitWebRequestException
 import `in`.dragonbra.javasteam.util.Strings
 import `in`.dragonbra.javasteam.util.log.LogManager
 import `in`.dragonbra.javasteam.util.log.Logger
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import okhttp3.HttpUrl
@@ -20,6 +24,7 @@ import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.Closeable
 import java.io.IOException
+import java.util.concurrent.CompletableFuture
 import java.util.zip.ZipInputStream
 
 /**
@@ -29,6 +34,8 @@ import java.util.zip.ZipInputStream
  * The SteamClient instance must be connected and logged onto Steam.
  */
 class Client(steamClient: SteamClient) : Closeable {
+
+    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     companion object {
 
@@ -92,6 +99,7 @@ class Client(steamClient: SteamClient) : Closeable {
      * Disposes of this object.
      */
     override fun close() {
+        scope.cancel()
         httpClient.connectionPool.evictAll()
         httpClient.dispatcher.executorService.shutdown()
     }
@@ -278,4 +286,108 @@ class Client(steamClient: SteamClient) : Closeable {
             throw e
         }
     }
+
+    // region Java Compatibility
+
+    /**
+     * Java-compatible version of downloadManifest that returns a CompletableFuture.
+     * Downloads the depot manifest specified by the given manifest ID, and optionally decrypts the manifest's filenames if the depot decryption key has been provided.
+     * @param depotId The id of the depot being accessed.
+     * @param manifestId The unique identifier of the manifest to be downloaded.
+     * @param manifestRequestCode The manifest request code for the manifest that is being downloaded.
+     * @param server The content server to connect to.
+     * @param depotKey The depot decryption key for the depot that will be downloaded.
+     * This is used for decrypting filenames (if needed) in depot manifests.
+     * @param proxyServer Optional content server marked as UseAsProxy which transforms the request.
+     * @param cdnAuthToken CDN auth token for CDN content server endpoints if necessary. Get one with [SteamContent.getCDNAuthToken].
+     * @return A CompletableFuture that will complete with a [DepotManifest] instance that contains information about the files present within a depot.
+     * @exception IllegalArgumentException [server] was null.
+     * @exception IOException A network error occurred when performing the request.
+     * @exception SteamKitWebRequestException A network error occurred when performing the request.
+     */
+    @JvmOverloads
+    fun downloadManifestFuture(
+        depotId: Int,
+        manifestId: Long,
+        manifestRequestCode: Long,
+        server: Server,
+        depotKey: ByteArray? = null,
+        proxyServer: Server? = null,
+        cdnAuthToken: String? = null,
+    ): CompletableFuture<DepotManifest> {
+        val future = CompletableFuture<DepotManifest>()
+
+        scope.launch {
+            try {
+                val result = downloadManifest(
+                    depotId = depotId,
+                    manifestId = manifestId,
+                    manifestRequestCode = manifestRequestCode,
+                    server = server,
+                    depotKey = depotKey,
+                    proxyServer = proxyServer,
+                    cdnAuthToken = cdnAuthToken
+                )
+                future.complete(result)
+            } catch (e: Exception) {
+                future.completeExceptionally(e)
+            }
+        }
+
+        return future
+    }
+
+    /**
+     * Java-compatible version of downloadDepotChunk that returns a CompletableFuture.
+     * Downloads the specified depot chunk, and optionally processes the chunk and verifies the checksum if the depot decryption key has been provided.
+     * This function will also validate the length of the downloaded chunk with the value of [ChunkData.compressedLength],
+     * if it has been assigned a value.
+     * @param depotId The id of the depot being accessed.
+     * @param chunk A [ChunkData] instance that represents the chunk to download.
+     * This value should come from a manifest downloaded with [downloadManifest].
+     * @param server The content server to connect to.
+     * @param destination The buffer to receive the chunk data. If [depotKey] is provided, this will be the decompressed buffer.
+     * Allocate or rent a buffer that is equal or longer than [ChunkData.uncompressedLength]
+     * @param depotKey The depot decryption key for the depot that will be downloaded.
+     * This is used to process the chunk data.
+     * @param proxyServer Optional content server marked as UseAsProxy which transforms the request.
+     * @param cdnAuthToken CDN auth token for CDN content server endpoints if necessary. Get one with [SteamContent.getCDNAuthToken].
+     * @return A CompletableFuture that will complete with the total number of bytes written to [destination].
+     * @exception IllegalArgumentException Thrown if the chunk's [ChunkData.chunkID] was null or if the [destination] buffer is too small.
+     * @exception IllegalStateException Thrown if the downloaded data does not match the expected length.
+     * @exception SteamKitWebRequestException A network error occurred when performing the request.
+     */
+    @JvmOverloads
+    fun downloadDepotChunkFuture(
+        depotId: Int,
+        chunk: ChunkData,
+        server: Server,
+        destination: ByteArray,
+        depotKey: ByteArray? = null,
+        proxyServer: Server? = null,
+        cdnAuthToken: String? = null,
+    ): CompletableFuture<Int> {
+        val future = CompletableFuture<Int>()
+
+        scope.launch {
+            try {
+                val bytesWritten = downloadDepotChunk(
+                    depotId = depotId,
+                    chunk = chunk,
+                    server = server,
+                    destination = destination,
+                    depotKey = depotKey,
+                    proxyServer = proxyServer,
+                    cdnAuthToken = cdnAuthToken
+                )
+                future.complete(bytesWritten)
+            } catch (e: Exception) {
+                future.completeExceptionally(e)
+            }
+        }
+
+        return future
+    }
+
+    // endregion
 }

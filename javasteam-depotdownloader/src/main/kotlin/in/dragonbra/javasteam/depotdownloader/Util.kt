@@ -37,29 +37,29 @@ object Util {
         else -> "32"
     }
 
-    // fun readPassword()
-
     /**
      * Validate a file against Steam3 Chunk data
      */
     @JvmStatic
     fun validateSteam3FileChecksums(
-        fs: RandomAccessFile,
-        chunkData: Array<ChunkData>,
+        filePath: Path,
+        chunkData: List<ChunkData>,
     ): List<ChunkData> {
         val neededChunks = mutableListOf<ChunkData>()
 
-        for (data in chunkData) {
-            fs.seek(data.offset)
-            val adler = adlerHash(fs, data.uncompressedLength)
+        RandomAccessFile(filePath.toString(), "r").use { fs ->
+            for (data in chunkData) {
+                fs.seek(data.offset)
+                val adler = adlerHash(fs, data.uncompressedLength)
 
-            // LE conversion
-            val checksumBytes = Buffer().apply {
-                writeIntLe(data.checksum)
-            }.readByteArray()
+                // LE conversion
+                val checksumBytes = Buffer().apply {
+                    writeIntLe(data.checksum)
+                }.readByteArray()
 
-            if (!adler.contentEquals(checksumBytes)) {
-                neededChunks.add(data)
+                if (!adler.contentEquals(checksumBytes)) {
+                    neededChunks.add(data)
+                }
             }
         }
 

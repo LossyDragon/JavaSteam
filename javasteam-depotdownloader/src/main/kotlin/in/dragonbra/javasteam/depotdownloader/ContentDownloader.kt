@@ -1,17 +1,22 @@
 package `in`.dragonbra.javasteam.depotdownloader
 
+import `in`.dragonbra.javasteam.depotdownloader.data.ChunkMatch
 import `in`.dragonbra.javasteam.depotdownloader.data.DepotDownloadCounter
 import `in`.dragonbra.javasteam.depotdownloader.data.DepotFilesData
+import `in`.dragonbra.javasteam.depotdownloader.data.FileStreamData
 import `in`.dragonbra.javasteam.depotdownloader.data.GlobalDownloadCounter
 import `in`.dragonbra.javasteam.enums.EAccountType
 import `in`.dragonbra.javasteam.enums.EAppInfoSection
 import `in`.dragonbra.javasteam.enums.EDepotFileFlag
 import `in`.dragonbra.javasteam.steam.cdn.Server
 import `in`.dragonbra.javasteam.steam.handlers.steamcloud.callback.UGCDetailsCallback
+import `in`.dragonbra.javasteam.types.ChunkData
 import `in`.dragonbra.javasteam.types.DepotManifest
+import `in`.dragonbra.javasteam.types.FileData
 import `in`.dragonbra.javasteam.types.KeyValue
 import `in`.dragonbra.javasteam.types.PublishedFileID
 import `in`.dragonbra.javasteam.types.UGCHandle
+import `in`.dragonbra.javasteam.util.Adler32
 import `in`.dragonbra.javasteam.util.SteamKitWebRequestException
 import `in`.dragonbra.javasteam.util.log.LogManager
 import io.ktor.client.call.body
@@ -20,14 +25,20 @@ import io.ktor.utils.io.ByteReadChannel
 import io.ktor.utils.io.CancellationException
 import io.ktor.utils.io.readAvailable
 import kotlinx.coroutines.*
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.sync.withLock
 import okio.FileSystem
 import okio.Path.Companion.toPath
 import okio.buffer
 import org.apache.commons.lang3.SystemUtils
+import java.io.RandomAccessFile
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 import java.util.Date
+import java.util.concurrent.ConcurrentHashMap
+import kotlin.concurrent.atomics.AtomicInt
 import kotlin.concurrent.atomics.ExperimentalAtomicApi
+import kotlin.concurrent.atomics.decrementAndFetch
 import kotlin.math.log
 
 
@@ -251,7 +262,7 @@ class ContentDownloader(private val steam3: Steam3Session) : AutoCloseable {
         }
 
         // Got the password, request private depot section
-        // TODO: We're probably repeating this request for every depot?
+        // TODO: (SK) We're probably repeating this request for every depot?
         val privateDepotSection = steam3.getPrivateBetaDepotSection(appId, branch)
 
         // Now repeat the same code to get the manifest gid from depot section
@@ -547,10 +558,11 @@ class ContentDownloader(private val steam3: Steam3Session) : AutoCloseable {
             }
         }
 
-        // TODO couldn't this be async?
-        depotsToDownload.forEach { depotFilesData ->
-            downloadSteam3depotFiles(downloadCounter, depotFilesData, allFileNamesAllDepots)
-        }
+        depotsToDownload.map { depotFilesData ->
+            async {
+                downloadSteam3DepotFiles(downloadCounter, depotFilesData, allFileNamesAllDepots)
+            }
+        }.awaitAll()
 
         // TODO provide a callback with the info below.
 
@@ -558,6 +570,431 @@ class ContentDownloader(private val steam3: Steam3Session) : AutoCloseable {
             "Total downloaded: ${downloadCounter.totalBytesCompressed} bytes " +
                 "(${downloadCounter.totalBytesUncompressed} bytes uncompressed) from ${depots.size} depots"
         )
+    }
+
+    @OptIn(ExperimentalAtomicApi::class)
+    private suspend fun downloadSteam3DepotFiles(
+        downloadCounter: GlobalDownloadCounter,
+        depotFilesData: DepotFilesData,
+        allFileNamesAllDepots: HashSet<String>,
+    ) = withContext(Dispatchers.IO) {
+        val depot = depotFilesData.depotDownloadInfo
+        val depotCounter = depotFilesData.depotCounter
+
+        requireNotNull(depot)
+        requireNotNull(depotCounter)
+
+        logger.debug("Downloading depot ${depot.depotId}")
+
+        val files = depotFilesData.filteredFiles.filter { !it.flags.contains(EDepotFileFlag.Directory) }
+        val networkChunkQueue = Channel<Triple<FileStreamData, FileData, ChunkData>>(Channel.UNLIMITED)
+
+        val fileStreamDataMap = ConcurrentHashMap<String, FileStreamData>()
+
+        files.map { file ->
+            async {
+                downloadSteam3DepotFile(
+                    depotFilesData = depotFilesData,
+                    file = file,
+                    networkChunkQueue = networkChunkQueue,
+                    fileStreamDataMap = fileStreamDataMap,
+                    downloadCounter = downloadCounter
+                )
+            }
+        }.awaitAll()
+
+        // Close the channel to signal no more chunks will be added
+        networkChunkQueue.close()
+
+        val chunkJobs = (1..config.maxDownloads).map {
+            async {
+                for (chunkData in networkChunkQueue) {
+                    downloadSteam3DepotFileChunk(
+                        downloadCounter = downloadCounter,
+                        depotFilesData = depotFilesData,
+                        fileData = chunkData.second,
+                        fileStreamData = chunkData.first,
+                        chunk = chunkData.third
+                    )
+                }
+            }
+        }
+
+        chunkJobs.awaitAll()
+
+        // Clean up file streams
+        fileStreamDataMap.values.forEach { fileStreamData ->
+            fileStreamData.fileStream?.close()
+            // fileLock is handled per chunk completion
+        }
+
+        // Check for deleted files if updating the depot
+        depotFilesData.previousManifest?.let { previousManifest ->
+            val previousFilteredFiles = previousManifest.files
+                .asSequence()
+                .filter { testIsFileIncluded(it.fileName) }
+                .map { it.fileName }
+                .toHashSet()
+
+            // Check if we are writing to a single output directory
+            if (config.installDirectory.isBlank()) {
+                // Remove any file names that exist in the current set of all file names
+                previousFilteredFiles.removeAll(depotFilesData.allFileNames)
+            } else {
+                // Remove any file names that exist in the current set across all depots
+                previousFilteredFiles.removeAll(allFileNamesAllDepots)
+            }
+
+            previousFilteredFiles.forEach { existingFileName ->
+                val fileFinalPath = depot.installDir.toPath().resolve(existingFileName)
+                val fileSystem = FileSystem.SYSTEM
+
+                if (fileSystem.exists(fileFinalPath)) {
+                    fileSystem.delete(fileFinalPath)
+                    logger.debug("Deleted $fileFinalPath")
+                }
+            }
+        }
+
+        // DepotConfigStore.Instance.InstalledManifestIDs[depot.DepotId] = depot.ManifestId;
+        // DepotConfigStore.Save();
+
+        logger.debug(
+            "Depot ${depot.depotId} - Downloaded ${depotCounter.depotBytesCompressed} bytes " +
+                "(${depotCounter.depotBytesUncompressed} bytes uncompressed)"
+        )
+    }
+
+    @OptIn(ExperimentalAtomicApi::class)
+    private suspend fun downloadSteam3DepotFileChunk(
+        downloadCounter: GlobalDownloadCounter,
+        depotFilesData: DepotFilesData,
+        fileData: FileData,
+        fileStreamData: FileStreamData,
+        chunk: ChunkData,
+    ) = withContext(Dispatchers.IO) {
+        ensureActive()
+
+        val depot = depotFilesData.depotDownloadInfo
+        val depotDownloadCounter = depotFilesData.depotCounter!!
+
+        val chunkId = chunk.chunkID!!.toHexString().lowercase()
+        var written = 0
+        val chunkBuffer = ByteArray(chunk.uncompressedLength)
+
+        do {
+            ensureActive()
+
+            var connection: Server? = null
+
+            try {
+                connection = cdnPool!!.getConnection()
+
+                var cdnToken: String? = null
+                val authTokenCallbackPromise = steam3.cdnAuthTokens[depot!!.depotId to connection.host]
+
+                if (authTokenCallbackPromise != null) {
+                    val result = authTokenCallbackPromise.await()
+                    cdnToken = result.token
+                }
+
+                logger.debug("Downloading chunk $chunkId from $connection with ${cdnPool!!.proxyServer ?: "no proxy"}")
+
+                written = cdnPool!!.cdnClient!!.downloadDepotChunk(
+                    depotId = depot.depotId,
+                    chunk = chunk,
+                    server = connection,
+                    destination = chunkBuffer,
+                    depotKey = depot.depotKey,
+                    proxyServer = cdnPool!!.proxyServer,
+                    cdnAuthToken = cdnToken
+                )
+
+                cdnPool!!.returnConnection(connection)
+                break
+
+            } catch (e: CancellationException) {
+                logger.error("Connection timeout downloading chunk $chunkId")
+                cdnPool!!.returnConnection(connection)
+            } catch (e: SteamKitWebRequestException) {
+                // Handle 403 errors by requesting CDN auth token
+                if (e.statusCode == 403 && !steam3.cdnAuthTokens.contains(depot!!.depotId to connection!!.host)) {
+                    steam3.requestCDNAuthToken(depot.appId, depot.depotId, connection)
+                    cdnPool!!.returnConnection(connection)
+                    continue
+                }
+
+                cdnPool!!.returnConnection(connection)
+
+                if (e.statusCode == 401 || e.statusCode == 403) {
+                    logger.error("Encountered ${e.statusCode} for chunk $chunkId. Aborting.")
+                    break
+                }
+
+                logger.error("Encountered error downloading chunk $chunkId: ${e.statusCode}")
+
+            } catch (e: Exception) {
+                cdnPool!!.returnConnection(connection)
+                logger.error("Encountered unexpected error downloading chunk $chunkId: ${e.message}")
+            }
+        } while (written == 0)
+
+        if (written == 0) {
+            logger.error("Failed to find any server with chunk $chunkId for depot ${depot!!.depotId}. Aborting.")
+            cancel("Failed to download chunk $chunkId")
+        }
+
+        ensureActive()
+
+        // Write chunk to file
+        try {
+            fileStreamData.fileLock.withLock {
+                if (fileStreamData.fileStream == null) {
+                    val fileFinalPath = depot!!.installDir.toPath().resolve(fileData.fileName)
+                    fileStreamData.fileStream = RandomAccessFile(fileFinalPath.toString(), "rw")
+                }
+
+                // Seek to chunk position and write data
+                fileStreamData.fileStream?.let { file ->
+                    file.seek(chunk.offset)
+                    file.write(chunkBuffer, 0, written)
+                }
+            }
+        } catch (e: Exception) {
+            logger.error("Error writing chunk to file: ${e.message}")
+            throw e
+        }
+
+        val remainingChunks = fileStreamData.chunksToDownload.decrementAndFetch()
+        if (remainingChunks == 0) {
+            fileStreamData.fileStream?.close()
+            fileStreamData.fileStream = null
+        }
+
+        val sizeDownloaded = synchronized(depotDownloadCounter) {
+            depotDownloadCounter.sizeDownloaded.fetchAndAdd(written.toLong())
+            depotDownloadCounter.depotBytesCompressed.fetchAndAdd(chunk.compressedLength.toLong())
+            depotDownloadCounter.depotBytesUncompressed.fetchAndAdd(chunk.uncompressedLength.toLong())
+            depotDownloadCounter.sizeDownloaded
+        }
+
+        synchronized(downloadCounter) {
+            downloadCounter.totalBytesCompressed.fetchAndAdd(chunk.compressedLength.toLong())
+            downloadCounter.totalBytesUncompressed.fetchAndAdd(chunk.uncompressedLength.toLong())
+
+            // TODO: Update progress indicator
+            // Ansi.Progress(downloadCounter.totalBytesUncompressed, downloadCounter.completeDownloadSize)
+        }
+
+        if (remainingChunks <= 1) {
+            val fileFinalPath = depot!!.installDir.toPath().resolve(fileData.fileName)
+            logger.debug(
+                "${
+                    String.format(
+                        "%6.2f",
+                        (sizeDownloaded.load() / depotDownloadCounter.completeDownloadSize.load()) * 100.0f
+                    )
+                }% $fileFinalPath"
+            )
+        }
+    }
+
+    @OptIn(ExperimentalAtomicApi::class)
+    private suspend fun downloadSteam3DepotFile(
+        depotFilesData: DepotFilesData,
+        file: FileData,
+        networkChunkQueue: Channel<Triple<FileStreamData, FileData, ChunkData>>,
+        fileStreamDataMap: ConcurrentHashMap<String, FileStreamData>,
+        downloadCounter: GlobalDownloadCounter,
+    ) = withContext(Dispatchers.IO) {
+        ensureActive()
+
+        val depot = depotFilesData.depotDownloadInfo
+        val stagingDir = depotFilesData.stagingDir
+        val depotDownloadCounter = depotFilesData.depotCounter!!
+        val oldProtoManifest = depotFilesData.previousManifest
+
+        val oldManifestFile = oldProtoManifest?.files?.find { it.fileName == file.fileName }
+
+        val fileFinalPath = depot!!.installDir.toPath().resolve(file.fileName)
+        val fileStagingPath = stagingDir!!.toPath().resolve(file.fileName)
+        val fileSystem = FileSystem.SYSTEM
+
+        // Remove staging file if it exists from a previous run
+        if (fileSystem.exists(fileStagingPath)) {
+            fileSystem.delete(fileStagingPath)
+        }
+
+        val neededChunks: MutableList<ChunkData>
+        val fileDidExist = fileSystem.exists(fileFinalPath)
+
+        if (!fileDidExist) {
+            logger.debug("Pre-allocating $fileFinalPath")
+
+            // Create new file and allocate space
+            try {
+                fileSystem.sink(fileFinalPath).use { sink ->
+                    // Pre-allocate file by writing zeros to the end
+                    val buffer = ByteArray(8192)
+                    var remaining = file.totalSize
+                    while (remaining > 0) {
+                        val toWrite = (remaining.coerceAtMost(buffer.size.toLong())).toInt()
+                        val writeBuffer = okio.Buffer()
+                        writeBuffer.write(buffer, 0, toWrite)
+                        sink.write(writeBuffer, toWrite.toLong())
+                        remaining -= toWrite
+                    }
+                }
+            } catch (e: Exception) {
+                throw ContentDownloaderException("Failed to allocate file $fileFinalPath: ${e.message}")
+            }
+
+            neededChunks = file.chunks.toMutableList()
+        } else {
+            // File exists, determine which chunks we need
+            neededChunks = mutableListOf()
+
+            if (oldManifestFile != null) {
+                val hashMatches = oldManifestFile.fileHash.contentEquals(file.fileHash)
+
+                if (config.verifyAll || !hashMatches) {
+                    if (config.verifyAll) {
+                        logger.debug("Validating $fileFinalPath")
+                    }
+
+                    val matchingChunks = mutableListOf<ChunkMatch>()
+
+                    file.chunks.forEach { chunk ->
+                        val oldChunk = oldManifestFile.chunks.find { it.chunkID.contentEquals(chunk.chunkID) }
+                        if (oldChunk != null) {
+                            matchingChunks.add(ChunkMatch(oldChunk, chunk))
+                        } else {
+                            neededChunks.add(chunk)
+                        }
+                    }
+
+                    val orderedChunks = matchingChunks.sortedBy { it.oldChunk.offset }
+                    val copyChunks = mutableListOf<ChunkMatch>()
+
+                    // Verify existing chunks
+                    fileSystem.source(fileFinalPath).use { source ->
+                        val bufferedSource = source.buffer()
+                        orderedChunks.forEach { match ->
+                            bufferedSource.skip(match.oldChunk.offset)
+                            val chunkData = bufferedSource.readByteArray(match.oldChunk.uncompressedLength.toLong())
+
+                            val adler = Adler32.calculate(chunkData)
+                            if (adler != match.oldChunk.checksum) {
+                                neededChunks.add(match.newChunk)
+                            } else {
+                                copyChunks.add(match)
+                            }
+                        }
+                    }
+
+                    if (!hashMatches || neededChunks.isNotEmpty()) {
+                        // Move existing file to staging and rebuild
+                        fileSystem.atomicMove(fileFinalPath, fileStagingPath)
+
+                        fileSystem.sink(fileFinalPath).use { newSink ->
+                            fileSystem.source(fileStagingPath).use { oldSourceRaw ->
+                                val oldSource = oldSourceRaw.buffer()
+
+                                // Pre-allocate new file
+                                val buffer = ByteArray(8192)
+                                var remaining = file.totalSize
+                                while (remaining > 0) {
+                                    val toWrite = (remaining.coerceAtMost(buffer.size.toLong())).toInt()
+                                    val writeBuffer = okio.Buffer()
+                                    writeBuffer.write(buffer, 0, toWrite)
+                                    newSink.write(writeBuffer, toWrite.toLong())
+                                    remaining -= toWrite
+                                }
+
+                                // Copy valid chunks to their new positions
+                                copyChunks.forEach { match ->
+                                    oldSource.skip(match.oldChunk.offset.toLong())
+                                    val chunkData = oldSource.readByteString(match.oldChunk.uncompressedLength.toLong()).toByteArray()
+
+                                    val writeBuffer = okio.Buffer()
+                                    writeBuffer.write(chunkData)
+                                    newSink.write(writeBuffer, chunkData.size.toLong())
+                                    newSink.flush()
+                                }
+                            }
+                        }
+
+                        fileSystem.delete(fileStagingPath)
+                    }
+                }
+            } else {
+                // No old manifest or file not in old manifest - validate all chunks
+                logger.debug("Validating $fileFinalPath")
+
+                val metadata = fileSystem.metadata(fileFinalPath)
+                if (metadata.size != file.totalSize) {
+                    // Resize file if needed
+                    fileSystem.sink(fileFinalPath).use { sink ->
+                        val buffer = ByteArray(8192)
+                        var remaining = file.totalSize
+                        while (remaining > 0) {
+                            val toWrite = (remaining.coerceAtMost(buffer.size.toLong())).toInt()
+                            val writeBuffer = okio.Buffer()
+                            writeBuffer.write(buffer, 0, toWrite)
+                            sink.write(writeBuffer, toWrite.toLong())
+                            remaining -= toWrite
+                        }
+                    }
+                }
+
+                // Validate all chunks - you'll need to implement this validation logic
+                neededChunks.addAll(Util.validateSteam3FileChecksums (fileFinalPath, file.chunks.sortedBy { it.offset }))
+            }
+
+            if (neededChunks.isEmpty()) {
+                synchronized(depotDownloadCounter) {
+                    depotDownloadCounter.sizeDownloaded.fetchAndAdd(file.totalSize)
+                    logger.debug(
+                        "${
+                            String.format(
+                                "%6.2f",
+                                (depotDownloadCounter.sizeDownloaded.load() / depotDownloadCounter.completeDownloadSize.load()) * 100.0f
+                            )
+                        }% $fileFinalPath"
+                    )
+                }
+
+                synchronized(downloadCounter) {
+                    downloadCounter.completeDownloadSize.fetchAndAdd(-file.totalSize.toLong())
+                }
+
+                return@withContext
+            }
+
+            val sizeOnDisk = file.totalSize - neededChunks.sumOf { it.uncompressedLength.toLong() }
+            synchronized(depotDownloadCounter) {
+                depotDownloadCounter.sizeDownloaded.fetchAndAdd(sizeOnDisk)
+            }
+
+            synchronized(downloadCounter) {
+                downloadCounter.completeDownloadSize.fetchAndAdd(-sizeOnDisk)
+            }
+        }
+
+        // Handle executable permissions (platform-specific)
+        val fileIsExecutable = file.flags.contains(EDepotFileFlag.Executable)
+        // TODO: Implement executable permission handling for different platforms
+
+        val fileStreamData = FileStreamData(
+            fileStream = null,
+            chunksToDownload = AtomicInt(neededChunks.size)
+        )
+
+        fileStreamDataMap[file.fileName] = fileStreamData
+
+        neededChunks.forEach { chunk ->
+            networkChunkQueue.trySend(Triple(fileStreamData, file, chunk))
+        }
     }
 
     @OptIn(ExperimentalAtomicApi::class)
