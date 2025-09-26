@@ -1,25 +1,48 @@
 package `in`.dragonbra.javasteam.contentdownloader
 
+import `in`.dragonbra.javasteam.steam.cdn.ClientLancache
+import `in`.dragonbra.javasteam.steam.steamclient.SteamClient
 import `in`.dragonbra.javasteam.util.log.LogManager
 import `in`.dragonbra.javasteam.util.log.Logger
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.launch
 import java.io.Closeable
-import java.util.concurrent.ConcurrentLinkedDeque
-import java.util.concurrent.CopyOnWriteArrayList
-import kotlin.concurrent.atomics.AtomicBoolean
-import kotlin.concurrent.atomics.ExperimentalAtomicApi
-import kotlin.jvm.Throws
+import java.util.concurrent.*
+import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.math.log
 
 /**
  *
  */
 data class DownloadItem(
     val appId: Int,
+    val manifestId: Long? = null,
+    val depotId: Int? = null,
+    val depotKey: Int? = null,
     val manifestOnly: Boolean = false,
     val pubFile: Long? = null,
     val ugcId: Long? = null,
     val branch: String = "public",
-
+    val validate: Boolean = false,
+    val betaOrBranchPassword: String? = null,
+    val os: EOS = EOS.WINDOWS,
+    val arch: EArch = EArch.X64,
 )
+
+enum class EArch(val value: String) {
+    X86("32"),
+    X64("64"),
+}
+
+enum class EOS(val value: String) {
+    WINDOWS("windows"),
+    MACOS("macos"),
+    LINUX("linux"),
+}
 
 interface DownloadListener {
     fun onItemAdded(item: DownloadItem, index: Int)
@@ -31,35 +54,56 @@ interface DownloadListener {
 }
 
 @Suppress("unused")
-@OptIn(ExperimentalAtomicApi::class)
 class ContentDownloader @JvmOverloads constructor(
+    steamClient: SteamClient,
     packageTokens: Map<Int, Long>, // To be provided from [LicenseListCallback]
     debug: Boolean = false, // Enable debugging features, such as logging
     useLanCache: Boolean = false, // Try and detect a lan cache server.
     maxDownloads: Int = 8, // Max concurrent downloads
 ) : Closeable {
 
-    companion object {
+    // What is a PriorityQueue?
 
-    }
+    private lateinit var cdnClient: CDNClient
+    private var steamSession: SteamSession
 
-    private var logger: Logger? = null
-
-    private val isClosed = AtomicBoolean(false)
-
-    private val items = ConcurrentLinkedDeque<DownloadItem>()
-
+    private val items = CopyOnWriteArrayList(ArrayList<DownloadItem>())
     private val listeners = CopyOnWriteArrayList<DownloadListener>()
+    private val scope: CoroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private var logger: Logger? = null
+    private val isStarted: AtomicBoolean = AtomicBoolean(false)
+    private val processingChannel = Channel<DownloadItem>(Channel.UNLIMITED)
 
     init {
         if (debug) {
             logger = LogManager.getLogger(ContentDownloader::class.java)
         }
+
+        steamSession = SteamSession(steamClient, debug)
+
+        scope.launch {
+            if (useLanCache) {
+                ClientLancache.detectLancacheServer()
+            }
+
+            if (ClientLancache.useLanCacheServer) {
+                logger?.debug("Detected Lan-Cache server! Downloads will be directed through the Lancache.")
+            }
+
+            // Increasing the number of concurrent downloads when the cache is detected since the downloads will likely
+            // be served much faster than over the internet.  Steam internally has this behavior as well.
+            cdnClient = CDNClient(
+                steamSession = steamSession,
+                debug = debug,
+                useLanCache = useLanCache,
+                maxDownloads = if (ClientLancache.useLanCacheServer && maxDownloads == 8) 25 else maxDownloads
+            )
+        }
     }
 
-    @Throws(IllegalStateException::class)
+    // region [REGION] Listener Operations
+
     fun addListener(listener: DownloadListener) {
-        checkNotClosed()
         listeners.add(listener)
     }
 
@@ -67,192 +111,210 @@ class ContentDownloader @JvmOverloads constructor(
         listeners.remove(listener)
     }
 
-    @Throws(IllegalStateException::class)
-    fun getItems(): List<DownloadItem> {
-        checkNotClosed()
-        return ArrayList(items)
-    }
+    // endregion
+
+    // region [REGION] Array Operations
+
+    fun getItems(): List<DownloadItem> = items.toList()
 
     fun size(): Int = items.size
 
     fun isEmpty(): Boolean = items.isEmpty()
 
-    fun isClosed(): Boolean = isClosed.load()
-
-    @Throws(IllegalStateException::class)
     fun add(item: DownloadItem) {
-        checkNotClosed()
+        val index = items.size
+        items.add(item)
 
-        items.addLast(item)
+        if (isStarted.get()) {
+            scope.launch { processingChannel.send(item) }
+        }
 
-        notifyListeners { listener -> listener.onItemAdded(item, items.size - 1) }
+        notifyListeners { listener -> listener.onItemAdded(item, index) }
     }
 
-    @Throws(IllegalStateException::class)
     fun addFirst(item: DownloadItem) {
-        checkNotClosed()
+        if (isStarted.get()) {
+            logger?.debug("Cannot add item when started.")
+            return
+        }
 
-        items.addFirst(item)
-
+        items.add(0, item)
         notifyListeners { listener -> listener.onItemAdded(item, 0) }
     }
 
-    @Throws(IllegalStateException::class)
     fun addAt(index: Int, item: DownloadItem): Boolean {
-        checkNotClosed()
-        val itemsList = ArrayList(items)
-        if (index < 0 || index > itemsList.size) {
+        if (isStarted.get()) {
+            logger?.debug("Cannot addAt item when started.")
             return false
         }
 
-        itemsList.add(index, item)
-
-        items.clear()
-        items.addAll(itemsList)
-
-        notifyListeners { listener -> listener.onItemAdded(item, index) }
-
-        return true
+        return try {
+            items.add(index, item)
+            notifyListeners { listener -> listener.onItemAdded(item, index) }
+            true
+        } catch (e: IndexOutOfBoundsException) {
+            false
+        }
     }
 
-    @Throws(IllegalStateException::class)
     fun removeFirst(): DownloadItem? {
-        checkNotClosed()
-        val item = items.pollFirst()
-
-        item?.let { item ->
-            notifyListeners { listener -> listener.onItemRemoved(item, 0) }
-        }
-
-        return item
-    }
-
-    @Throws(IllegalStateException::class)
-    fun removeLast(): DownloadItem? {
-        checkNotClosed()
-
-        val item = items.pollLast()
-
-        item?.let { item ->
-            notifyListeners { listener -> listener.onItemRemoved(item, items.size) }
-        }
-
-        return item
-    }
-
-    @Throws(IllegalStateException::class)
-    fun remove(item: DownloadItem): Boolean {
-        checkNotClosed()
-        val itemsList = ArrayList(items)
-        val index = itemsList.indexOf(item)
-
-        if (index >= 0) {
-            itemsList.removeAt(index)
-            items.clear()
-            items.addAll(itemsList)
-            notifyListeners { listener -> listener.onItemRemoved(item, index) }
-            return true
-        }
-
-        return false
-    }
-
-    @Throws(IllegalStateException::class)
-    fun removeAt(index: Int): DownloadItem? {
-        checkNotClosed()
-        val itemsList = ArrayList(items)
-        if (index < 0 || index >= itemsList.size) {
+        if (isStarted.get()) {
+            logger?.debug("Cannot removeFirst item when started.")
             return null
         }
 
-        val item = itemsList.removeAt(index)
-        items.clear()
-        items.addAll(itemsList)
-        notifyListeners { listener -> listener.onItemRemoved(item, index) }
-
-        return item
-    }
-
-    @Throws(IllegalStateException::class)
-    fun moveItem(fromIndex: Int, toIndex: Int): Boolean {
-        checkNotClosed()
-        val itemsList = ArrayList(items)
-
-        if (fromIndex < 0 || fromIndex >= itemsList.size ||
-            toIndex < 0 || toIndex >= itemsList.size
-        ) {
-            return false
-        }
-
-        val item = itemsList.removeAt(fromIndex)
-        itemsList.add(toIndex, item)
-        items.clear()
-        items.addAll(itemsList)
-        notifyListeners { listener -> listener.onItemMoved(item, fromIndex, toIndex) }
-
-        return true
-    }
-
-    @Throws(IllegalStateException::class)
-    fun clear() {
-        checkNotClosed()
-        val oldItems = ArrayList(items)
-        items.clear()
-        notifyListeners { listener -> listener.onQueueCleared(oldItems) }
-    }
-
-    @Throws(IllegalStateException::class)
-    fun get(index: Int): DownloadItem? {
-        checkNotClosed()
-        val itemsList = ArrayList(items)
-        return if (index >= 0 && index < itemsList.size) {
-            itemsList[index]
+        return if (items.isNotEmpty()) {
+            val item = items.removeAt(0)
+            notifyListeners { listener -> listener.onItemRemoved(item, 0) }
+            item
         } else {
             null
         }
     }
 
-    fun contains(item: DownloadItem): Boolean = items.contains(item)
+    fun removeLast(): DownloadItem? {
+        if (isStarted.get()) {
+            logger?.debug("Cannot removeLast item when started.")
+            return null
+        }
 
-    fun indexOf(item: DownloadItem): Int = ArrayList(items).indexOf(item)
-
-    fun enqueue(item: DownloadItem) {
-        add(item)
-    }
-
-    fun dequeue(): DownloadItem? = removeFirst()
-
-    fun peek(): DownloadItem? = get(0)
-
-    fun peekLast(): DownloadItem? = get(size() - 1)
-
-    override fun close() {
-        if (isClosed.compareAndSet(expectedValue = false, newValue = true)) {
-            items.clear()
-
-            listeners.forEach { listener ->
-                try {
-                    listener.onQueueClosed()
-                } catch (e: Exception) {
-                    logger?.error(e)
-                }
-            }
-            listeners.clear()
+        return if (items.isNotEmpty()) {
+            val lastIndex = items.size - 1
+            val item = items.removeAt(lastIndex)
+            notifyListeners { listener -> listener.onItemRemoved(item, lastIndex) }
+            item
+        } else {
+            null
         }
     }
 
-    @Throws(IllegalStateException::class)
-    private fun checkNotClosed() {
-        if (isClosed.load()) {
-            throw IllegalStateException("Queue has been closed and cannot be used")
+    fun remove(item: DownloadItem): Boolean {
+        if (isStarted.get()) {
+            logger?.debug("Cannot remove item when started.")
+            return false
+        }
+
+        val index = items.indexOf(item)
+        return if (index >= 0) {
+            items.removeAt(index)
+            notifyListeners { listener -> listener.onItemRemoved(item, index) }
+            true
+        } else {
+            false
         }
     }
 
-    private fun notifyListeners(action: (DownloadListener) -> Unit) {
-        if (isClosed.load()) {
+    fun removeAt(index: Int): DownloadItem? {
+        if (isStarted.get()) {
+            logger?.debug("Cannot removeAt item when started.")
+            return null
+        }
+
+        return try {
+            val item = items.removeAt(index)
+            notifyListeners { listener -> listener.onItemRemoved(item, index) }
+            item
+        } catch (e: IndexOutOfBoundsException) {
+            null
+        }
+    }
+
+    fun moveItem(fromIndex: Int, toIndex: Int): Boolean {
+        if (isStarted.get()) {
+            logger?.debug("Cannot moveItem item when started.")
+            return false
+        }
+
+        return try {
+            val item = items.removeAt(fromIndex)
+            items.add(toIndex, item)
+            notifyListeners { listener -> listener.onItemMoved(item, fromIndex, toIndex) }
+            true
+        } catch (e: IndexOutOfBoundsException) {
+            false
+        }
+    }
+
+    fun clear() {
+        if (isStarted.get()) {
+            logger?.debug("Cannot clear item when started.")
             return
         }
 
+        val oldItems = items.toList()
+        items.clear()
+        notifyListeners { listener -> listener.onQueueCleared(oldItems) }
+    }
+
+    fun get(index: Int): DownloadItem? = items.getOrNull(index)
+
+    fun contains(item: DownloadItem): Boolean = items.contains(item)
+
+    fun indexOf(item: DownloadItem): Int = items.indexOf(item)
+
+    // endregion
+
+    fun start() {
+        scope.launch {
+            isStarted.set(true) // Deny Array manipulation, except for adding.
+
+            items.forEach { processingChannel.send(it) } // Add existing to queue
+
+            // Process the channel, adding more items after we start is allowed.
+            for (item in processingChannel) {
+
+                ensureActive()
+
+                if (!isStarted.get()) {
+                    break
+                }
+
+                if (item.pubFile != null) {
+                    logger?.debug("Downloading PUB File for ${item.appId}")
+
+                    cdnClient.downloadPubFile(item)
+                } else if (item.ugcId != null) {
+                    logger?.debug("Downloading UGC File for ${item.appId}")
+
+                    cdnClient.downloadUGC(item)
+                } else {
+                    logger?.debug("Trying App download for ${item.appId}")
+
+                    if(item.betaOrBranchPassword.isNullOrBlank().not() && item.branch.isBlank()) {
+                        logger?.error("Error: Cannot specify 'branch password' when 'branch' is not specified")
+                        continue
+                    }
+
+
+
+                    TODO()
+                }
+
+                // TODO remove from internal list and notify when done??
+            }
+        }
+    }
+
+    override fun close() {
+        isStarted.set(false)
+
+        items.clear()
+        processingChannel.close()
+
+        listeners.forEach { listener ->
+            try {
+                listener.onQueueClosed()
+            } catch (e: Exception) {
+                logger?.error(e)
+            }
+        }
+        listeners.clear()
+
+        LogManager.removeLogger(ContentDownloader::class.java)
+        logger = null
+    }
+
+    private fun notifyListeners(action: (DownloadListener) -> Unit) {
         listeners.forEach { listener ->
             try {
                 action(listener)

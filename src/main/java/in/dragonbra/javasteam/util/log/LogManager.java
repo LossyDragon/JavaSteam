@@ -26,6 +26,15 @@ public class LogManager {
     }
 
     /**
+     * Removes an {@link Logger} instance from the Logger
+     * @param clazz the class to remove.
+     * @return *true* if a logger was removed, otherwise false.
+     */
+    public static Boolean removeLogger(Class<?> clazz) {
+        return LOGGERS.remove(clazz) != null;
+    }
+
+    /**
      * Adds a log listener that will be notified of logging events.
      * You can use the {@link DefaultLogListener} that prints logs to the standard output in a format similar to Log4j2
      *

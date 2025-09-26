@@ -1,5 +1,14 @@
-//package `in`.dragonbra.javasteam.contentdownloader
-//
+package `in`.dragonbra.javasteam.contentdownloader
+
+import `in`.dragonbra.javasteam.enums.EAccountType
+import `in`.dragonbra.javasteam.rpc.service.PublishedFile
+import `in`.dragonbra.javasteam.steam.handlers.steamcloud.callback.UGCDetailsCallback
+import `in`.dragonbra.javasteam.types.PublishedFileID
+import `in`.dragonbra.javasteam.types.UGCHandle
+import `in`.dragonbra.javasteam.util.log.LogManager
+import `in`.dragonbra.javasteam.util.log.Logger
+import okio.Closeable
+
 //import `in`.dragonbra.javasteam.util.log.LogManager
 //import `in`.dragonbra.javasteam.util.log.Logger
 //import io.ktor.client.HttpClient
@@ -22,7 +31,67 @@
 //import kotlin.concurrent.atomics.AtomicBoolean
 //import kotlin.concurrent.atomics.ExperimentalAtomicApi
 //import kotlin.coroutines.cancellation.CancellationException
-//
+
+
+class CDNClient(
+    private val steamSession: SteamSession,
+    debug: Boolean,
+    private val useLanCache: Boolean,
+    private val maxDownloads: Int,
+) : Closeable {
+
+    private var logger: Logger? = null
+
+    init {
+        if (debug) {
+            logger = LogManager.getLogger(CDNClient::class.java)
+        }
+    }
+
+    override fun close() {
+        logger = null
+    }
+
+    suspend fun downloadPubFile(item: DownloadItem) {
+        requireNotNull(item.pubFile)
+
+        val pubFile = PublishedFileID(item.pubFile)
+        val details = steamSession.getPublishedFileDetails(item.appId, pubFile)
+
+        requireNotNull(details)
+
+        if (details.fileUrl.isNullOrBlank().not()) {
+            downloadWebFile(item.appId, details.filename, details.fileUrl)
+        } else if (details.hcontentFile > 0) {
+            downloadApp(item.appId, details.hcontentFile, item.branch, null, null, null, false, true)
+        } else {
+            logger?.error("Unable to locate manifest ID for published file $pubFile")
+        }
+    }
+
+    suspend fun downloadUGC(item: DownloadItem) {
+        var details: UGCDetailsCallback? = null
+
+        val steamUser = requireNotNull(steamSession.steamUser)
+        val steamId = requireNotNull(steamUser.steamID)
+        val ugcId = requireNotNull(item.ugcId)
+
+        if (steamId.accountType != EAccountType.AnonUser) {
+            val ugcHandle = UGCHandle(ugcId)
+
+            details = steamSession.getUGCDetails(ugcHandle)
+        } else {
+            logger?.error("Unable to query UGC details for $ugcId from an anonymous account")
+        }
+
+        if (details?.url.isNullOrBlank().not()) {
+            downloadWebFile(item.appId, details.fileName, details.url)
+        } else {
+            downloadApp(item.appId, ugcId, item.branch, null, null, null, false, true)
+        }
+    }
+}
+
 //data class DownloadProgress(
 //    val item: DownloadItem,
 //    val bytesDownloaded: Long,
