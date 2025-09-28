@@ -239,6 +239,26 @@ class KeyValue @JvmOverloads constructor(
     override fun toString(): String = "$name = $value"
 
     /**
+     * Pretty-Print the instance.
+     * @param depth the indentation depth.
+     * @return a formatted [String] of the entire instance.
+     */
+    // JavaSteam Addition
+    @JvmOverloads
+    fun toFormattedString(depth: Int = 0): String = buildString {
+        val spacePadding = " ".repeat(depth)
+
+        if (children.isEmpty()) {
+            appendLine("$spacePadding$name: $value")
+        } else {
+            appendLine("$spacePadding$name:")
+            for (child in children) {
+                append(child.toFormattedString(depth + 1))
+            }
+        }
+    }
+
+    /**
      * Populate this instance from the given [InputStream] as a text [KeyValue].
      * @param input The input [InputStream] to read from.
      * @return <c>true</c> if the read was successful otherwise, <c>false</c>.
