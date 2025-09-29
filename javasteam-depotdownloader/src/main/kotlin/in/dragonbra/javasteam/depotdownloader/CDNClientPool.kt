@@ -87,10 +87,8 @@ class CDNClientPool(
 
         servers.addAll(weightedCdnServers)
 
-        logger?.debug(
-            "Found ${servers.size} Servers: \n " +
-                servers.joinToString(separator = "\n", prefix = "Servers:\n") { "- $it" }
-        )
+        //  servers.joinToString(separator = "\n", prefix = "Servers:\n") { "- $it" }
+        logger?.debug("Found ${servers.size} Servers: \n")
 
         if (servers.isEmpty()) {
             throw Exception("Failed to retrieve any download servers.")
