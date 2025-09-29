@@ -7,6 +7,7 @@ import `in`.dragonbra.javasteam.depotdownloader.data.DepotDownloadInfo
 import `in`.dragonbra.javasteam.depotdownloader.data.DepotFilesData
 import `in`.dragonbra.javasteam.depotdownloader.data.DownloadItem
 import `in`.dragonbra.javasteam.depotdownloader.data.DownloadProgress
+import `in`.dragonbra.javasteam.depotdownloader.data.FileStreamData
 import `in`.dragonbra.javasteam.depotdownloader.data.GlobalDownloadCounter
 import `in`.dragonbra.javasteam.depotdownloader.data.PubFileItem
 import `in`.dragonbra.javasteam.depotdownloader.data.UgcItem
@@ -18,7 +19,9 @@ import `in`.dragonbra.javasteam.steam.cdn.Server
 import `in`.dragonbra.javasteam.steam.handlers.steamapps.License
 import `in`.dragonbra.javasteam.steam.handlers.steamcloud.callback.UGCDetailsCallback
 import `in`.dragonbra.javasteam.steam.steamclient.SteamClient
+import `in`.dragonbra.javasteam.types.ChunkData
 import `in`.dragonbra.javasteam.types.DepotManifest
+import `in`.dragonbra.javasteam.types.FileData
 import `in`.dragonbra.javasteam.types.KeyValue
 import `in`.dragonbra.javasteam.types.PublishedFileID
 import `in`.dragonbra.javasteam.types.UGCHandle
@@ -35,6 +38,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
@@ -42,12 +46,16 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.future.future
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.yield
 import kotlinx.io.readByteArray
 import okio.FileSystem
 import okio.Path
 import okio.Path.Companion.toPath
 import java.io.Closeable
+import java.io.IOException
+import java.io.RandomAccessFile
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 import java.util.concurrent.*
@@ -323,6 +331,7 @@ class ContentDownloader @JvmOverloads constructor(
             logger?.debug("Using app branch: $branch")
 
             depots?.children?.forEach { depotSection ->
+                @Suppress("VariableInitializerIsRedundant")
                 var id = INVALID_DEPOT_ID
 
                 if (depotSection.children.isEmpty()) {
@@ -734,9 +743,13 @@ class ContentDownloader @JvmOverloads constructor(
         logger?.debug("Processing depot ${depot.depotId}")
 
         var oldManifest: DepotManifest? = null
+
+        @Suppress("VariableInitializerIsRedundant")
         var newManifest: DepotManifest? = null
+
         val configDir = depot.installDir / CONFIG_DIR
 
+        @Suppress("VariableInitializerIsRedundant")
         var lastManifestId = INVALID_MANIFEST_ID
         lastManifestId = DepotConfigStore.getInstance().installedManifestIDs[depot.depotId] ?: INVALID_MANIFEST_ID
 
@@ -866,7 +879,7 @@ class ContentDownloader @JvmOverloads constructor(
             }
         }
 
-        logger?.debug("Manifest ${depot.manifestId} (${newManifest!!.creationTime})")
+        logger?.debug("Manifest ${depot.manifestId} (${newManifest.creationTime})")
 
         if (config.downloadManifestOnly) {
             Util.dumpManifestToTextFile(depot, newManifest)
@@ -913,12 +926,184 @@ class ContentDownloader @JvmOverloads constructor(
         )
     }
 
+    data class NetworkChunkItem(
+        val fileStreamData: FileStreamData,
+        val fileData: FileData,
+        val chunk: ChunkData,
+    )
+
     private suspend fun downloadSteam3DepotFiles(
         downloadCounter: GlobalDownloadCounter,
         depotFilesData: DepotFilesData,
         allFileNamesAllDepots: HashSet<String>,
-    ) {
-        TODO()
+    ) = withContext(Dispatchers.IO) {
+        val depot = depotFilesData.depotDownloadInfo
+        val depotCounter = depotFilesData.depotCounter
+
+        logger?.debug("Downloading depot ${depot.depotId}")
+
+        val files = depotFilesData.filteredFiles.filter { !it.flags.contains(EDepotFileFlag.Directory) }
+        val networkChunkQueue = Channel<NetworkChunkItem>(Channel.UNLIMITED)
+
+        coroutineScope {
+            // First parallel loop - process files and enqueue chunks
+            files.map { file ->
+                async {
+                    yield()
+                    downloadSteam3DepotFile(downloadCounter, depotFilesData, file, networkChunkQueue)
+                }
+            }.awaitAll()
+
+            // Close the channel to signal no more items will be added
+            networkChunkQueue.close()
+
+            // Second parallel loop - process chunks from queue
+            List(maxDownloads) {
+                async {
+                    for (item in networkChunkQueue) {
+                        downloadSteam3DepotFileChunk(
+                            downloadCounter,
+                            depotFilesData,
+                            item.fileData,
+                            item.fileStreamData,
+                            item.chunk
+                        )
+                    }
+                }
+            }.awaitAll()
+        }
+
+        // Check for deleted files if updating the depot.
+        if (depotFilesData.previousManifest != null) {
+            val previousFilteredFiles = depotFilesData.previousManifest.files
+                .filter { testIsFileIncluded(it.fileName) }
+                .map { it.fileName }
+                .toHashSet()
+
+            // Check if we are writing to a single output directory. If not, each depot folder is managed independently
+            if (config.installPath == null) {
+                // Of the list of files in the previous manifest, remove any file names that exist in the current set of all file names
+                previousFilteredFiles.removeAll(depotFilesData.allFileNames)
+            } else {
+                // Of the list of files in the previous manifest, remove any file names that exist in the current set of all file names across all depots being downloaded
+                previousFilteredFiles.removeAll(allFileNamesAllDepots)
+            }
+
+            previousFilteredFiles.forEach { existingFileName ->
+                val fileFinalPath = depot.installDir / existingFileName
+
+                if (!filesystem.exists(fileFinalPath)) {
+                    return@forEach
+                }
+
+                filesystem.delete(fileFinalPath)
+                logger?.debug("Deleted $fileFinalPath")
+            }
+        }
+
+        DepotConfigStore.getInstance().installedManifestIDs[depot.depotId] = depot.manifestId
+        DepotConfigStore.save()
+        logger?.debug("Depot ${depot.depotId} - Downloaded ${depotCounter.depotBytesCompressed} bytes (${depotCounter.depotBytesUncompressed} bytes uncompressed)")
+    }
+
+    private suspend fun downloadSteam3DepotFile(
+        downloadCounter: GlobalDownloadCounter,
+        depotFilesData: DepotFilesData,
+        file: FileData,
+        networkChunkQueue: Channel<NetworkChunkItem>,
+    ) = withContext(Dispatchers.IO) {
+        ensureActive()
+
+        val depot = depotFilesData.depotDownloadInfo
+        val stagingDir = depotFilesData.stagingDir
+        val depotDownloadCounter = depotFilesData.depotCounter
+        val oldProtoManifest = depotFilesData.previousManifest
+
+        var oldManifestFile: FileData? = null
+        if (oldProtoManifest != null) {
+            oldManifestFile = oldProtoManifest.files.singleOrNull { it.fileName == file.fileName }
+        }
+
+        val fileFinalPath = depot.installDir / file.fileName
+        val fileStagingPath = stagingDir / file.fileName
+
+        // This may still exist if the previous run exited before cleanup
+        if (filesystem.exists(fileStagingPath)) {
+            filesystem.delete(fileStagingPath)
+        }
+
+        var neededChunks: ArrayList<ChunkData>? = null
+        val fileDidExist = filesystem.exists(fileFinalPath)
+        if (!fileDidExist) {
+            logger?.debug("Pre-allocating: $fileFinalPath")
+
+            // create new file. need all chunks
+            try {
+                RandomAccessFile(fileFinalPath.toFile(), "rw").use { raf ->
+                    raf.setLength(file.totalSize)
+                }
+            } catch (e: IOException) {
+                throw ContentDownloaderException("Failed to allocate file $fileFinalPath: ${e.message}")
+            }
+
+            neededChunks = ArrayList(file.chunks)
+        } else {
+            // open existing
+            if (oldManifestFile != null) {
+                neededChunks = arrayListOf()
+
+                TODO()
+            } else {
+                TODO()
+            }
+
+            if (neededChunks!!.size == 0) {
+                synchronized(depotDownloadCounter) {
+                    depotDownloadCounter.sizeDownloaded += file.totalSize
+
+                    val percentage =
+                        (depotDownloadCounter.sizeDownloaded / depotDownloadCounter.completeDownloadSize.toFloat()) * 100.0f
+                    logger?.debug("%.2f%% %s".format(percentage, fileFinalPath))
+                }
+
+                synchronized(downloadCounter) {
+                    downloadCounter.completeDownloadSize -= file.totalSize
+                }
+
+                return@withContext
+            }
+
+            val sizeOnDisk = file.totalSize - neededChunks.sumOf { it.uncompressedLength }
+            synchronized(depotDownloadCounter) {
+                depotDownloadCounter.sizeDownloaded += sizeOnDisk
+            }
+
+            synchronized(downloadCounter) {
+                downloadCounter.completeDownloadSize -= sizeOnDisk
+            }
+        }
+
+        val fileIsExecutable = file.flags.contains(EDepotFileFlag.Executable)
+        if (fileIsExecutable &&
+            (!fileDidExist || oldManifestFile == null || !oldManifestFile.flags.contains(EDepotFileFlag.Executable))
+        ) {
+            fileFinalPath.toFile().setExecutable(true)
+        } else if (!fileIsExecutable &&
+            oldManifestFile != null &&
+            oldManifestFile.flags.contains(EDepotFileFlag.Executable)
+        ) {
+            fileFinalPath.toFile().setExecutable(false)
+        }
+
+        val fileStreamData = FileStreamData(
+            fileStream = null,
+            fileLock = Mutex(),
+            chunksToDownload = neededChunks.size
+        )
+
+        neededChunks.forEach { chunk ->
+            networkChunkQueue.send(NetworkChunkItem(fileStreamData, file, chunk))
+        }
     }
 
     private fun testIsFileIncluded(filename: String): Boolean {
