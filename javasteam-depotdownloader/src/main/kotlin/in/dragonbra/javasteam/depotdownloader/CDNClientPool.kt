@@ -17,6 +17,7 @@ import kotlin.jvm.Throws
  */
 class CDNClientPool(
     private val steamClient: SteamClient,
+    private val appId: Int,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
     debug: Boolean = false,
 ) : AutoCloseable {
@@ -24,8 +25,9 @@ class CDNClientPool(
     companion object {
         fun init(
             steamClient: SteamClient,
+            appId: Int,
             debug: Boolean,
-        ): CDNClientPool = CDNClientPool(steamClient = steamClient, debug = debug)
+        ): CDNClientPool = CDNClientPool(steamClient = steamClient, appId = appId, debug = debug)
     }
 
     private var logger: Logger? = null
@@ -51,23 +53,23 @@ class CDNClientPool(
     override fun close() {
         scope.cancel()
 
+        servers.clear()
+
+        cdnClient = null
+        proxyServer = null
+
         LogManager.removeLogger(CDNClientPool::class.java)
         logger = null
     }
 
     @Throws(Exception::class)
-    suspend fun updateServerList(
-        steamContent: SteamContent,
-        appId: Int,
-        cellId: Int? = null,
-        maxNumServers: Int? = null,
-    ) {
+    suspend fun updateServerList(maxNumServers: Int? = null) {
         if (servers.isNotEmpty()) {
             servers.clear()
         }
 
-        val serversForSteamPipe = steamContent.getServersForSteamPipe(
-            cellId = cellId,
+        val serversForSteamPipe = steamClient.getHandler<SteamContent>()!!.getServersForSteamPipe(
+            cellId = steamClient.cellID ?: 0,
             maxNumServers = maxNumServers,
             parentScope = scope
         ).await()
@@ -85,7 +87,10 @@ class CDNClientPool(
 
         servers.addAll(weightedCdnServers)
 
-        logger?.debug("Found ${servers.size} \n " + servers.joinToString(separator = "\n", prefix = "Servers:\n") { "- $it" })
+        logger?.debug(
+            "Found ${servers.size} Servers: \n " +
+                servers.joinToString(separator = "\n", prefix = "Servers:\n") { "- $it" }
+        )
 
         if (servers.isEmpty()) {
             throw Exception("Failed to retrieve any download servers.")

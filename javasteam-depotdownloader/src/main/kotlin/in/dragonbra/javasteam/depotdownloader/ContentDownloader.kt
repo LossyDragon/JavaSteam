@@ -1,7 +1,17 @@
 package `in`.dragonbra.javasteam.depotdownloader
 
+import `in`.dragonbra.javasteam.depotdownloader.data.AppItem
+import `in`.dragonbra.javasteam.depotdownloader.data.DepotDownloadCounter
+import `in`.dragonbra.javasteam.depotdownloader.data.DepotDownloadInfo
+import `in`.dragonbra.javasteam.depotdownloader.data.DepotFilesData
+import `in`.dragonbra.javasteam.depotdownloader.data.DownloadItem
+import `in`.dragonbra.javasteam.depotdownloader.data.DownloadProgress
+import `in`.dragonbra.javasteam.depotdownloader.data.GlobalDownloadCounter
+import `in`.dragonbra.javasteam.depotdownloader.data.PubFileItem
+import `in`.dragonbra.javasteam.depotdownloader.data.UgcItem
 import `in`.dragonbra.javasteam.enums.EAccountType
 import `in`.dragonbra.javasteam.enums.EAppInfoSection
+import `in`.dragonbra.javasteam.enums.EDepotFileFlag
 import `in`.dragonbra.javasteam.enums.EResult
 import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesPublishedfileSteamclient.CPublishedFile_GetDetails_Request
 import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesPublishedfileSteamclient.PublishedFileDetails
@@ -18,113 +28,46 @@ import `in`.dragonbra.javasteam.steam.handlers.steamcontent.CDNAuthToken
 import `in`.dragonbra.javasteam.steam.handlers.steamcontent.SteamContent
 import `in`.dragonbra.javasteam.steam.handlers.steamuser.SteamUser
 import `in`.dragonbra.javasteam.steam.steamclient.SteamClient
+import `in`.dragonbra.javasteam.types.DepotManifest
 import `in`.dragonbra.javasteam.types.KeyValue
 import `in`.dragonbra.javasteam.types.PublishedFileID
 import `in`.dragonbra.javasteam.types.UGCHandle
+import `in`.dragonbra.javasteam.util.SteamKitWebRequestException
 import `in`.dragonbra.javasteam.util.log.LogManager
 import `in`.dragonbra.javasteam.util.log.Logger
 import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsChannel
 import io.ktor.http.HttpHeaders
 import io.ktor.utils.io.readRemaining
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.future.future
+import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.io.readByteArray
 import okio.FileSystem
 import okio.Path
 import okio.Path.Companion.toPath
 import java.io.Closeable
+import java.time.Instant
+import java.time.temporal.ChronoUnit
 import java.util.concurrent.*
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.collections.mutableListOf
 import kotlin.collections.set
 import kotlin.text.toLongOrNull
-
-data class DownloadProgress(
-    val fileName: String,
-    val downloadedBytes: Long,
-    val totalBytes: Long?,
-    val bytesPerSecond: Double,
-    val percentComplete: Double?,
-) {
-    fun formatProgress(): String {
-        val downloadedMB = downloadedBytes / 1024.0 / 1024.0
-        val totalMB = totalBytes?.let { it / 1024.0 / 1024.0 }
-        val speedMBps = bytesPerSecond / 1024.0 / 1024.0
-
-        return buildString {
-            append("[$fileName] ")
-            append("Downloaded: %.2f MB".format(downloadedMB))
-
-            if (totalMB != null) {
-                append(" / %.2f MB".format(totalMB))
-            }
-
-            if (percentComplete != null) {
-                append(" (%.1f%%)".format(percentComplete))
-            }
-
-            append(" | Speed: %.2f MB/s".format(speedMBps))
-        }
-    }
-}
-
-fun formatBytes(bytes: Long): String {
-    val units = arrayOf("B", "KB", "MB", "GB", "TB")
-    var size = bytes.toDouble()
-    var unitIndex = 0
-
-    while (size >= 1024 && unitIndex < units.size - 1) {
-        size /= 1024
-        unitIndex++
-    }
-
-    return "%.2f %s".format(size, units[unitIndex])
-}
-
-data class DownloadItem(
-    val appId: Int,
-    val manifestId: Long? = null,
-    val depotId: Int? = null,
-    val depotKey: Int? = null,
-    val manifestOnly: Boolean = false,
-    val pubFile: Long? = null,
-    val ugcId: Long? = null,
-    val branch: String = "public",
-    val validate: Boolean = false,
-    val betaOrBranchPassword: String? = null,
-    val os: EOS = EOS.WINDOWS,
-    val arch: EArch = EArch.X64,
-    val language: String = "",
-    val lowViolence: Boolean = false,
-)
-
-enum class EArch(val value: String) {
-    X86("32"),
-    X64("64"),
-}
-
-enum class EOS(val value: String) {
-    WINDOWS("windows"),
-    MACOS("macos"),
-    LINUX("linux"),
-}
-
-interface DownloadListener {
-    fun onItemAdded(item: DownloadItem, index: Int)
-    fun onItemRemoved(item: DownloadItem, index: Int)
-    fun onItemMoved(item: DownloadItem, fromIndex: Int, toIndex: Int)
-    fun onQueueCleared(previousItems: List<DownloadItem>)
-    fun onQueueChanged(currentItems: List<DownloadItem>)
-    fun onQueueClosed()
-}
-
-class ContentDownloaderException(value: String) : Exception(value)
 
 @Suppress("unused")
 class ContentDownloader @JvmOverloads constructor(
@@ -140,6 +83,9 @@ class ContentDownloader @JvmOverloads constructor(
         const val INVALID_APP_ID: Int = Int.MAX_VALUE
         const val INVALID_DEPOT_ID: Int = Int.MAX_VALUE
         const val INVALID_MANIFEST_ID: Long = Long.MAX_VALUE
+        const val DEFAULT_BRANCH: String = "public"
+        const val CONFIG_DIR: String = ".DepotDownloader"
+        val STAGING_DIR: Path = CONFIG_DIR.toPath() / "staging"
     }
 
     // What is a PriorityQueue?
@@ -147,7 +93,7 @@ class ContentDownloader @JvmOverloads constructor(
     private val filesystem: FileSystem by lazy { FileSystem.SYSTEM }
 
     private val items = CopyOnWriteArrayList(ArrayList<DownloadItem>())
-    private val listeners = CopyOnWriteArrayList<DownloadListener>()
+    private val listeners = CopyOnWriteArrayList<IDownloadListener>()
     private val scope: CoroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private var logger: Logger? = null
     private val isStarted: AtomicBoolean = AtomicBoolean(false)
@@ -169,15 +115,34 @@ class ContentDownloader @JvmOverloads constructor(
 
     private var cdnClientPool: CDNClientPool? = null
 
+    private var config: Config = Config(installPath = installPath.toPath())
+
+    private data class Config(
+        val installPath: Path? = null,
+        val betaPassword: String? = null,
+        val downloadAllPlatforms: Boolean = false,
+        val downloadAllArchs: Boolean = false,
+        val downloadAllLanguages: Boolean = false,
+        val androidEmulation: Boolean = false,
+        val downloadManifestOnly: Boolean = false,
+
+        // Not used yet in code
+        val usingFileList: Boolean = false,
+        var filesToDownloadRegex: List<Regex> = emptyList(),
+        var filesToDownload: HashSet<String> = hashSetOf(),
+    )
+
     init {
         if (debug) {
             logger = LogManager.getLogger(ContentDownloader::class.java)
         }
 
-        steamUser = steamClient.getHandler<SteamUser>()
-        steamContent = steamClient.getHandler<SteamContent>()
-        steamApps = steamClient.getHandler<SteamApps>()
-        steamCloud = steamClient.getHandler<SteamCloud>()
+        logger?.debug("DepotDownloader launched with ${licenses.size} for account")
+
+        steamUser = requireNotNull(steamClient.getHandler<SteamUser>())
+        steamContent = requireNotNull(steamClient.getHandler<SteamContent>())
+        steamApps = requireNotNull(steamClient.getHandler<SteamApps>())
+        steamCloud = requireNotNull(steamClient.getHandler<SteamCloud>())
 
         scope.launch {
             if (useLanCache) {
@@ -186,41 +151,46 @@ class ContentDownloader @JvmOverloads constructor(
 
             if (ClientLancache.useLanCacheServer) {
                 logger?.debug("Detected Lan-Cache server! Downloads will be directed through the Lancache.")
-            }
 
-            // Increasing the number of concurrent downloads when the cache is detected since the downloads will likely
-            // be served much faster than over the internet.  Steam internally has this behavior as well.
-            maxDownloads = if (ClientLancache.useLanCacheServer && maxDownloads == 8) 25 else maxDownloads
+                // Increasing the number of concurrent downloads when the cache is detected since the downloads will likely
+                // be served much faster than over the internet.  Steam internally has this behavior as well.
+                maxDownloads = if (ClientLancache.useLanCacheServer && maxDownloads == 8) 25 else maxDownloads
+            }
         }
     }
 
     // region [REGION] Steam Operations
+    private val packageInfoMutex = Mutex()
     suspend fun requestPackageInfo(packageIds: ArrayList<Int>) {
-        packageIds.removeAll(packageInfo.keys)
+        packageInfoMutex.withLock {
+            // I have a silly race condition???
+            val packagesToFetch = packageIds.toMutableList() // I have to create a copy for some reason??
+            packagesToFetch.removeAll(packageInfo.keys)
 
-        if (packageIds.isEmpty()) return
+            if (packagesToFetch.isEmpty()) return
 
-        val packageRequests = arrayListOf<PICSRequest>()
+            val packageRequests = arrayListOf<PICSRequest>()
 
-        packageIds.forEach { pkg ->
-            val request = PICSRequest(id = pkg)
+            packagesToFetch.forEach { pkg ->
+                val request = PICSRequest(id = pkg)
 
-            packageTokens[pkg]?.let { token ->
-                request.accessToken = token
+                packageTokens[pkg]?.let { token ->
+                    request.accessToken = token
+                }
+
+                packageRequests.add(request)
             }
 
-            packageRequests.add(request)
-        }
+            val packageInfoMultiple = steamApps!!.picsGetProductInfo(emptyList(), packageRequests).await()
 
-        val packageInfoMultiple = steamApps!!.picsGetProductInfo(emptyList(), packageRequests).await()
-
-        packageInfoMultiple.results.forEach { pkgInfo ->
-            pkgInfo.packages.forEach { pkgValue ->
-                val pkg = pkgValue.value
-                packageInfo[pkg.id] = pkg
-            }
-            pkgInfo.unknownPackages.forEach { pkgValue ->
-                packageInfo[pkgValue] = null
+            packageInfoMultiple.results.forEach { pkgInfo ->
+                pkgInfo.packages.forEach { pkgValue ->
+                    val pkg = pkgValue.value
+                    packageInfo[pkg.id] = pkg
+                }
+                pkgInfo.unknownPackages.forEach { pkgValue ->
+                    packageInfo[pkgValue] = null
+                }
             }
         }
     }
@@ -298,7 +268,7 @@ class ContentDownloader @JvmOverloads constructor(
     }
 
     suspend fun requestDepotKey(depotId: Int, appId: Int = 0) {
-        if (this.depotKeys.contains(depotId)) {
+        if (depotKeys.contains(depotId)) {
             return
         }
 
@@ -310,7 +280,7 @@ class ContentDownloader @JvmOverloads constructor(
             return
         }
 
-        this.depotKeys[depotKey.depotID] = depotKey.depotKey
+        depotKeys[depotKey.depotID] = depotKey.depotKey
     }
 
     suspend fun getDepotManifestRequestCode(
@@ -384,29 +354,37 @@ class ContentDownloader @JvmOverloads constructor(
     // endregion
 
     // region [REGION] Downloading Operations
-    suspend fun downloadPubFile(item: DownloadItem) {
-        requireNotNull(item.pubFile)
-
-        val pubFile = PublishedFileID(item.pubFile)
-        val details = getPublishedFileDetails(item.appId, pubFile)
+    suspend fun downloadPubFile(appId: Int, publishedFileId: Long) {
+        val details = getPublishedFileDetails(appId, PublishedFileID(publishedFileId))
 
         requireNotNull(details)
 
         if (details.fileUrl.isNullOrBlank().not()) {
-            downloadWebFile(item.appId, details.filename, details.fileUrl)
+            downloadWebFile(appId, details.filename, details.fileUrl)
         } else if (details.hcontentFile > 0) {
-            downloadApp(item)
+            downloadApp(
+                appId = appId,
+                depotManifestIds = listOf(appId to details.hcontentFile),
+                branch = DEFAULT_BRANCH,
+                os = null,
+                arch = null,
+                language = null,
+                lv = false,
+                isUgc = true,
+            )
         } else {
-            logger?.error("Unable to locate manifest ID for published file $pubFile")
+            logger?.error("Unable to locate manifest ID for published file $publishedFileId")
         }
     }
 
-    suspend fun downloadUGC(item: DownloadItem) {
+    suspend fun downloadUGC(
+        appId: Int,
+        ugcId: Long,
+    ) {
         var details: UGCDetailsCallback? = null
 
         val steamUser = requireNotNull(steamUser)
         val steamId = requireNotNull(steamUser.steamID)
-        val ugcId = requireNotNull(item.ugcId)
 
         if (steamId.accountType != EAccountType.AnonUser) {
             val ugcHandle = UGCHandle(ugcId)
@@ -416,9 +394,18 @@ class ContentDownloader @JvmOverloads constructor(
         }
 
         if (!details?.url.isNullOrBlank()) {
-            downloadWebFile(item.appId, details.fileName, details.url)
+            downloadWebFile(appId = appId, fileName = details.fileName, url = details.url)
         } else {
-            downloadApp(item)
+            downloadApp(
+                appId = appId,
+                depotManifestIds = listOf(appId to ugcId),
+                branch = DEFAULT_BRANCH,
+                os = null,
+                arch = null,
+                language = null,
+                lv = false,
+                isUgc = true,
+            )
         }
     }
 
@@ -450,7 +437,7 @@ class ContentDownloader @JvmOverloads constructor(
             var lastDownloadedBytes = 0L
             val progressUpdateInterval = 1000L
 
-            logger?.debug("File size: ${totalBytes?.let { formatBytes(it) } ?: "Unknown"}")
+            logger?.debug("File size: ${totalBytes?.let { Util.formatBytes(it) } ?: "Unknown"}")
 
             filesystem.write(fileStagingPath) {
                 while (!channel.isClosedForRead) {
@@ -492,7 +479,7 @@ class ContentDownloader @JvmOverloads constructor(
 
             logger?.debug(
                 "Download completed. \n Final stats: " +
-                    "${formatBytes(downloadedBytes)} in %.1f seconds (avg: %.2f MB/s)"
+                    "${Util.formatBytes(downloadedBytes)} in %.1f seconds (avg: %.2f MB/s)"
                         .format(totalTime, averageSpeed / 1024.0 / 1024.0)
             )
         }
@@ -505,48 +492,327 @@ class ContentDownloader @JvmOverloads constructor(
         logger?.debug("File moved to final location: $fileFinalPath")
     }
 
-    suspend fun downloadApp(item: DownloadItem) {
-        cdnClientPool = CDNClientPool.init(steamClient, debug)
+    // L4D2 (app) supports LV
+    suspend fun downloadApp(
+        appId: Int,
+        depotManifestIds: List<Pair<Int, Long>>,
+        branch: String,
+        os: String?,
+        arch: String?,
+        language: String?,
+        lv: Boolean,
+        isUgc: Boolean,
+    ) {
+        var depotManifestIds = depotManifestIds.toMutableList()
 
-        requestAppInfo(item.appId)
+        val steamUser = requireNotNull(steamUser)
+        cdnClientPool = CDNClientPool.init(steamClient, appId, debug)
 
-        if (!accountHasAccess(item.appId, item.appId)) {
-            val contentName = getAppName(item.appId)
-            throw ContentDownloaderException("App ${item.appId} ($contentName) is not available from this account.")
+        // Load our configuration data containing the depots currently installed
+        val configPath = requireNotNull(config.installPath)
+
+        filesystem.createDirectories(configPath)
+        DepotConfigStore.loadFromFile(configPath / CONFIG_DIR / "depot.config")
+
+        requestAppInfo(appId)
+
+        if (!accountHasAccess(appId, appId)) {
+            if (steamUser.steamID!!.accountType != EAccountType.AnonUser && requestFreeAppLicense(appId)) {
+                logger?.debug("Obtained FreeOnDemand license for app $appId")
+
+                // Fetch app info again in case we didn't get it fully without a license.
+                requestAppInfo(appId, true)
+            } else {
+                val contentName = getAppName(appId)
+                throw ContentDownloaderException("App $appId ($contentName) is not available from this account.")
+            }
         }
 
-        val depots = getSteam3AppSection(item.appId, EAppInfoSection.Depots)
+        val hasSpecificDepots = depotManifestIds.isNotEmpty()
+        val depotIdsFound = mutableListOf<Int>()
+        val depotIdsExpected = depotManifestIds.map { x -> x.first }.toMutableList()
+        val depots = getSteam3AppSection(appId, EAppInfoSection.Depots)
 
-        val depotIdsExpected = mutableListOf(item.depotId)
-
-        if (item.ugcId != null) {
-            val workshopDepot = depots?.get("workshopdepot")?.asInteger()
-            if (workshopDepot != 0) {
+        if (isUgc) {
+            val workshopDepot = depots!!["workshopdepot"].asInteger()
+            if (workshopDepot != 0 && !depotIdsExpected.contains(workshopDepot)) {
                 depotIdsExpected.add(workshopDepot)
-                // ?? depotManifestIds = depotManifestIds.Select(pair => (workshopDepot, pair.manifestId)).ToList();
+                depotManifestIds = depotManifestIds.map { pair -> workshopDepot to pair.second }.toMutableList()
             }
+
+            depotIdsFound.addAll(depotIdsExpected)
         } else {
-            logger?.debug("Using app branch: ${item.branch}")
+            logger?.debug("Using app branch: $branch")
 
             depots?.children?.forEach { depotSection ->
-                var id: Int? = INVALID_DEPOT_ID
+                var id = INVALID_DEPOT_ID
 
                 if (depotSection.children.isEmpty()) {
-                    logger?.debug("Empty children, continuing")
                     return@forEach
                 }
 
                 id = depotSection.name?.toIntOrNull() ?: return@forEach
 
-                // ??
-                // if (hasSpecificDepots && !depotIdsExpected.Contains(id))
-                //     continue;
+                if (hasSpecificDepots && !depotIdsExpected.contains(id)) {
+                    return@forEach
+                }
 
+                if (!hasSpecificDepots) {
+                    val depotConfig = depotSection["config"]
+                    if (depotConfig != KeyValue.INVALID) {
+                        if (!config.downloadAllPlatforms &&
+                            depotConfig["oslist"] != KeyValue.INVALID &&
+                            !depotConfig["oslist"].value.isNullOrBlank()
+                        ) {
+                            val osList = depotConfig["oslist"].value!!.split(",")
+                            if (osList.indexOf(os ?: Util.getSteamOS(config.androidEmulation)) == -1) {
+                                return@forEach
+                            }
+                        }
 
+                        if (!config.downloadAllArchs &&
+                            depotConfig["osarch"] != KeyValue.INVALID &&
+                            !depotConfig["osarch"].value.isNullOrBlank()
+                        ) {
+                            val depotArch = depotConfig["osarch"].value
+                            if (depotArch != (arch ?: Util.getSteamArch())) {
+                                return@forEach
+                            }
+                        }
+
+                        if (!config.downloadAllLanguages &&
+                            depotConfig["language"] != KeyValue.INVALID &&
+                            !depotConfig["language"].value.isNullOrBlank()
+                        ) {
+                            val depotLang = depotConfig["language"].value
+                            if (depotLang != (language ?: "english")) {
+                                return@forEach
+                            }
+                        }
+
+                        if (!lv &&
+                            depotConfig["lowviolence"] != KeyValue.INVALID &&
+                            depotConfig["lowviolence"].asBoolean()
+                        ) {
+                            return@forEach
+                        }
+                    }
+                }
+
+                depotIdsFound.add(id)
+
+                if (!hasSpecificDepots) {
+                    depotManifestIds.add(id to INVALID_MANIFEST_ID)
+                }
+            }
+
+            if (depotManifestIds.isEmpty() && !hasSpecificDepots) {
+                throw ContentDownloaderException("Couldn't find any depots to download for app $appId")
+            }
+
+            if (depotIdsFound.size < depotIdsExpected.size) {
+                val remainingDepotIds = depotIdsExpected.subtract(depotIdsFound.toSet())
+                throw ContentDownloaderException("Depot ${remainingDepotIds.joinToString(", ")} not listed for app $appId")
             }
         }
 
-        TODO()
+        val infos = mutableListOf<DepotDownloadInfo>()
+
+        depotManifestIds.forEach { (depotId, manifestId) ->
+            val info = getDepotInfo(depotId, appId, manifestId, branch)
+            if (info != null) {
+                infos.add(info)
+            }
+        }
+
+        downloadSteam3(infos)
+    }
+
+    private suspend fun getDepotInfo(
+        depotId: Int,
+        appId: Int,
+        manifestId: Long,
+        branch: String,
+    ): DepotDownloadInfo? {
+        var manifestId = manifestId
+        var branch = branch
+
+        if (appId != INVALID_APP_ID) {
+            requestAppInfo(appId)
+        }
+
+        if (!accountHasAccess(appId, depotId)) {
+            logger?.error("Depot $depotId is not available from this account.")
+            return null
+        }
+
+        if (manifestId == INVALID_MANIFEST_ID) {
+            manifestId = getSteam3DepotManifest(depotId, appId, branch)
+
+            if (manifestId == INVALID_MANIFEST_ID && !branch.equals(DEFAULT_BRANCH, true)) {
+                logger?.error("Warning: Depot $depotId does not have branch named \"$branch\". Trying $DEFAULT_BRANCH branch.")
+                branch = DEFAULT_BRANCH
+                manifestId = getSteam3DepotManifest(depotId, appId, branch)
+            }
+
+            if (manifestId == INVALID_MANIFEST_ID) {
+                logger?.error("Depot $depotId missing public subsection or manifest section.")
+                return null
+            }
+        }
+
+        requestDepotKey(depotId, appId)
+
+        val depotKey = depotKeys[depotId]
+        if (depotKey == null) {
+            logger?.error("No valid depot key for $depotId, unable to download.")
+            return null
+        }
+
+        val uVersion = getSteam3AppBuildNumber(appId, branch)
+
+        val result = createDirectories(depotId, uVersion)
+        if (result == null) {
+            logger?.error("Error: Unable to create install directories!")
+            return null
+        }
+
+        // For depots that are proxied through depotfromapp, we still need to resolve the proxy app id, unless the app is freetodownload
+        var containingAppId = appId
+        val proxyAppId = getSteam3DepotProxyAppId(depotId, appId)
+        if (proxyAppId != INVALID_APP_ID) {
+            val common = getSteam3AppSection(appId, EAppInfoSection.Common)
+            if (common == null || !common["FreeToDownload"].asBoolean()) {
+                containingAppId = proxyAppId
+            }
+        }
+
+        return DepotDownloadInfo(depotId, containingAppId, manifestId, branch, result, depotKey)
+    }
+
+    private suspend fun getSteam3DepotManifest(
+        depotId: Int,
+        appId: Int,
+        branch: String,
+    ): Long {
+        val depots = getSteam3AppSection(appId, EAppInfoSection.Depots)
+        var depotChild = depots?.get(depotId.toString()) ?: KeyValue.INVALID
+
+        if (depotChild == KeyValue.INVALID) {
+            return INVALID_MANIFEST_ID
+        }
+
+        // Shared depots can either provide manifests, or leave you relying on their parent app.
+        // It seems that with the latter, "sharedinstall" will exist (and equals 2 in the one existance I know of).
+        // Rather than relay on the unknown sharedinstall key, just look for manifests. Test cases: 111710, 346680.
+        if (depotChild["manifests"] == KeyValue.INVALID && depotChild["depotfromapp"] != KeyValue.INVALID) {
+            val otherAppId = depotChild["depotfromapp"].asInteger()
+            if (otherAppId == appId) {
+                // This shouldn't ever happen, but ya never know with Valve. Don't infinite loop.
+                logger?.error("App $appId, Depot $depotId has depotfromapp of $otherAppId!")
+                return INVALID_MANIFEST_ID
+            }
+
+            requestAppInfo(otherAppId)
+
+            return getSteam3DepotManifest(depotId, otherAppId, branch)
+        }
+
+        var manifests = depotChild["manifests"]
+
+        if (manifests.children.isEmpty()) {
+            return INVALID_MANIFEST_ID
+        }
+
+        var node = manifests[branch]["gid"]
+
+        // Non passworded branch, found the manifest
+        if (node.value != null) {
+            return node.value!!.toLong()
+        }
+
+        // If we requested public branch, and it had no manifest, nothing to do
+        if (branch.equals(DEFAULT_BRANCH, true)) {
+            return INVALID_MANIFEST_ID
+        }
+
+        // Either the branch just doesn't exist, or it has a password
+        if (config.betaPassword.isNullOrBlank()) {
+            logger?.error("Branch $branch for depot $depotId was not found, either it does not exist or it has a password.")
+            return INVALID_MANIFEST_ID
+        }
+
+        if (!appBetaPasswords.contains(branch)) {
+            // Submit the password to Steam now to get encryption keys
+            checkAppBetaPassword(appId, config.betaPassword!!)
+
+            if (!appBetaPasswords.containsKey(branch)) {
+                logger?.error("Error: Password was invalid for branch $branch (or the branch does not exist)")
+                return INVALID_MANIFEST_ID
+            }
+        }
+
+        // Got the password, request private depot section
+        // TODO: (SK) We're probably repeating this request for every depot?
+        val privateDepotSection = getPrivateBetaDepotSection(appId, branch)
+
+        // Now repeat the same code to get the manifest gid from depot section
+        depotChild = privateDepotSection[depotId.toString()]
+
+        if (depotChild == KeyValue.INVALID) {
+            return INVALID_MANIFEST_ID
+        }
+
+        manifests = depotChild["manifests"]
+
+        if (manifests.children.isEmpty()) {
+            return INVALID_MANIFEST_ID
+        }
+
+        node = manifests[branch]["gid"]
+
+        if (node.value == null) {
+            return INVALID_MANIFEST_ID
+        }
+
+        return node.value!!.toLong()
+    }
+
+    private fun getSteam3AppBuildNumber(appId: Int, branch: String): Int {
+        if (appId == INVALID_APP_ID) {
+            return 0
+        }
+
+        val depots = getSteam3AppSection(appId, EAppInfoSection.Depots) ?: KeyValue.INVALID
+        val branches = depots["branches"]
+        val node = branches[branch]
+
+        if (node == KeyValue.INVALID) {
+            return 0
+        }
+
+        val buildId = node["buildid"]
+
+        if (buildId == KeyValue.INVALID) {
+            return 0
+        }
+
+        return buildId.value!!.toInt()
+    }
+
+    private fun getSteam3DepotProxyAppId(depotId: Int, appId: Int): Int {
+        val depots = getSteam3AppSection(appId, EAppInfoSection.Depots) ?: KeyValue.INVALID
+        val depotChild = depots[depotId.toString()]
+
+        if (depotChild == KeyValue.INVALID) {
+            return INVALID_APP_ID
+        }
+
+        if (depotChild["depotfromapp"] == KeyValue.INVALID) {
+            return INVALID_APP_ID
+        }
+
+        return depotChild["depotfromapp"].asInteger()
     }
 
     private fun createDirectories(depotId: Int, depotVersion: Int): Path? = try {
@@ -604,10 +870,12 @@ class ContentDownloader @JvmOverloads constructor(
 
         licenseQuery.forEach { license ->
             packageInfo[license]?.let { pkg ->
-                if (pkg.keyValues["appids"].children.any { child -> child.asInteger() == depotId }) {
+                val appIds = pkg.keyValues["appids"].children.map { it.asInteger() }
+                val depotIds = pkg.keyValues["depotids"].children.map { it.asInteger() }
+                if (depotId in appIds) {
                     return true
                 }
-                if (pkg.keyValues["depotids"].children.any { child -> child.asInteger() == depotId }) {
+                if (depotId in depotIds) {
                     return true
                 }
             }
@@ -618,15 +886,269 @@ class ContentDownloader @JvmOverloads constructor(
 
         return info != null && info["FreeToDownload"].asBoolean()
     }
+
+    private suspend fun downloadSteam3(depots: List<DepotDownloadInfo>): Unit = coroutineScope {
+        // TODO Indeterminate progress info
+
+        cdnClientPool?.updateServerList()
+
+        val downloadCounter = GlobalDownloadCounter()
+        val depotsToDownload = ArrayList<DepotFilesData>(depots.size)
+        val allFileNamesAllDepots = hashSetOf<String>()
+
+        // First, fetch all the manifests for each depot (including previous manifests) and perform the initial setup
+        depots.forEach { depot ->
+            val depotFileData = processDepotManifestAndFiles(depot, downloadCounter)
+
+            if (depotFileData != null) {
+                depotsToDownload.add(depotFileData)
+                allFileNamesAllDepots.union(depotFileData.allFileNames)
+            }
+
+            ensureActive()
+        }
+
+        // If we're about to write all the files to the same directory, we will need to first de-duplicate any files by path
+        // This is in last-depot-wins order, from Steam or the list of depots supplied by the user
+        if (config.installPath != null && depotsToDownload.isNotEmpty()) {
+            val claimedFileNames = mutableSetOf<String>()
+            for (i in depotsToDownload.indices.reversed()) {
+                // For each depot, remove all files from the list that have been claimed by a later depot
+                depotsToDownload[i].filteredFiles.removeAll { file -> file.fileName in claimedFileNames }
+                claimedFileNames.addAll(depotsToDownload[i].allFileNames)
+            }
+        }
+
+        depotsToDownload.forEach { depotFileData ->
+            downloadSteam3DepotFiles(downloadCounter, depotFileData, allFileNamesAllDepots)
+        }
+
+        logger?.debug(
+            "Total downloaded: ${downloadCounter.totalBytesCompressed} bytes " +
+                "(${downloadCounter.totalBytesUncompressed} bytes uncompressed) from ${depots.size} depots"
+        )
+    }
+
+    private suspend fun processDepotManifestAndFiles(
+        depot: DepotDownloadInfo,
+        downloadCounter: GlobalDownloadCounter,
+    ): DepotFilesData? = withContext(Dispatchers.IO) {
+        val depotCounter = DepotDownloadCounter()
+
+        logger?.debug("Processing depot ${depot.depotId}")
+
+        var oldManifest: DepotManifest? = null
+        var newManifest: DepotManifest? = null
+        val configDir = depot.installDir / CONFIG_DIR
+
+        var lastManifestId = INVALID_MANIFEST_ID
+        lastManifestId = DepotConfigStore.getInstance().installedManifestIDs[depot.depotId] ?: INVALID_MANIFEST_ID
+
+        // In case we have an early exit, this will force equiv of verifyall next run.
+        DepotConfigStore.getInstance().installedManifestIDs[depot.depotId] = INVALID_MANIFEST_ID
+        DepotConfigStore.save()
+
+        if (lastManifestId != INVALID_MANIFEST_ID) {
+            // We only have to show this warning if the old manifest ID was different
+            val badHashWarning = lastManifestId != depot.manifestId
+            oldManifest = Util.loadManifestFromFile(configDir, depot.depotId, lastManifestId, badHashWarning)
+        }
+
+        if (lastManifestId == depot.manifestId && oldManifest != null) {
+            newManifest = oldManifest
+            logger?.debug("Already have manifest ${depot.manifestId} for depot ${depot.depotId}.")
+        } else {
+            newManifest = Util.loadManifestFromFile(configDir, depot.depotId, depot.manifestId, true)
+
+            if (newManifest != null) {
+                logger?.debug("Already have manifest ${depot.manifestId} for depot ${depot.depotId}.")
+            } else {
+                logger?.debug("Downloading depot ${depot.depotId} manifest")
+
+                var manifestRequestCode: Long = 0
+                var manifestRequestCodeExpiration = Instant.MIN
+
+                do {
+                    ensureActive()
+
+                    var connection: Server? = null
+
+                    try {
+                        connection = cdnClientPool!!.getConnection()
+
+                        var cdnToken: String? = null
+
+                        val authTokenCallbackPromise = cdnAuthTokens[depot.depotId to connection.host]
+                        if (authTokenCallbackPromise != null) {
+                            val result = authTokenCallbackPromise.await()
+                            cdnToken = result.token
+                        }
+
+                        val now = Instant.now()
+
+                        // In order to download this manifest, we need the current manifest request code
+                        // The manifest request code is only valid for a specific period in time
+                        if (manifestRequestCode == 0L || now >= manifestRequestCodeExpiration) {
+                            manifestRequestCode = getDepotManifestRequestCode(
+                                depotId = depot.depotId,
+                                appId = depot.appId,
+                                manifestId = depot.manifestId,
+                                branch = depot.branch,
+                            )
+
+                            // This code will hopefully be valid for one period following the issuing period
+                            manifestRequestCodeExpiration = now.plus(5, ChronoUnit.MINUTES)
+
+                            // If we could not get the manifest code, this is a fatal error
+                            if (manifestRequestCode == 0L) {
+                                cancel()
+                            }
+                        }
+
+                        logger?.debug("Downloading manifest ${depot.manifestId} from $connection with ${cdnClientPool!!.proxyServer ?: "no proxy"}")
+
+                        newManifest = cdnClientPool!!.cdnClient!!.downloadManifest(
+                            depotId = depot.depotId,
+                            manifestId = depot.manifestId,
+                            manifestRequestCode = manifestRequestCode,
+                            server = connection,
+                            depotKey = depot.depotKey,
+                            proxyServer = cdnClientPool!!.proxyServer,
+                            cdnAuthToken = cdnToken,
+                        )
+
+                        cdnClientPool!!.returnConnection(connection)
+                    } catch (e: CancellationException) {
+                        // logger?.error("Connection timeout downloading depot manifest ${depot.depotId} ${depot.manifestId}. Retrying.")
+                        logger?.error(e)
+                        break
+                    } catch (e: SteamKitWebRequestException) {
+                        // If the CDN returned 403, attempt to get a cdn auth if we didn't yet
+                        if (e.statusCode == 403 && cdnAuthTokens.containsKey(depot.depotId to connection!!.host)) {
+                            requestCDNAuthToken(depot.appId, depot.depotId, connection)
+
+                            cdnClientPool!!.returnConnection(connection)
+
+                            continue
+                        }
+
+                        cdnClientPool!!.returnBrokenConnection(connection)
+
+                        // Unauthorized || Forbidden
+                        if (e.statusCode == 401 || e.statusCode == 403) {
+                            logger?.error("Encountered ${depot.depotId} for depot manifest ${depot.manifestId} ${e.statusCode}. Aborting.")
+                            break
+                        }
+
+                        // NotFound
+                        if (e.statusCode == 404) {
+                            logger?.error("Encountered 404 for depot manifest ${depot.depotId} ${depot.manifestId}. Aborting.")
+                            break
+                        }
+
+                        logger?.error("Encountered error downloading depot manifest ${depot.depotId} ${depot.manifestId}: ${e.statusCode}")
+                    } catch (e: Exception) {
+                        cdnClientPool!!.returnBrokenConnection(connection)
+                        logger?.error("Encountered error downloading manifest for depot ${depot.depotId} ${depot.manifestId}: ${e.message}")
+                    }
+                } while (newManifest == null)
+
+                if (newManifest == null) {
+                    logger?.error("\nUnable to download manifest ${depot.manifestId} for depot ${depot.depotId}")
+                    cancel()
+                }
+
+                // Throw the cancellation exception if requested so that this task is marked failed
+                ensureActive()
+
+                Util.saveManifestToFile(configDir, newManifest!!)
+            }
+        }
+
+        logger?.debug("Manifest ${depot.manifestId} (${newManifest!!.creationTime})")
+
+        if (config.downloadManifestOnly) {
+            Util.dumpManifestToTextFile(depot, newManifest)
+            return@withContext null
+        }
+
+        val stagingDir = depot.installDir / STAGING_DIR
+
+        val filesAfterExclusions = coroutineScope {
+            newManifest.files.filter { file ->
+                async { testIsFileIncluded(file.fileName) }.await()
+            }
+        }
+        val allFileNames = HashSet<String>(filesAfterExclusions.size)
+
+        // Pre-process
+        filesAfterExclusions.forEach { file ->
+            allFileNames.add(file.fileName)
+
+            val fileFinalPath = depot.installDir / file.fileName
+            val fileStagingPath = stagingDir / file.fileName
+
+            if (file.flags.contains(EDepotFileFlag.Directory)) {
+                filesystem.createDirectories(fileFinalPath)
+                filesystem.createDirectories(fileStagingPath)
+            } else {
+                // Some manifests don't explicitly include all necessary directories
+                filesystem.createDirectories(fileFinalPath.parent!!)
+                filesystem.createDirectories(fileStagingPath.parent!!)
+
+                downloadCounter.completeDownloadSize += file.totalSize
+                depotCounter.completeDownloadSize += file.totalSize
+            }
+        }
+
+        return@withContext DepotFilesData(
+            depotDownloadInfo = depot,
+            depotCounter = depotCounter,
+            stagingDir = stagingDir,
+            manifest = newManifest,
+            previousManifest = oldManifest,
+            filteredFiles = filesAfterExclusions.toMutableList(),
+            allFileNames = allFileNames,
+        )
+    }
+
+    private suspend fun downloadSteam3DepotFiles(
+        downloadCounter: GlobalDownloadCounter,
+        depotFilesData: DepotFilesData,
+        allFileNamesAllDepots: HashSet<String>,
+    ) {
+        TODO()
+    }
+
+    private fun testIsFileIncluded(filename: String): Boolean {
+        if (!config.usingFileList) {
+            return true
+        }
+
+        val normalizedFilename = filename.replace('\\', '/')
+
+        if (normalizedFilename in config.filesToDownload) {
+            return true
+        }
+
+        for (regex in config.filesToDownloadRegex) {
+            if (regex.matches(normalizedFilename)) {
+                return true
+            }
+        }
+
+        return false
+    }
+
     // endregion
 
     // region [REGION] Listener Operations
 
-    fun addListener(listener: DownloadListener) {
+    fun addListener(listener: IDownloadListener) {
         listeners.add(listener)
     }
 
-    fun removeListener(listener: DownloadListener) {
+    fun removeListener(listener: IDownloadListener) {
         listeners.remove(listener)
     }
 
@@ -639,6 +1161,10 @@ class ContentDownloader @JvmOverloads constructor(
     fun size(): Int = items.size
 
     fun isEmpty(): Boolean = items.isEmpty()
+
+    fun addAll(items: List<DownloadItem>) {
+        items.forEach(::add)
+    }
 
     fun add(item: DownloadItem) {
         val index = items.size
@@ -773,37 +1299,153 @@ class ContentDownloader @JvmOverloads constructor(
 
     // endregion
 
-    fun start() {
-        scope.launch {
-            isStarted.set(true) // Deny Array manipulation, except for adding.
+    /**
+     * Android emulation uses Windows, so this method sets internal configs to return "windows" if the device is android.
+     */
+    fun setAndroidEmulation(value: Boolean) {
+        config = config.copy(androidEmulation = true)
+    }
 
-            items.forEach { processingChannel.send(it) } // Add existing to queue
-
-            // Process the channel, adding more items after we start is allowed.
-            for (item in processingChannel) {
-                ensureActive()
-
-                if (!isStarted.get()) {
-                    break
-                }
-
-                if (item.pubFile != null) {
-                    logger?.debug("Downloading PUB File for ${item.appId}")
-
-                    downloadPubFile(item)
-                } else if (item.ugcId != null) {
-                    logger?.debug("Downloading UGC File for ${item.appId}")
-
-                    downloadUGC(item)
-                } else {
-                    logger?.debug("Trying App download for ${item.appId}")
-
-                    downloadApp(item)
-                }
-
-                // TODO remove from internal list and notify when done??
-            }
+    fun start(): CompletableFuture<Boolean> = scope.future {
+        if (isStarted.get()) {
+            logger?.debug("Downloading already started.")
+            return@future false
         }
+
+        isStarted.set(true)
+
+        val initialItems = items.toList()
+
+        if (initialItems.isEmpty()) {
+            logger?.debug("No items to download")
+            return@future false
+        }
+
+        initialItems.forEach { processingChannel.send(it) }
+
+        val downloadJobs = mutableListOf<Job>()
+
+        // TODO revert back to suspending loop incase more is added in the Channel.
+        repeat(initialItems.size) {
+            ensureActive()
+
+            if (!isStarted.get()) {
+                return@future false
+            }
+
+            val item = processingChannel.receive()
+
+            val job = scope.launch {
+                try {
+                    when (item) {
+                        is PubFileItem -> {
+                            if (item.pubfile == INVALID_MANIFEST_ID) {
+                                logger?.debug("Invalid Pub File ID for ${item.appId}")
+                                return@launch
+                            }
+                            logger?.debug("Downloading PUB File for ${item.appId}")
+                            config = config.copy(downloadManifestOnly = item.downloadManifestOnly)
+                            downloadPubFile(item.appId, item.pubfile)
+                        }
+
+                        is UgcItem -> {
+                            if (item.ugcId == INVALID_MANIFEST_ID) {
+                                logger?.debug("Invalid UGC ID for ${item.appId}")
+                                return@launch
+                            }
+                            logger?.debug("Downloading UGC File for ${item.appId}")
+                            config = config.copy(downloadManifestOnly = item.downloadManifestOnly)
+                            downloadUGC(item.appId, item.ugcId)
+                        }
+
+                        is AppItem -> {
+                            logger?.debug("Downloading App for ${item.appId}")
+
+                            val branch = item.branch ?: DEFAULT_BRANCH
+                            config = config.copy(betaPassword = item.branchPassword)
+
+                            if (!config.betaPassword.isNullOrBlank() && branch.isBlank()) {
+                                logger?.error("Error: Cannot specify 'branchpassword' when 'branch' is not specified.")
+                                return@launch
+                            }
+
+                            config = config.copy(downloadAllPlatforms = item.downloadAllPlatforms)
+
+                            val os = item.os
+
+                            if (config.downloadAllPlatforms && !os.isNullOrBlank()) {
+                                logger?.error("Error: Cannot specify `os` when `all-platforms` is specified.")
+                                return@launch
+                            }
+
+                            config = config.copy(downloadAllArchs = item.downloadAllArchs)
+
+                            val arch = item.osArch
+
+                            if (config.downloadAllArchs && !arch.isNullOrBlank()) {
+                                logger?.error("Error: Cannot specify `osarch` when `all-archs` is specified.")
+                                return@launch
+                            }
+
+                            config = config.copy(downloadAllLanguages = item.downloadAllLanguages)
+
+                            val language = item.language
+
+                            if (config.downloadAllLanguages && !language.isNullOrBlank()) {
+                                logger?.error("Error: Cannot specify `language` when `all-languages` is specified.")
+                                return@launch
+                            }
+
+                            val lv = item.lowViolence
+
+                            val depotManifestIds = mutableListOf<Pair<Int, Long>>()
+                            val isUGC = false
+
+                            val depotIdList = item.depot
+                            val manifestIdList = item.manifest
+
+                            if (manifestIdList.isNotEmpty()) {
+                                if (depotIdList.size != manifestIdList.size) {
+                                    logger?.error("Error: `manifest` requires one id for every `depot` specified")
+                                    return@launch
+                                }
+                                val zippedDepotManifest = depotIdList.zip(manifestIdList) { depotId, manifestId ->
+                                    Pair(depotId, manifestId)
+                                }
+                                depotManifestIds.addAll(zippedDepotManifest)
+                            } else {
+                                depotManifestIds.addAll(
+                                    depotIdList.map { depotId ->
+                                        Pair(depotId, INVALID_MANIFEST_ID)
+                                    }
+                                )
+                            }
+
+                            config = config.copy(downloadManifestOnly = item.downloadManifestOnly)
+
+                            downloadApp(
+                                appId = item.appId,
+                                depotManifestIds = depotManifestIds,
+                                branch = branch,
+                                os = os,
+                                arch = arch,
+                                language = language,
+                                lv = lv,
+                                isUgc = isUGC,
+                            )
+                        }
+                    }
+                } catch (e: Exception) {
+                    logger?.error("Error downloading item ${item.appId}: ${e.message}", e)
+                    throw e
+                }
+            }
+
+            downloadJobs.add(job)
+        }
+
+        downloadJobs.joinAll()
+        return@future true
     }
 
     override fun close() {
@@ -843,7 +1485,7 @@ class ContentDownloader @JvmOverloads constructor(
         logger = null
     }
 
-    private fun notifyListeners(action: (DownloadListener) -> Unit) {
+    private fun notifyListeners(action: (IDownloadListener) -> Unit) {
         listeners.forEach { listener ->
             try {
                 action(listener)

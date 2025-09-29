@@ -66,6 +66,7 @@ qrCode = { module = "pro.leaco.qrcode:console-qrcode", version.ref = "qrCode" }
 kotlin-dokka = { id = "org.jetbrains.dokka", version.ref = "dokka" }
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 kotlin-kotlinter = { id = "org.jmailen.kotlinter", version.ref = "kotlinter" }
+kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
 maven-publish = { id = "io.github.gradle-nexus.publish-plugin", version.ref = "publishPlugin" }
 protobuf-gradle = { id = "com.google.protobuf", version.ref = "protobuf-gradle" }
 

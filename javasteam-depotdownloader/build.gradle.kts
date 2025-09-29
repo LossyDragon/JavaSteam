@@ -7,6 +7,7 @@ plugins {
     alias(libs.plugins.kotlin.dokka)
     alias(libs.plugins.kotlin.jvm)
     alias(libs.plugins.kotlin.kotlinter)
+    alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.protobuf.gradle)
     id("maven-publish")
     id("signing")
@@ -69,6 +70,8 @@ dependencies {
     implementation(rootProject) // TODO verify if this causes something like a circular dependency.
 
     implementation("com.squareup.okio:okio:3.16.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0")
+
     implementation(libs.bundles.ktor)
     implementation(libs.commons.lang3)
     implementation(libs.kotlin.coroutines)
