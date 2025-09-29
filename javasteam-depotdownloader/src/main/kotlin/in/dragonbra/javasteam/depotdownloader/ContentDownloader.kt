@@ -1,5 +1,6 @@
 package `in`.dragonbra.javasteam.depotdownloader
 
+import `in`.dragonbra.javasteam.depotdownloader.Steam3Session
 import `in`.dragonbra.javasteam.depotdownloader.data.AppItem
 import `in`.dragonbra.javasteam.depotdownloader.data.DepotDownloadCounter
 import `in`.dragonbra.javasteam.depotdownloader.data.DepotDownloadInfo
@@ -12,21 +13,10 @@ import `in`.dragonbra.javasteam.depotdownloader.data.UgcItem
 import `in`.dragonbra.javasteam.enums.EAccountType
 import `in`.dragonbra.javasteam.enums.EAppInfoSection
 import `in`.dragonbra.javasteam.enums.EDepotFileFlag
-import `in`.dragonbra.javasteam.enums.EResult
-import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesPublishedfileSteamclient.CPublishedFile_GetDetails_Request
-import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesPublishedfileSteamclient.PublishedFileDetails
-import `in`.dragonbra.javasteam.rpc.service.PublishedFile
 import `in`.dragonbra.javasteam.steam.cdn.ClientLancache
 import `in`.dragonbra.javasteam.steam.cdn.Server
 import `in`.dragonbra.javasteam.steam.handlers.steamapps.License
-import `in`.dragonbra.javasteam.steam.handlers.steamapps.PICSProductInfo
-import `in`.dragonbra.javasteam.steam.handlers.steamapps.PICSRequest
-import `in`.dragonbra.javasteam.steam.handlers.steamapps.SteamApps
-import `in`.dragonbra.javasteam.steam.handlers.steamcloud.SteamCloud
 import `in`.dragonbra.javasteam.steam.handlers.steamcloud.callback.UGCDetailsCallback
-import `in`.dragonbra.javasteam.steam.handlers.steamcontent.CDNAuthToken
-import `in`.dragonbra.javasteam.steam.handlers.steamcontent.SteamContent
-import `in`.dragonbra.javasteam.steam.handlers.steamuser.SteamUser
 import `in`.dragonbra.javasteam.steam.steamclient.SteamClient
 import `in`.dragonbra.javasteam.types.DepotManifest
 import `in`.dragonbra.javasteam.types.KeyValue
@@ -40,7 +30,6 @@ import io.ktor.client.statement.bodyAsChannel
 import io.ktor.http.HttpHeaders
 import io.ktor.utils.io.readRemaining
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -53,8 +42,6 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.future.future
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.io.readByteArray
 import okio.FileSystem
@@ -99,19 +86,7 @@ class ContentDownloader @JvmOverloads constructor(
     private val isStarted: AtomicBoolean = AtomicBoolean(false)
     private val processingChannel = Channel<DownloadItem>(Channel.UNLIMITED)
 
-    internal var steamUser: SteamUser? = null
-    internal var steamContent: SteamContent? = null
-    internal var steamApps: SteamApps? = null
-    internal var steamCloud: SteamCloud? = null
-    internal var steamPublishedFile: PublishedFile? = null
-
-    internal val appTokens = mutableMapOf<Int, Long>()
-    internal val packageTokens = mutableMapOf<Int, Long>()
-    internal val depotKeys = mutableMapOf<Int, ByteArray>()
-    internal val cdnAuthTokens = ConcurrentHashMap<Pair<Int, String>, CompletableDeferred<CDNAuthToken>>()
-    internal val appInfo = mutableMapOf<Int, PICSProductInfo?>()
-    internal val packageInfo = mutableMapOf<Int, PICSProductInfo?>()
-    internal val appBetaPasswords = mutableMapOf<String, ByteArray>()
+    private var steam3: Steam3Session? = null
 
     private var cdnClientPool: CDNClientPool? = null
 
@@ -139,10 +114,7 @@ class ContentDownloader @JvmOverloads constructor(
 
         logger?.debug("DepotDownloader launched with ${licenses.size} for account")
 
-        steamUser = requireNotNull(steamClient.getHandler<SteamUser>())
-        steamContent = requireNotNull(steamClient.getHandler<SteamContent>())
-        steamApps = requireNotNull(steamClient.getHandler<SteamApps>())
-        steamCloud = requireNotNull(steamClient.getHandler<SteamCloud>())
+        steam3 = Steam3Session(steamClient, debug)
 
         scope.launch {
             if (useLanCache) {
@@ -159,203 +131,9 @@ class ContentDownloader @JvmOverloads constructor(
         }
     }
 
-    // region [REGION] Steam Operations
-    private val packageInfoMutex = Mutex()
-    suspend fun requestPackageInfo(packageIds: ArrayList<Int>) {
-        packageInfoMutex.withLock {
-            // I have a silly race condition???
-            val packagesToFetch = packageIds.toMutableList() // I have to create a copy for some reason??
-            packagesToFetch.removeAll(packageInfo.keys)
-
-            if (packagesToFetch.isEmpty()) return
-
-            val packageRequests = arrayListOf<PICSRequest>()
-
-            packagesToFetch.forEach { pkg ->
-                val request = PICSRequest(id = pkg)
-
-                packageTokens[pkg]?.let { token ->
-                    request.accessToken = token
-                }
-
-                packageRequests.add(request)
-            }
-
-            val packageInfoMultiple = steamApps!!.picsGetProductInfo(emptyList(), packageRequests).await()
-
-            packageInfoMultiple.results.forEach { pkgInfo ->
-                pkgInfo.packages.forEach { pkgValue ->
-                    val pkg = pkgValue.value
-                    packageInfo[pkg.id] = pkg
-                }
-                pkgInfo.unknownPackages.forEach { pkgValue ->
-                    packageInfo[pkgValue] = null
-                }
-            }
-        }
-    }
-
-    suspend fun getPublishedFileDetails(appId: Int, pubFile: PublishedFileID): PublishedFileDetails? {
-        val pubFileRequest = CPublishedFile_GetDetails_Request.newBuilder().apply {
-            this.appid = appId
-            this.addPublishedfileids(pubFile.toLong())
-        }.build()
-
-        val details = steamPublishedFile!!.getDetails(pubFileRequest).await()
-
-        if (details.result == EResult.OK) {
-            return details.body.publishedfiledetailsBuilderList.firstOrNull()?.build()
-        }
-
-        throw ContentDownloaderException("EResult ${details.result.code()} (${details.result}) while retrieving file details for pubfile $pubFile.")
-    }
-
-    suspend fun getUGCDetails(ugcHandle: UGCHandle): UGCDetailsCallback? {
-        val callback = steamCloud!!.requestUGCDetails(ugcHandle).await()
-
-        if (callback.result == EResult.OK) {
-            return callback
-        } else if (callback.result == EResult.FileNotFound) {
-            return null
-        }
-
-        throw ContentDownloaderException($"EResult ${callback.result.code()} (${callback.result}) while retrieving UGC details for ${ugcHandle.value}.")
-    }
-
-    suspend fun requestAppInfo(appId: Int, bForce: Boolean = false) {
-        if ((appInfo.contains(appId) && !bForce)) {
-            return
-        }
-
-        val appTokens = steamApps!!.picsGetAccessTokens(appId).await()
-
-        if (appTokens.appTokensDenied.contains(appId)) {
-            logger?.error("Insufficient privileges to get access token for app $appId")
-        }
-
-        appTokens.appTokens.forEach { tokenDict ->
-            this.appTokens[tokenDict.key] = tokenDict.value
-        }
-
-        val request = PICSRequest(appId)
-
-        this.appTokens[appId]?.let { token ->
-            request.accessToken = token
-        }
-
-        val appInfoMultiple = steamApps!!.picsGetProductInfo(request).await()
-
-        appInfoMultiple.results.forEach { appInfo ->
-            appInfo.apps.forEach { appValue ->
-                val app = appValue.value
-                logger?.debug("Got AppInfo for ${app.id}")
-                this.appInfo[app.id] = app
-            }
-            appInfo.unknownApps.forEach { app ->
-                this.appInfo[app] = null
-            }
-        }
-    }
-
-    suspend fun requestFreeAppLicense(appId: Int): Boolean {
-        try {
-            val resultInfo = steamApps!!.requestFreeLicense(appId).await()
-            return resultInfo.grantedApps.contains(appId)
-        } catch (e: Exception) {
-            logger?.error("Failed to request FreeOnDemand license for app $appId: ${e.message}")
-            return false
-        }
-    }
-
-    suspend fun requestDepotKey(depotId: Int, appId: Int = 0) {
-        if (depotKeys.contains(depotId)) {
-            return
-        }
-
-        val depotKey = steamApps!!.getDepotDecryptionKey(depotId, appId).await()
-
-        logger?.debug("Got depot key for ${depotKey.depotID} result: ${depotKey.result}")
-
-        if (depotKey.result != EResult.OK) {
-            return
-        }
-
-        depotKeys[depotKey.depotID] = depotKey.depotKey
-    }
-
-    suspend fun getDepotManifestRequestCode(
-        depotId: Int,
-        appId: Int,
-        manifestId: Long,
-        branch: String,
-    ) = withContext(Dispatchers.IO) {
-        val requestCode = steamContent!!.getManifestRequestCode(
-            depotId = depotId,
-            appId = appId,
-            manifestId = manifestId,
-            branch = branch,
-            branchPasswordHash = null,
-            parentScope = this
-        ).await()
-
-        if (requestCode == 0L) {
-            logger?.error("No manifest request code was returned for depot $depotId from app $appId, manifest $manifestId")
-
-            if (steamClient.isDisconnected) {
-                logger?.debug("Suggestion: Try logging in with -username as old manifests may not be available for anonymous accounts.")
-            }
-        } else {
-            logger?.debug("Got manifest request code for depot $depotId from app $appId, manifest $manifestId, result: $requestCode")
-        }
-
-        return@withContext requestCode
-    }
-
-    suspend fun requestCDNAuthToken(appId: Int, depotId: Int, server: Server) = withContext(Dispatchers.IO) {
-        val cdnKey = depotId to server.host!!
-        val completion = CompletableDeferred<CDNAuthToken>()
-
-        cdnAuthTokens[cdnKey] = completion
-
-        logger?.debug("Requesting CDN auth token for ${server.host}")
-
-        val cdnAuth = steamContent!!.getCDNAuthToken(appId, depotId, server.host!!, this).await()
-
-        logger?.debug("Got CDN auth token for ${server.host} result: ${cdnAuth.result} (expires ${cdnAuth.expiration})")
-
-        if (cdnAuth.result != EResult.OK) {
-            return@withContext
-        }
-
-        completion.complete(cdnAuth)
-    }
-
-    suspend fun checkAppBetaPassword(appId: Int, password: String) {
-        val appPassword = steamApps!!.checkAppBetaPassword(appId, password).await()
-
-        logger?.debug("Retrieved ${appPassword.betaPasswords.size} beta keys with result: ${appPassword.result}")
-
-        appPassword.betaPasswords.forEach { entry ->
-            this.appBetaPasswords[entry.key] = entry.value
-        }
-    }
-
-    suspend fun getPrivateBetaDepotSection(appId: Int, branch: String): KeyValue {
-        // Should be filled by CheckAppBetaPassword
-        val branchPassword = appBetaPasswords[branch] ?: return KeyValue()
-
-        // Should be filled by RequestAppInfo
-        val accessToken = appTokens[appId] ?: 0L
-
-        val privateBeta = steamApps!!.picsGetPrivateBeta(appId, accessToken, branch, branchPassword).await()
-
-        return privateBeta.depotSection
-    }
-    // endregion
-
     // region [REGION] Downloading Operations
     suspend fun downloadPubFile(appId: Int, publishedFileId: Long) {
-        val details = getPublishedFileDetails(appId, PublishedFileID(publishedFileId))
+        val details = steam3!!.getPublishedFileDetails(appId, PublishedFileID(publishedFileId))
 
         requireNotNull(details)
 
@@ -383,12 +161,12 @@ class ContentDownloader @JvmOverloads constructor(
     ) {
         var details: UGCDetailsCallback? = null
 
-        val steamUser = requireNotNull(steamUser)
+        val steamUser = requireNotNull(steam3!!.steamUser)
         val steamId = requireNotNull(steamUser.steamID)
 
         if (steamId.accountType != EAccountType.AnonUser) {
             val ugcHandle = UGCHandle(ugcId)
-            details = getUGCDetails(ugcHandle)
+            details = steam3!!.getUGCDetails(ugcHandle)
         } else {
             logger?.error("Unable to query UGC details for $ugcId from an anonymous account")
         }
@@ -505,7 +283,7 @@ class ContentDownloader @JvmOverloads constructor(
     ) {
         var depotManifestIds = depotManifestIds.toMutableList()
 
-        val steamUser = requireNotNull(steamUser)
+        val steamUser = requireNotNull(steam3!!.steamUser)
         cdnClientPool = CDNClientPool.init(steamClient, appId, debug)
 
         // Load our configuration data containing the depots currently installed
@@ -514,14 +292,14 @@ class ContentDownloader @JvmOverloads constructor(
         filesystem.createDirectories(configPath)
         DepotConfigStore.loadFromFile(configPath / CONFIG_DIR / "depot.config")
 
-        requestAppInfo(appId)
+        steam3!!.requestAppInfo(appId)
 
         if (!accountHasAccess(appId, appId)) {
-            if (steamUser.steamID!!.accountType != EAccountType.AnonUser && requestFreeAppLicense(appId)) {
+            if (steamUser.steamID!!.accountType != EAccountType.AnonUser && steam3!!.requestFreeAppLicense(appId)) {
                 logger?.debug("Obtained FreeOnDemand license for app $appId")
 
                 // Fetch app info again in case we didn't get it fully without a license.
-                requestAppInfo(appId, true)
+                steam3!!.requestAppInfo(appId, true)
             } else {
                 val contentName = getAppName(appId)
                 throw ContentDownloaderException("App $appId ($contentName) is not available from this account.")
@@ -638,7 +416,7 @@ class ContentDownloader @JvmOverloads constructor(
         var branch = branch
 
         if (appId != INVALID_APP_ID) {
-            requestAppInfo(appId)
+            steam3!!.requestAppInfo(appId)
         }
 
         if (!accountHasAccess(appId, depotId)) {
@@ -661,9 +439,9 @@ class ContentDownloader @JvmOverloads constructor(
             }
         }
 
-        requestDepotKey(depotId, appId)
+        steam3!!.requestDepotKey(depotId, appId)
 
-        val depotKey = depotKeys[depotId]
+        val depotKey = steam3!!.depotKeys[depotId]
         if (depotKey == null) {
             logger?.error("No valid depot key for $depotId, unable to download.")
             return null
@@ -687,7 +465,14 @@ class ContentDownloader @JvmOverloads constructor(
             }
         }
 
-        return DepotDownloadInfo(depotId, containingAppId, manifestId, branch, result, depotKey)
+        return DepotDownloadInfo(
+            depotId = depotId,
+            appId = containingAppId,
+            manifestId = manifestId,
+            branch = branch,
+            installDir = result,
+            depotKey = depotKey
+        )
     }
 
     private suspend fun getSteam3DepotManifest(
@@ -713,7 +498,7 @@ class ContentDownloader @JvmOverloads constructor(
                 return INVALID_MANIFEST_ID
             }
 
-            requestAppInfo(otherAppId)
+            steam3!!.requestAppInfo(otherAppId)
 
             return getSteam3DepotManifest(depotId, otherAppId, branch)
         }
@@ -742,11 +527,11 @@ class ContentDownloader @JvmOverloads constructor(
             return INVALID_MANIFEST_ID
         }
 
-        if (!appBetaPasswords.contains(branch)) {
+        if (!steam3!!.appBetaPasswords.contains(branch)) {
             // Submit the password to Steam now to get encryption keys
-            checkAppBetaPassword(appId, config.betaPassword!!)
+            steam3!!.checkAppBetaPassword(appId, config.betaPassword!!)
 
-            if (!appBetaPasswords.containsKey(branch)) {
+            if (!steam3!!.appBetaPasswords.containsKey(branch)) {
                 logger?.error("Error: Password was invalid for branch $branch (or the branch does not exist)")
                 return INVALID_MANIFEST_ID
             }
@@ -754,7 +539,7 @@ class ContentDownloader @JvmOverloads constructor(
 
         // Got the password, request private depot section
         // TODO: (SK) We're probably repeating this request for every depot?
-        val privateDepotSection = getPrivateBetaDepotSection(appId, branch)
+        val privateDepotSection = steam3!!.getPrivateBetaDepotSection(appId, branch)
 
         // Now repeat the same code to get the manifest gid from depot section
         depotChild = privateDepotSection[depotId.toString()]
@@ -816,10 +601,17 @@ class ContentDownloader @JvmOverloads constructor(
     }
 
     private fun createDirectories(depotId: Int, depotVersion: Int): Path? = try {
-        val installDir = installPath.toPath()
+        var installDir: Path
+
+        val depotPath = installPath.toPath() / depotId.toString()
+        filesystem.createDirectories(depotPath)
+
+        installDir = depotPath / depotVersion.toString()
         filesystem.createDirectories(installDir)
-        filesystem.createDirectories(installDir.resolve("config"))
-        filesystem.createDirectories(installDir.resolve("staging"))
+
+        filesystem.createDirectories(installDir / CONFIG_DIR)
+        filesystem.createDirectories(installDir / STAGING_DIR)
+
         installDir
     } catch (e: Exception) {
         logger?.error(e)
@@ -832,11 +624,15 @@ class ContentDownloader @JvmOverloads constructor(
     }
 
     private fun getSteam3AppSection(appId: Int, section: EAppInfoSection): KeyValue? {
-        if (appInfo.isEmpty()) {
+        if (steam3 == null) {
             return null
         }
 
-        val app = appInfo[appId] ?: return null
+        if (steam3!!.appInfo.isEmpty()) {
+            return null
+        }
+
+        val app = steam3!!.appInfo[appId] ?: return null
 
         val appInfo = app.keyValues
         val sectionKey = when (section) {
@@ -852,7 +648,7 @@ class ContentDownloader @JvmOverloads constructor(
     }
 
     private suspend fun accountHasAccess(appId: Int, depotId: Int): Boolean {
-        val steamUser = requireNotNull(steamUser)
+        val steamUser = requireNotNull(steam3!!.steamUser)
         val steamID = requireNotNull(steamUser.steamID)
 
         if (licenses.isEmpty() && steamID.accountType != EAccountType.AnonUser) {
@@ -866,10 +662,10 @@ class ContentDownloader @JvmOverloads constructor(
             licenseQuery.addAll(licenses.map { it.packageID }.distinct())
         }
 
-        requestPackageInfo(licenseQuery)
+        steam3!!.requestPackageInfo(licenseQuery)
 
         licenseQuery.forEach { license ->
-            packageInfo[license]?.let { pkg ->
+            steam3!!.packageInfo[license]?.let { pkg ->
                 val appIds = pkg.keyValues["appids"].children.map { it.asInteger() }
                 val depotIds = pkg.keyValues["depotids"].children.map { it.asInteger() }
                 if (depotId in appIds) {
@@ -965,7 +761,7 @@ class ContentDownloader @JvmOverloads constructor(
             } else {
                 logger?.debug("Downloading depot ${depot.depotId} manifest")
 
-                var manifestRequestCode: Long = 0
+                var manifestRequestCode: ULong = 0U
                 var manifestRequestCodeExpiration = Instant.MIN
 
                 do {
@@ -978,18 +774,23 @@ class ContentDownloader @JvmOverloads constructor(
 
                         var cdnToken: String? = null
 
-                        val authTokenCallbackPromise = cdnAuthTokens[depot.depotId to connection.host]
+                        val authTokenCallbackPromise = steam3!!.cdnAuthTokens[depot.depotId to connection.host]
                         if (authTokenCallbackPromise != null) {
-                            val result = authTokenCallbackPromise.await()
-                            cdnToken = result.token
+                            try {
+                                val result = authTokenCallbackPromise.await()
+                                cdnToken = result.token
+                            } catch (e: Exception) {
+                                logger?.error("Failed to get CDN auth token: ${e.message}")
+                                steam3!!.cdnAuthTokens.remove(depot.depotId to connection.host)
+                            }
                         }
 
                         val now = Instant.now()
 
                         // In order to download this manifest, we need the current manifest request code
                         // The manifest request code is only valid for a specific period in time
-                        if (manifestRequestCode == 0L || now >= manifestRequestCodeExpiration) {
-                            manifestRequestCode = getDepotManifestRequestCode(
+                        if (manifestRequestCode == 0UL || now >= manifestRequestCodeExpiration) {
+                            manifestRequestCode = steam3!!.getDepotManifestRequestCode(
                                 depotId = depot.depotId,
                                 appId = depot.appId,
                                 manifestId = depot.manifestId,
@@ -1000,8 +801,8 @@ class ContentDownloader @JvmOverloads constructor(
                             manifestRequestCodeExpiration = now.plus(5, ChronoUnit.MINUTES)
 
                             // If we could not get the manifest code, this is a fatal error
-                            if (manifestRequestCode == 0L) {
-                                cancel()
+                            if (manifestRequestCode == 0UL) {
+                                cancel("manifestRequestCode is 0UL")
                             }
                         }
 
@@ -1024,8 +825,8 @@ class ContentDownloader @JvmOverloads constructor(
                         break
                     } catch (e: SteamKitWebRequestException) {
                         // If the CDN returned 403, attempt to get a cdn auth if we didn't yet
-                        if (e.statusCode == 403 && cdnAuthTokens.containsKey(depot.depotId to connection!!.host)) {
-                            requestCDNAuthToken(depot.appId, depot.depotId, connection)
+                        if (e.statusCode == 403 && !steam3!!.cdnAuthTokens.containsKey(depot.depotId to connection!!.host)) {
+                            steam3!!.requestCDNAuthToken(depot.appId, depot.depotId, connection)
 
                             cdnClientPool!!.returnConnection(connection)
 
@@ -1465,18 +1266,8 @@ class ContentDownloader @JvmOverloads constructor(
         }
         listeners.clear()
 
-        steamUser = null
-        steamContent = null
-        steamApps = null
-        steamCloud = null
-
-        appTokens.clear()
-        packageTokens.clear()
-        depotKeys.clear()
-        cdnAuthTokens.clear()
-        appInfo.clear()
-        packageInfo.clear()
-        appBetaPasswords.clear()
+        steam3?.close()
+        steam3 = null
 
         cdnClientPool?.close()
         cdnClientPool = null

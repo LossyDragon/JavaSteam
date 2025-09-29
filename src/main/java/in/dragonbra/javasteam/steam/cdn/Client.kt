@@ -16,12 +16,10 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import okhttp3.HttpUrl
-import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.coroutines.executeAsync
 import java.io.ByteArrayInputStream
-import java.io.ByteArrayOutputStream
 import java.io.Closeable
 import java.io.IOException
 import java.util.concurrent.CompletableFuture
@@ -72,7 +70,10 @@ class Client(steamClient: SteamClient) : Closeable {
                 path = pathTemplate
             }
 
-            val urlBuilder = "$scheme://$host:$port".toHttpUrl().newBuilder()
+            val urlBuilder = HttpUrl.Builder()
+                .scheme(scheme)
+                .host(host)
+                .port(port)
                 .addPathSegments(path.trimStart('/'))
 
             query?.let { queryString ->
@@ -122,14 +123,15 @@ class Client(steamClient: SteamClient) : Closeable {
     suspend fun downloadManifest(
         depotId: Int,
         manifestId: Long,
-        manifestRequestCode: Long,
+        manifestRequestCode: ULong,
         server: Server,
         depotKey: ByteArray? = null,
         proxyServer: Server? = null,
         cdnAuthToken: String? = null,
     ): DepotManifest = withContext(Dispatchers.IO) {
         val manifestVersion = 5
-        val url = if (manifestRequestCode > 0) {
+
+        val url = if (manifestRequestCode > 0U) {
             "depot/$depotId/manifest/$manifestId/$manifestVersion/$manifestRequestCode"
         } else {
             "depot/$depotId/manifest/$manifestId/$manifestVersion"
@@ -139,43 +141,44 @@ class Client(steamClient: SteamClient) : Closeable {
             .url(buildCommand(server, url, cdnAuthToken, proxyServer))
             .build()
 
+        logger.debug("Request URL is: $request")
+
         try {
             val response = withTimeout(requestTimeout) {
                 httpClient.newCall(request).executeAsync()
             }
 
+            if (!response.isSuccessful) {
+                throw SteamKitWebRequestException(
+                    "Response status code does not indicate success: ${response.code} (${response.message})",
+                    response
+                )
+            }
+
             return@withContext withTimeout(responseBodyTimeout) {
                 response.use { resp ->
-                    if (!response.isSuccessful) {
-                        throw SteamKitWebRequestException(
-                            "Response status code does not indicate success: ${resp.code} (${resp.message})",
-                            resp
-                        )
-                    }
-
-                    val responseBody = resp.body.bytes()
+                    val responseBody = resp.body?.bytes()
+                        ?: throw SteamKitWebRequestException("Response body is null")
 
                     if (responseBody.isEmpty()) {
                         throw SteamKitWebRequestException("Response is empty")
                     }
 
                     // Decompress the zipped manifest data
-                    val zipInputStream = ZipInputStream(ByteArrayInputStream(responseBody))
-                    zipInputStream.nextEntry
-                        ?: throw SteamKitWebRequestException("Expected the zip to contain at least one file")
+                    ZipInputStream(ByteArrayInputStream(responseBody)).use { zipInputStream ->
+                        zipInputStream.nextEntry
+                            ?: throw SteamKitWebRequestException("Expected the zip to contain at least one file")
 
-                    val manifestData = ByteArrayOutputStream()
-                    zipInputStream.copyTo(manifestData)
-                    zipInputStream.close()
+                        val manifestData = zipInputStream.readBytes()
 
-                    val depotManifest = DepotManifest.deserialize(ByteArrayInputStream(manifestData.toByteArray()))
+                        val depotManifest = DepotManifest.deserialize(ByteArrayInputStream(manifestData))
 
-                    if (depotKey != null) {
-                        // if we have the depot key, decrypt the manifest filenames
-                        depotManifest.decryptFilenames(depotKey)
+                        if (depotKey != null) {
+                            depotManifest.decryptFilenames(depotKey)
+                        }
+
+                        depotManifest
                     }
-
-                    depotManifest
                 }
             }
         } catch (e: Exception) {
@@ -322,7 +325,7 @@ class Client(steamClient: SteamClient) : Closeable {
                 val result = downloadManifest(
                     depotId = depotId,
                     manifestId = manifestId,
-                    manifestRequestCode = manifestRequestCode,
+                    manifestRequestCode = manifestRequestCode.toULong(),
                     server = server,
                     depotKey = depotKey,
                     proxyServer = proxyServer,

@@ -275,13 +275,13 @@ public class SampleDownloadApp implements Runnable {
                     /* lowViolence */ false,
                     /* depot */ List.of(),
                     /* manifest */ List.of(),
-                    /* downloadManifestOnly */ true
+                    /* downloadManifestOnly */ false
             );
 
             var downloadList = List.of(pubItem, ugcItem, appItem);
 
             // Add specified games to the queue. Add, Remove, Move, and general array manipulation methods are available.
-            // depotDownloader.addAll(downloadList); // TOOD
+            // depotDownloader.addAll(downloadList); // TODO
             depotDownloader.add(appItem);
 
             // Start downloading your items. Array manipulation is now disabled. You can still add to the list.
@@ -290,13 +290,13 @@ public class SampleDownloadApp implements Runnable {
             if (success) {
                 System.out.println("Download completed successfully");
             }
-
-            steamClient.disconnect();
         } catch (ExecutionException | InterruptedException e) {
             throw new RuntimeException(e);
-        }
+        } finally {
+            steamUser.logOff();
 
-        System.out.println("Done Downloading");
+            System.out.println("Done Downloading");
+        }
     }
 
     private void onLoggedOff(LoggedOffCallback callback) {
