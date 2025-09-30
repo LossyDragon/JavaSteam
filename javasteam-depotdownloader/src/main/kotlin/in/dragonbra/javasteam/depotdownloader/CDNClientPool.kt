@@ -10,6 +10,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlin.jvm.Throws
 
 /**
@@ -32,15 +34,17 @@ class CDNClientPool(
 
     private var logger: Logger? = null
 
+    private val servers: ArrayList<Server> = arrayListOf()
+
+    private var nextServer: Int = 0
+
+    private val mutex: Mutex = Mutex()
+
     var cdnClient: Client? = null
         private set
 
     var proxyServer: Server? = null
         private set
-
-    private val servers: ArrayList<Server> = arrayListOf()
-
-    private var nextServer: Int = 0
 
     init {
         cdnClient = Client(steamClient)
@@ -63,7 +67,7 @@ class CDNClientPool(
     }
 
     @Throws(Exception::class)
-    suspend fun updateServerList(maxNumServers: Int? = null) {
+    suspend fun updateServerList(maxNumServers: Int? = null) = mutex.withLock {
         if (servers.isNotEmpty()) {
             servers.clear()
         }
@@ -95,7 +99,7 @@ class CDNClientPool(
         }
     }
 
-    fun getConnection(): Server {
+    suspend fun getConnection(): Server = mutex.withLock {
         val server = servers[nextServer % servers.count()]
 
         logger?.debug("Getting connection $server")
@@ -103,25 +107,27 @@ class CDNClientPool(
         return server
     }
 
-    fun returnConnection(server: Server?) {
-        if (server == null) return
+    suspend fun returnConnection(server: Server?) = mutex.withLock {
+        if (server == null) {
+            return@withLock
+        }
 
         logger?.debug("Returning connection: $server")
 
         // nothing to do, maybe remove from ContentServerPenalty?
     }
 
-    fun returnBrokenConnection(server: Server?) {
-        if (server == null) return
+    suspend fun returnBrokenConnection(server: Server?) = mutex.withLock {
+        if (server == null) {
+            return@withLock
+        }
 
         logger?.debug("Returning broken connection: $server")
 
-        synchronized(servers) {
-            if (servers[nextServer % servers.count()] == server) {
-                nextServer++
+        if (servers[nextServer % servers.count()] == server) {
+            nextServer++
 
-                // TODO: Add server to ContentServerPenalty
-            }
+            // TODO: Add server to ContentServerPenalty
         }
     }
 }

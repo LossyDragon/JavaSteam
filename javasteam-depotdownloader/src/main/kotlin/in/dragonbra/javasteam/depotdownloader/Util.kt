@@ -13,6 +13,7 @@ import java.security.MessageDigest
 
 object Util {
 
+    @JvmOverloads
     @JvmStatic
     fun getSteamOS(androidEmulation: Boolean = false): String {
         if (SystemUtils.IS_OS_WINDOWS) {
@@ -154,7 +155,7 @@ object Util {
 
     @JvmStatic
     fun formatBytes(bytes: Long): String {
-        val units = arrayOf("B", "KB", "MB", "GB", "TB")
+        val units = arrayOf("B", "KB", "MB", "GB")
         var size = bytes.toDouble()
         var unitIndex = 0
 
