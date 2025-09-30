@@ -6,23 +6,27 @@ import `in`.dragonbra.javasteam.depotdownloader.ContentDownloader
 
 abstract class DownloadItem(
     val appId: Int,
+    val installDirectory: String,
     val downloadManifestOnly: Boolean,
 )
 
 class UgcItem @JvmOverloads constructor(
     appId: Int,
+    installDirectory: String,
     val ugcId: Long = ContentDownloader.INVALID_MANIFEST_ID,
     downloadManifestOnly: Boolean = false,
-) : DownloadItem(appId, downloadManifestOnly)
+) : DownloadItem(appId, installDirectory, downloadManifestOnly)
 
 class PubFileItem @JvmOverloads constructor(
     appId: Int,
+    installDirectory: String,
     val pubfile: Long = ContentDownloader.INVALID_MANIFEST_ID,
     downloadManifestOnly: Boolean = false,
-) : DownloadItem(appId, downloadManifestOnly)
+) : DownloadItem(appId, installDirectory, downloadManifestOnly)
 
 class AppItem @JvmOverloads constructor(
     appId: Int,
+    installDirectory: String,
     val branch: String? = null,
     val branchPassword: String? = null,
     val downloadAllPlatforms: Boolean = false,
@@ -35,4 +39,4 @@ class AppItem @JvmOverloads constructor(
     val depot: List<Int> = emptyList(),
     val manifest: List<Long> = emptyList(),
     downloadManifestOnly: Boolean = false,
-) : DownloadItem(appId, downloadManifestOnly)
+) : DownloadItem(appId, installDirectory, downloadManifestOnly)

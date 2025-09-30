@@ -53,7 +53,7 @@ public class SampleDownloadApp implements Runnable {
 
     private final int ROCKY_MAYHEM_APP_ID = 1303350;
 
-    private final int ROCKY_MAYHEM_DEPOT_ID = 1303351;
+    private final String DEFAULT_INSTALL_DIRECTORY = "steamapps";
 
     private SteamClient steamClient;
 
@@ -248,23 +248,26 @@ public class SampleDownloadApp implements Runnable {
 
         // Initiate the DepotDownloader, it is a Closable so it can be cleaned up when no longer used.
         // You will need to subscribe to LicenseListCallback to obtain your app licenses.
-        try (var depotDownloader = new ContentDownloader(steamClient, licenseList, "steamapps", true)) {
+        try (var depotDownloader = new ContentDownloader(steamClient, licenseList, true)) {
 
             // An app id is required at minimum for all item types.
             var pubItem = new PubFileItem(
                     /* appId */ 0,
+                    /* installDirectory */ DEFAULT_INSTALL_DIRECTORY,
                     /* pubfile */ 0,
                     /* downloadManifestOnly */ false
             ); // TODO find actual pub item
 
             var ugcItem = new UgcItem(
                     /* appId */0,
+                    /* installDirectory */ DEFAULT_INSTALL_DIRECTORY,
                     /* ugcId */ 0,
                     /* downloadManifestOnly */ false
             ); // TODO find actual ugc item
 
             var appItem = new AppItem(
                     /* appId */ 204360,
+                    /* installDirectory */ DEFAULT_INSTALL_DIRECTORY,
                     /* branch */ "public",
                     /* branchPassword */ "",
                     /* downloadAllPlatforms */ false,
@@ -279,9 +282,9 @@ public class SampleDownloadApp implements Runnable {
                     /* downloadManifestOnly */ false
             );
 
-            var appItem2 = new AppItem(225840);
-            var appItem3 = new AppItem(3527290);
-            var appItem4 = new AppItem(ROCKY_MAYHEM_APP_ID);
+            var appItem2 = new AppItem(225840, DEFAULT_INSTALL_DIRECTORY);
+            var appItem3 = new AppItem(3527290, DEFAULT_INSTALL_DIRECTORY);
+            var appItem4 = new AppItem(ROCKY_MAYHEM_APP_ID, DEFAULT_INSTALL_DIRECTORY);
 
             var downloadList = List.of(pubItem, ugcItem, appItem);
 

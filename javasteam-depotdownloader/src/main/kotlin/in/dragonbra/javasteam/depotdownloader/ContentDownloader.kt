@@ -1,6 +1,5 @@
 package `in`.dragonbra.javasteam.depotdownloader
 
-import `in`.dragonbra.javasteam.depotdownloader.Steam3Session
 import `in`.dragonbra.javasteam.depotdownloader.data.AppItem
 import `in`.dragonbra.javasteam.depotdownloader.data.ChunkMatch
 import `in`.dragonbra.javasteam.depotdownloader.data.DepotDownloadCounter
@@ -75,7 +74,6 @@ import kotlin.text.toLongOrNull
 class ContentDownloader @JvmOverloads constructor(
     private val steamClient: SteamClient,
     private val licenses: List<License>, // To be provided from [LicenseListCallback]
-    private val installPath: String, // The path to download too.
     private val debug: Boolean = false, // Enable debugging features, such as logging
     private var maxDownloads: Int = 8, // Max concurrent downloads
     useLanCache: Boolean = false, // Try and detect a lan cache server.
@@ -106,7 +104,7 @@ class ContentDownloader @JvmOverloads constructor(
 
     private var cdnClientPool: CDNClientPool? = null
 
-    private var config: Config = Config(installPath = installPath.toPath())
+    private var config: Config = Config()
 
     // .... Yo?
     private val bufferPool = object {
@@ -640,6 +638,8 @@ class ContentDownloader @JvmOverloads constructor(
         return depotChild["depotfromapp"].asInteger()
     }
 
+    // TODO Finish
+    // TODO Feasible to install in directory, but in its own sub-directory based off Game Name?
     private fun createDirectories(depotId: Int, depotVersion: Int): Path? = try {
         var installDir: Path
 
@@ -1607,10 +1607,17 @@ class ContentDownloader @JvmOverloads constructor(
             // Process exactly this many
             ensureActive()
 
+            // Obtain the next item in queue.
             val item = processingChannel.receive()
 
             try {
                 runBlocking {
+                    // Set some configuration values, first.
+                    config = config.copy(
+                        downloadManifestOnly = item.downloadManifestOnly,
+                        installPath = item.installDirectory.toPath()
+                    )
+
                     // Sequential looping.
                     when (item) {
                         is PubFileItem -> {
@@ -1619,7 +1626,6 @@ class ContentDownloader @JvmOverloads constructor(
                                 return@runBlocking
                             }
                             logger?.debug("Downloading PUB File for ${item.appId}")
-                            config = config.copy(downloadManifestOnly = item.downloadManifestOnly)
                             downloadPubFile(item.appId, item.pubfile)
                         }
 
@@ -1629,7 +1635,6 @@ class ContentDownloader @JvmOverloads constructor(
                                 return@runBlocking
                             }
                             logger?.debug("Downloading UGC File for ${item.appId}")
-                            config = config.copy(downloadManifestOnly = item.downloadManifestOnly)
                             downloadUGC(item.appId, item.ugcId)
                         }
 
@@ -1695,8 +1700,6 @@ class ContentDownloader @JvmOverloads constructor(
                                     }
                                 )
                             }
-
-                            config = config.copy(downloadManifestOnly = item.downloadManifestOnly)
 
                             downloadApp(
                                 appId = item.appId,
