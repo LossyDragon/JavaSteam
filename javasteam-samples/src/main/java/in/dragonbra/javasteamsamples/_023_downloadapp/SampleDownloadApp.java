@@ -169,6 +169,7 @@ public class SampleDownloadApp implements Runnable {
             LogOnDetails details = new LogOnDetails();
             details.setUsername(accountName);
             details.setAccessToken(refreshToken);
+            details.setShouldRememberPassword(true);
 
             details.setLoginID(149);
 
@@ -278,11 +279,15 @@ public class SampleDownloadApp implements Runnable {
                     /* downloadManifestOnly */ false
             );
 
+            var appItem2 = new AppItem(225840);
+            var appItem3 = new AppItem(3527290);
+            var appItem4 = new AppItem(ROCKY_MAYHEM_APP_ID);
+
             var downloadList = List.of(pubItem, ugcItem, appItem);
 
             // Add specified games to the queue. Add, Remove, Move, and general array manipulation methods are available.
             // depotDownloader.addAll(downloadList); // TODO
-            depotDownloader.add(appItem);
+            depotDownloader.addAll(List.of(appItem, appItem2, appItem3, appItem4));
 
             // Start downloading your items. Array manipulation is now disabled. You can still add to the list.
             var success = depotDownloader.start().get(); // Future<Boolean>

@@ -20,7 +20,7 @@ data class DepotConfigStore(
             get() = instance != null
 
         fun loadFromFile(path: Path) {
-            require(!isLoaded) { "Config already loaded" }
+            // require(!isLoaded) { "Config already loaded" }
 
             instance = if (FileSystem.SYSTEM.exists(path)) {
                 FileSystem.SYSTEM.read(path) {

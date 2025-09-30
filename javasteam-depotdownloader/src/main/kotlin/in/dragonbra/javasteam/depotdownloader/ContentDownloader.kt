@@ -2,6 +2,7 @@ package `in`.dragonbra.javasteam.depotdownloader
 
 import `in`.dragonbra.javasteam.depotdownloader.Steam3Session
 import `in`.dragonbra.javasteam.depotdownloader.data.AppItem
+import `in`.dragonbra.javasteam.depotdownloader.data.ChunkMatch
 import `in`.dragonbra.javasteam.depotdownloader.data.DepotDownloadCounter
 import `in`.dragonbra.javasteam.depotdownloader.data.DepotDownloadInfo
 import `in`.dragonbra.javasteam.depotdownloader.data.DepotFilesData
@@ -25,17 +26,21 @@ import `in`.dragonbra.javasteam.types.FileData
 import `in`.dragonbra.javasteam.types.KeyValue
 import `in`.dragonbra.javasteam.types.PublishedFileID
 import `in`.dragonbra.javasteam.types.UGCHandle
+import `in`.dragonbra.javasteam.util.Adler32
 import `in`.dragonbra.javasteam.util.SteamKitWebRequestException
+import `in`.dragonbra.javasteam.util.Strings
+import `in`.dragonbra.javasteam.util.Utils
 import `in`.dragonbra.javasteam.util.log.LogManager
 import `in`.dragonbra.javasteam.util.log.Logger
 import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsChannel
 import io.ktor.http.HttpHeaders
+import io.ktor.utils.io.core.readAvailable
 import io.ktor.utils.io.readRemaining
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -44,22 +49,24 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.future.future
-import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.yield
-import kotlinx.io.readByteArray
 import okio.FileSystem
 import okio.Path
 import okio.Path.Companion.toPath
 import java.io.Closeable
 import java.io.IOException
 import java.io.RandomAccessFile
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 import java.util.concurrent.*
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.collections.mutableListOf
 import kotlin.collections.set
 import kotlin.text.toLongOrNull
@@ -93,12 +100,32 @@ class ContentDownloader @JvmOverloads constructor(
     private var logger: Logger? = null
     private val isStarted: AtomicBoolean = AtomicBoolean(false)
     private val processingChannel = Channel<DownloadItem>(Channel.UNLIMITED)
+    private val remainingItems = AtomicInteger(0)
 
     private var steam3: Steam3Session? = null
 
     private var cdnClientPool: CDNClientPool? = null
 
     private var config: Config = Config(installPath = installPath.toPath())
+
+    // .... Yo?
+    private val bufferPool = object {
+        private val pool = ConcurrentLinkedQueue<ByteArray>()
+        private val maxPoolSize = maxDownloads * 2
+
+        fun rent(size: Int): ByteArray {
+            pool.poll()?.let { buffer ->
+                if (buffer.size >= size) return buffer
+            }
+            return ByteArray(size)
+        }
+
+        fun release(buffer: ByteArray) {
+            if (pool.size < maxPoolSize) {
+                pool.offer(buffer)
+            }
+        }
+    }
 
     private data class Config(
         val installPath: Path? = null,
@@ -113,6 +140,7 @@ class ContentDownloader @JvmOverloads constructor(
         val usingFileList: Boolean = false,
         var filesToDownloadRegex: List<Regex> = emptyList(),
         var filesToDownload: HashSet<String> = hashSetOf(),
+        var verifyAll: Boolean = false,
     )
 
     init {
@@ -225,36 +253,39 @@ class ContentDownloader @JvmOverloads constructor(
 
             logger?.debug("File size: ${totalBytes?.let { Util.formatBytes(it) } ?: "Unknown"}")
 
+            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
             filesystem.write(fileStagingPath) {
                 while (!channel.isClosedForRead) {
                     val packet = channel.readRemaining(DEFAULT_BUFFER_SIZE.toLong())
                     if (!packet.exhausted()) {
-                        val bytes = packet.readByteArray()
-                        write(bytes)
-                        downloadedBytes += bytes.size
+                        val bytesRead = packet.readAvailable(buffer)
+                        if (bytesRead > 0) {
+                            write(buffer, 0, bytesRead)
+                            downloadedBytes += bytesRead
 
-                        val currentTime = System.currentTimeMillis()
-                        if (currentTime - lastProgressTime >= progressUpdateInterval) {
-                            val timeDiff = (currentTime - lastProgressTime) / 1000.0
-                            val bytesDiff = downloadedBytes - lastDownloadedBytes
-                            val bytesPerSecond = bytesDiff / timeDiff
+                            val currentTime = System.currentTimeMillis()
+                            if (currentTime - lastProgressTime >= progressUpdateInterval) {
+                                val timeDiff = (currentTime - lastProgressTime) / 1000.0
+                                val bytesDiff = downloadedBytes - lastDownloadedBytes
+                                val bytesPerSecond = bytesDiff / timeDiff
 
-                            val percentComplete = totalBytes?.let {
-                                (downloadedBytes.toDouble() / it.toDouble()) * 100.0
+                                val percentComplete = totalBytes?.let {
+                                    (downloadedBytes.toDouble() / it.toDouble()) * 100.0
+                                }
+
+                                val progress = DownloadProgress(
+                                    fileName = fileName,
+                                    downloadedBytes = downloadedBytes,
+                                    totalBytes = totalBytes,
+                                    bytesPerSecond = bytesPerSecond,
+                                    percentComplete = percentComplete
+                                )
+
+                                logger?.debug(progress.formatProgress())
+
+                                lastProgressTime = currentTime
+                                lastDownloadedBytes = downloadedBytes
                             }
-
-                            val progress = DownloadProgress(
-                                fileName = fileName,
-                                downloadedBytes = downloadedBytes,
-                                totalBytes = totalBytes,
-                                bytesPerSecond = bytesPerSecond,
-                                percentComplete = percentComplete
-                            )
-
-                            logger?.debug(progress.formatProgress())
-
-                            lastProgressTime = currentTime
-                            lastDownloadedBytes = downloadedBytes
                         }
                     }
                 }
@@ -536,7 +567,7 @@ class ContentDownloader @JvmOverloads constructor(
             return INVALID_MANIFEST_ID
         }
 
-        if (!steam3!!.appBetaPasswords.contains(branch)) {
+        if (!steam3!!.appBetaPasswords.containsKey(branch)) {
             // Submit the password to Steam now to get encryption keys
             steam3!!.checkAppBetaPassword(appId, config.betaPassword!!)
 
@@ -794,7 +825,6 @@ class ContentDownloader @JvmOverloads constructor(
                                 cdnToken = result.token
                             } catch (e: Exception) {
                                 logger?.error("Failed to get CDN auth token: ${e.message}")
-                                steam3!!.cdnAuthTokens.remove(depot.depotId to connection.host)
                             }
                         }
 
@@ -932,6 +962,7 @@ class ContentDownloader @JvmOverloads constructor(
         val chunk: ChunkData,
     )
 
+    @OptIn(DelicateCoroutinesApi::class)
     private suspend fun downloadSteam3DepotFiles(
         downloadCounter: GlobalDownloadCounter,
         depotFilesData: DepotFilesData,
@@ -945,32 +976,43 @@ class ContentDownloader @JvmOverloads constructor(
         val files = depotFilesData.filteredFiles.filter { !it.flags.contains(EDepotFileFlag.Directory) }
         val networkChunkQueue = Channel<NetworkChunkItem>(Channel.UNLIMITED)
 
-        coroutineScope {
-            // First parallel loop - process files and enqueue chunks
-            files.map { file ->
-                async {
-                    yield()
-                    downloadSteam3DepotFile(downloadCounter, depotFilesData, file, networkChunkQueue)
-                }
-            }.awaitAll()
-
-            // Close the channel to signal no more items will be added
-            networkChunkQueue.close()
-
-            // Second parallel loop - process chunks from queue
-            List(maxDownloads) {
-                async {
-                    for (item in networkChunkQueue) {
-                        downloadSteam3DepotFileChunk(
-                            downloadCounter,
-                            depotFilesData,
-                            item.fileData,
-                            item.fileStreamData,
-                            item.chunk
+        try {
+            coroutineScope {
+                // First parallel loop - process files and enqueue chunks
+                files.map { file ->
+                    async {
+                        yield()
+                        downloadSteam3DepotFile(
+                            downloadCounter = downloadCounter,
+                            depotFilesData = depotFilesData,
+                            file = file,
+                            networkChunkQueue = networkChunkQueue
                         )
                     }
-                }
-            }.awaitAll()
+                }.awaitAll()
+
+                // Close the channel to signal no more items will be added
+                networkChunkQueue.close()
+
+                // Second parallel loop - process chunks from queue
+                List(maxDownloads) {
+                    async {
+                        for (item in networkChunkQueue) {
+                            downloadSteam3DepotFileChunk(
+                                downloadCounter = downloadCounter,
+                                depotFilesData = depotFilesData,
+                                file = item.fileData,
+                                fileStreamData = item.fileStreamData,
+                                chunk = item.chunk
+                            )
+                        }
+                    }
+                }.awaitAll()
+            }
+        } finally {
+            if (!networkChunkQueue.isClosedForSend) {
+                networkChunkQueue.close()
+            }
         }
 
         // Check for deleted files if updating the depot.
@@ -1032,7 +1074,7 @@ class ContentDownloader @JvmOverloads constructor(
             filesystem.delete(fileStagingPath)
         }
 
-        var neededChunks: ArrayList<ChunkData>? = null
+        var neededChunks: MutableList<ChunkData>? = null
         val fileDidExist = filesystem.exists(fileFinalPath)
         if (!fileDidExist) {
             logger?.debug("Pre-allocating: $fileFinalPath")
@@ -1052,12 +1094,109 @@ class ContentDownloader @JvmOverloads constructor(
             if (oldManifestFile != null) {
                 neededChunks = arrayListOf()
 
-                TODO()
+                val hashMatches = oldManifestFile.fileHash.contentEquals(file.fileHash)
+                if (config.verifyAll || !hashMatches) {
+                    // we have a version of this file, but it doesn't fully match what we want
+                    if (config.verifyAll) {
+                        logger?.debug("Validating: $fileFinalPath")
+                    }
+
+                    val matchingChunks = arrayListOf<ChunkMatch>()
+
+                    file.chunks.forEach { chunk ->
+                        val oldChunk = oldManifestFile.chunks.firstOrNull { c ->
+                            c.chunkID.contentEquals(chunk.chunkID)
+                        }
+                        if (oldChunk != null) {
+                            val chunkMatch = ChunkMatch(oldChunk, chunk)
+                            matchingChunks.add(chunkMatch)
+                        } else {
+                            neededChunks.add(chunk)
+                        }
+                    }
+
+                    val orderedChunks = matchingChunks.sortedBy { x -> x.oldChunk.offset }
+
+                    val copyChunks = arrayListOf<ChunkMatch>()
+
+                    RandomAccessFile(fileFinalPath.toFile(), "r").use { fsOld ->
+                        orderedChunks.forEach { match ->
+                            fsOld.seek(match.oldChunk.offset)
+
+                            // Read the chunk data into a byte array
+                            val length = match.oldChunk.uncompressedLength
+                            val buffer = ByteArray(length)
+                            fsOld.readFully(buffer)
+
+                            // Calculate Adler32 checksum
+                            val adler = Adler32.calculate(buffer)
+
+                            // Convert checksum to byte array for comparison
+                            val checksumBytes = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN)
+                                .putInt(match.oldChunk.checksum).array()
+                            val calculatedChecksumBytes = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN)
+                                .putInt(adler).array()
+
+                            if (!calculatedChecksumBytes.contentEquals(checksumBytes)) {
+                                neededChunks.add(match.newChunk)
+                            } else {
+                                copyChunks.add(match)
+                            }
+                        }
+                    }
+
+                    if (!hashMatches || neededChunks.isNotEmpty()) {
+                        filesystem.atomicMove(fileFinalPath, fileStagingPath)
+
+                        try {
+                            RandomAccessFile(fileStagingPath.toFile(), "r").use { fsOld ->
+                                RandomAccessFile(fileFinalPath.toFile(), "rw").use { fs ->
+                                    try {
+                                        fs.setLength(file.totalSize)
+                                    } catch (ex: IOException) {
+                                        throw ContentDownloaderException(
+                                            "Failed to resize file to expected size $fileFinalPath: ${ex.message}"
+                                        )
+                                    }
+
+                                    for (match in copyChunks) {
+                                        fsOld.seek(match.oldChunk.offset)
+                                        val tmp = ByteArray(match.oldChunk.uncompressedLength)
+                                        fsOld.readFully(tmp)
+
+                                        fs.seek(match.newChunk.offset)
+                                        fs.write(tmp)
+                                    }
+                                }
+                            }
+                        } catch (e: Exception) {
+                            logger?.error(e)
+                        }
+
+                        filesystem.delete(fileStagingPath)
+                    }
+                }
             } else {
-                TODO()
+                // No old manifest or file not in old manifest. We must validate.
+                RandomAccessFile(fileFinalPath.toFile(), "rw").use { fs ->
+                    val fileSize = filesystem.metadata(fileFinalPath).size ?: 0L
+                    if (fileSize.toULong() != file.totalSize.toULong()) {
+                        try {
+                            fs.setLength(file.totalSize)
+                        } catch (ex: IOException) {
+                            throw ContentDownloaderException(
+                                "Failed to allocate file $fileFinalPath: ${ex.message}"
+                            )
+                        }
+                    }
+
+                    logger?.debug("Validating $fileFinalPath")
+                    neededChunks =
+                        Utils.validateSteam3FileChecksums(fs, file.chunks.sortedBy { it.offset }.toTypedArray())
+                }
             }
 
-            if (neededChunks!!.size == 0) {
+            if (neededChunks!!.isEmpty()) {
                 synchronized(depotDownloadCounter) {
                     depotDownloadCounter.sizeDownloaded += file.totalSize
 
@@ -1073,7 +1212,7 @@ class ContentDownloader @JvmOverloads constructor(
                 return@withContext
             }
 
-            val sizeOnDisk = file.totalSize - neededChunks.sumOf { it.uncompressedLength }
+            val sizeOnDisk = file.totalSize - neededChunks!!.sumOf { it.uncompressedLength }
             synchronized(depotDownloadCounter) {
                 depotDownloadCounter.sizeDownloaded += sizeOnDisk
             }
@@ -1098,11 +1237,150 @@ class ContentDownloader @JvmOverloads constructor(
         val fileStreamData = FileStreamData(
             fileStream = null,
             fileLock = Mutex(),
-            chunksToDownload = neededChunks.size
+            chunksToDownload = AtomicInteger(neededChunks!!.size)
         )
 
-        neededChunks.forEach { chunk ->
+        neededChunks!!.forEach { chunk ->
             networkChunkQueue.send(NetworkChunkItem(fileStreamData, file, chunk))
+        }
+    }
+
+    private suspend fun downloadSteam3DepotFileChunk(
+        downloadCounter: GlobalDownloadCounter,
+        depotFilesData: DepotFilesData,
+        file: FileData,
+        fileStreamData: FileStreamData,
+        chunk: ChunkData,
+    ): Unit = withContext(Dispatchers.IO) {
+        ensureActive()
+
+        val depot = depotFilesData.depotDownloadInfo
+        val depotDownloadCounter = depotFilesData.depotCounter
+
+        val chunkID = Strings.toHex(chunk.chunkID)
+
+        var written = 0
+        val chunkBuffer = bufferPool.rent(chunk.uncompressedLength)
+
+        try {
+            do {
+                ensureActive()
+
+                var connection: Server? = null
+
+                try {
+                    connection = cdnClientPool!!.getConnection()
+
+                    var cdnToken: String? = null
+
+                    val authTokenCallbackPromise = steam3!!.cdnAuthTokens[depot.depotId to connection.host]
+                    if (authTokenCallbackPromise != null) {
+                        try {
+                            val result = authTokenCallbackPromise.await()
+                            cdnToken = result.token
+                        } catch (e: Exception) {
+                            logger?.error("Failed to get CDN auth token: ${e.message}")
+                        }
+                    }
+
+                    logger?.debug("Downloading chunk $chunkID from $connection with ${cdnClientPool!!.proxyServer ?: "no proxy"}")
+
+                    written = cdnClientPool!!.cdnClient!!.downloadDepotChunk(
+                        depotId = depot.depotId,
+                        chunk = chunk,
+                        server = connection,
+                        destination = chunkBuffer,
+                        depotKey = depot.depotKey,
+                        proxyServer = cdnClientPool!!.proxyServer,
+                        cdnAuthToken = cdnToken,
+                    )
+
+                    cdnClientPool!!.returnConnection(connection)
+
+                    break
+                } catch (e: CancellationException) {
+                    logger?.error(e)
+                } catch (e: SteamKitWebRequestException) {
+                    // If the CDN returned 403, attempt to get a cdn auth if we didn't yet,
+                    // if auth task already exists, make sure it didn't complete yet, so that it gets awaited above
+                    if (e.statusCode == 403 &&
+                        (
+                            !steam3!!.cdnAuthTokens.containsKey(depot.depotId to connection!!.host) ||
+                                steam3!!.cdnAuthTokens[depot.depotId to connection.host]?.isCompleted == false
+                            )
+                    ) {
+                        steam3!!.requestCDNAuthToken(depot.appId, depot.depotId, connection)
+
+                        cdnClientPool!!.returnConnection(connection)
+
+                        continue
+                    }
+
+                    cdnClientPool!!.returnBrokenConnection(connection)
+
+                    // Unauthorized || Forbidden
+                    if (e.statusCode == 401 || e.statusCode == 403) {
+                        logger?.error("Encountered ${e.statusCode} for chunk $chunkID. Aborting.")
+                        break
+                    }
+
+                    logger?.error("Encountered error downloading chunk $chunkID: ${e.statusCode}")
+                } catch (e: Exception) {
+                    cdnClientPool!!.returnBrokenConnection(connection)
+                    logger?.error("Encountered unexpected error downloading chunk $chunkID", e)
+                }
+            } while (written == 0)
+
+            if (written == 0) {
+                logger?.error("Failed to find any server with chunk ${chunk.chunkID} for depot ${depot.depotId}. Aborting.")
+                cancel()
+            }
+
+            // Throw the cancellation exception if requested so that this task is marked failed
+            ensureActive()
+
+            try {
+                fileStreamData.fileLock.lock()
+
+                if (fileStreamData.fileStream == null) {
+                    val fileFinalPath = depot.installDir / file.fileName
+                    fileStreamData.fileStream = RandomAccessFile(fileFinalPath.toFile(), "rw")
+                }
+
+                fileStreamData.fileStream!!.seek(chunk.offset)
+                fileStreamData.fileStream!!.write(chunkBuffer, 0, written)
+            } finally {
+                fileStreamData.fileLock.unlock()
+            }
+        } finally {
+            bufferPool.release(chunkBuffer)
+        }
+
+        val remainingChunks = fileStreamData.chunksToDownload.decrementAndGet()
+        if (remainingChunks == 0) {
+            fileStreamData.fileStream?.close()
+        }
+
+        var sizeDownloaded = 0L
+        synchronized(depotDownloadCounter) {
+            sizeDownloaded = depotDownloadCounter.sizeDownloaded + written.toLong()
+            depotDownloadCounter.sizeDownloaded = sizeDownloaded
+            depotDownloadCounter.depotBytesCompressed += chunk.compressedLength
+            depotDownloadCounter.depotBytesUncompressed += chunk.uncompressedLength
+        }
+
+        synchronized(downloadCounter) {
+            downloadCounter.totalBytesCompressed += chunk.compressedLength
+            downloadCounter.totalBytesUncompressed += chunk.uncompressedLength
+
+            // TODO progress indication
+            // Ansi.Progress(downloadCounter.totalBytesUncompressed, downloadCounter.completeDownloadSize);
+        }
+
+        if (remainingChunks == 0) {
+            val fileFinalPath = depot.installDir / file.fileName
+            val percentage = (sizeDownloaded / depotDownloadCounter.completeDownloadSize.toFloat()) * 100.0f
+            logger?.debug("%.2f%% %s".format(percentage, fileFinalPath))
         }
     }
 
@@ -1138,6 +1416,17 @@ class ContentDownloader @JvmOverloads constructor(
         listeners.remove(listener)
     }
 
+    private fun notifyListeners(action: (IDownloadListener) -> Unit) {
+        listeners.forEach { listener ->
+            try {
+                action(listener)
+                listener.onQueueChanged(getItems())
+            } catch (e: Exception) {
+                logger?.error(e)
+            }
+        }
+    }
+
     // endregion
 
     // region [REGION] Array Operations
@@ -1157,6 +1446,7 @@ class ContentDownloader @JvmOverloads constructor(
         items.add(item)
 
         if (isStarted.get()) {
+            remainingItems.incrementAndGet()
             scope.launch { processingChannel.send(item) }
         }
 
@@ -1289,45 +1579,44 @@ class ContentDownloader @JvmOverloads constructor(
      * Android emulation uses Windows, so this method sets internal configs to return "windows" if the device is android.
      */
     fun setAndroidEmulation(value: Boolean) {
-        config = config.copy(androidEmulation = true)
+        if (isStarted.get()) {
+            logger?.error("Can't set android emulation value once started.")
+            return
+        }
+
+        config = config.copy(androidEmulation = value)
     }
 
     fun start(): CompletableFuture<Boolean> = scope.future {
-        if (isStarted.get()) {
+        if (isStarted.getAndSet(true)) {
             logger?.debug("Downloading already started.")
             return@future false
         }
 
-        isStarted.set(true)
-
         val initialItems = items.toList()
-
         if (initialItems.isEmpty()) {
             logger?.debug("No items to download")
             return@future false
         }
 
+        // Send initial items
+        remainingItems.set(initialItems.size)
         initialItems.forEach { processingChannel.send(it) }
 
-        val downloadJobs = mutableListOf<Job>()
-
-        // TODO revert back to suspending loop incase more is added in the Channel.
-        repeat(initialItems.size) {
+        repeat(remainingItems.get()) {
+            // Process exactly this many
             ensureActive()
-
-            if (!isStarted.get()) {
-                return@future false
-            }
 
             val item = processingChannel.receive()
 
-            val job = scope.launch {
-                try {
+            try {
+                runBlocking {
+                    // Sequential looping.
                     when (item) {
                         is PubFileItem -> {
                             if (item.pubfile == INVALID_MANIFEST_ID) {
                                 logger?.debug("Invalid Pub File ID for ${item.appId}")
-                                return@launch
+                                return@runBlocking
                             }
                             logger?.debug("Downloading PUB File for ${item.appId}")
                             config = config.copy(downloadManifestOnly = item.downloadManifestOnly)
@@ -1337,7 +1626,7 @@ class ContentDownloader @JvmOverloads constructor(
                         is UgcItem -> {
                             if (item.ugcId == INVALID_MANIFEST_ID) {
                                 logger?.debug("Invalid UGC ID for ${item.appId}")
-                                return@launch
+                                return@runBlocking
                             }
                             logger?.debug("Downloading UGC File for ${item.appId}")
                             config = config.copy(downloadManifestOnly = item.downloadManifestOnly)
@@ -1352,7 +1641,7 @@ class ContentDownloader @JvmOverloads constructor(
 
                             if (!config.betaPassword.isNullOrBlank() && branch.isBlank()) {
                                 logger?.error("Error: Cannot specify 'branchpassword' when 'branch' is not specified.")
-                                return@launch
+                                return@runBlocking
                             }
 
                             config = config.copy(downloadAllPlatforms = item.downloadAllPlatforms)
@@ -1361,7 +1650,7 @@ class ContentDownloader @JvmOverloads constructor(
 
                             if (config.downloadAllPlatforms && !os.isNullOrBlank()) {
                                 logger?.error("Error: Cannot specify `os` when `all-platforms` is specified.")
-                                return@launch
+                                return@runBlocking
                             }
 
                             config = config.copy(downloadAllArchs = item.downloadAllArchs)
@@ -1370,7 +1659,7 @@ class ContentDownloader @JvmOverloads constructor(
 
                             if (config.downloadAllArchs && !arch.isNullOrBlank()) {
                                 logger?.error("Error: Cannot specify `osarch` when `all-archs` is specified.")
-                                return@launch
+                                return@runBlocking
                             }
 
                             config = config.copy(downloadAllLanguages = item.downloadAllLanguages)
@@ -1379,7 +1668,7 @@ class ContentDownloader @JvmOverloads constructor(
 
                             if (config.downloadAllLanguages && !language.isNullOrBlank()) {
                                 logger?.error("Error: Cannot specify `language` when `all-languages` is specified.")
-                                return@launch
+                                return@runBlocking
                             }
 
                             val lv = item.lowViolence
@@ -1393,7 +1682,7 @@ class ContentDownloader @JvmOverloads constructor(
                             if (manifestIdList.isNotEmpty()) {
                                 if (depotIdList.size != manifestIdList.size) {
                                     logger?.error("Error: `manifest` requires one id for every `depot` specified")
-                                    return@launch
+                                    return@runBlocking
                                 }
                                 val zippedDepotManifest = depotIdList.zip(manifestIdList) { depotId, manifestId ->
                                     Pair(depotId, manifestId)
@@ -1421,16 +1710,13 @@ class ContentDownloader @JvmOverloads constructor(
                             )
                         }
                     }
-                } catch (e: Exception) {
-                    logger?.error("Error downloading item ${item.appId}: ${e.message}", e)
-                    throw e
                 }
+            } catch (e: Exception) {
+                logger?.error("Error downloading item ${item.appId}: ${e.message}", e)
+                throw e
             }
-
-            downloadJobs.add(job)
         }
 
-        downloadJobs.joinAll()
         return@future true
     }
 
@@ -1459,16 +1745,5 @@ class ContentDownloader @JvmOverloads constructor(
 
         LogManager.removeLogger(ContentDownloader::class.java)
         logger = null
-    }
-
-    private fun notifyListeners(action: (IDownloadListener) -> Unit) {
-        listeners.forEach { listener ->
-            try {
-                action(listener)
-                listener.onQueueChanged(getItems())
-            } catch (e: Exception) {
-                logger?.error(e)
-            }
-        }
     }
 }

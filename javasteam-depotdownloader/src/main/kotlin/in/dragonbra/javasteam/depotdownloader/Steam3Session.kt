@@ -33,13 +33,13 @@ class Steam3Session(
 
     private var logger: Logger? = null
 
-    internal val appTokens = mutableMapOf<Int, Long>()
-    internal val packageTokens = mutableMapOf<Int, Long>()
-    internal val depotKeys = mutableMapOf<Int, ByteArray>()
+    internal val appTokens = ConcurrentHashMap<Int, Long>()
+    internal val packageTokens = ConcurrentHashMap<Int, Long>()
+    internal val depotKeys = ConcurrentHashMap<Int, ByteArray>()
     internal val cdnAuthTokens = ConcurrentHashMap<Pair<Int, String>, CompletableDeferred<CDNAuthToken>>()
-    internal val appInfo = mutableMapOf<Int, PICSProductInfo?>()
-    internal val packageInfo = mutableMapOf<Int, PICSProductInfo?>()
-    internal val appBetaPasswords = mutableMapOf<String, ByteArray>()
+    internal val appInfo = ConcurrentHashMap<Int, PICSProductInfo?>()
+    internal val packageInfo = ConcurrentHashMap<Int, PICSProductInfo?>()
+    internal val appBetaPasswords = ConcurrentHashMap<String, ByteArray>()
 
     internal var steamUser: SteamUser? = null
     internal var steamContent: SteamContent? = null
@@ -66,19 +66,24 @@ class Steam3Session(
         steamApps = null
         steamCloud = null
 
+        cdnAuthTokens.values.forEach { it.cancel() }
+        cdnAuthTokens.clear()
+
+        depotKeys.values.forEach { it.fill(0) }
+        depotKeys.clear()
+        appBetaPasswords.values.forEach { it.fill(0) }
+        appBetaPasswords.clear()
+
         appTokens.clear()
         packageTokens.clear()
-        depotKeys.clear()
-        cdnAuthTokens.clear()
         appInfo.clear()
         packageInfo.clear()
-        appBetaPasswords.clear()
 
         LogManager.removeLogger(Steam3Session::class.java)
     }
 
     suspend fun requestAppInfo(appId: Int, bForce: Boolean = false) {
-        if ((appInfo.contains(appId) && !bForce)) {
+        if ((appInfo.containsKey(appId) && !bForce)) {
             return
         }
 
@@ -112,18 +117,18 @@ class Steam3Session(
         }
     }
 
+    // TODO race condition (??)
     private val packageInfoMutex = Mutex()
-    suspend fun requestPackageInfo(packageIds: ArrayList<Int>) {
+    suspend fun requestPackageInfo(packageIds: List<Int>) {
         packageInfoMutex.withLock {
             // I have a silly race condition???
-            val packagesToFetch = packageIds.toMutableList() // I have to create a copy for some reason??
-            packagesToFetch.removeAll(packageInfo.keys)
+            val packages = packageIds.filter { !packageInfo.containsKey(it) }
 
-            if (packagesToFetch.isEmpty()) return
+            if (packages.isEmpty()) return
 
             val packageRequests = arrayListOf<PICSRequest>()
 
-            packagesToFetch.forEach { pkg ->
+            packages.forEach { pkg ->
                 val request = PICSRequest(id = pkg)
 
                 packageTokens[pkg]?.let { token ->
@@ -158,7 +163,7 @@ class Steam3Session(
     }
 
     suspend fun requestDepotKey(depotId: Int, appId: Int = 0) {
-        if (depotKeys.contains(depotId)) {
+        if (depotKeys.containsKey(depotId)) {
             return
         }
 
@@ -203,9 +208,17 @@ class Steam3Session(
 
     suspend fun requestCDNAuthToken(appId: Int, depotId: Int, server: Server) = withContext(Dispatchers.IO) {
         val cdnKey = depotId to server.host!!
+
+        if (cdnAuthTokens.containsKey(cdnKey)) {
+            return@withContext
+        }
+
         val completion = CompletableDeferred<CDNAuthToken>()
 
-        cdnAuthTokens[cdnKey] = completion
+        val existing = cdnAuthTokens.putIfAbsent(cdnKey, completion)
+        if (existing != null) {
+            return@withContext
+        }
 
         logger?.debug("Requesting CDN auth token for ${server.host}")
 
@@ -250,11 +263,15 @@ class Steam3Session(
         return privateBeta.depotSection
     }
 
-    suspend fun getPublishedFileDetails(appId: Int, pubFile: PublishedFileID): SteammessagesPublishedfileSteamclient.PublishedFileDetails? {
-        val pubFileRequest = SteammessagesPublishedfileSteamclient.CPublishedFile_GetDetails_Request.newBuilder().apply {
-            this.appid = appId
-            this.addPublishedfileids(pubFile.toLong())
-        }.build()
+    suspend fun getPublishedFileDetails(
+        appId: Int,
+        pubFile: PublishedFileID,
+    ): SteammessagesPublishedfileSteamclient.PublishedFileDetails? {
+        val pubFileRequest =
+            SteammessagesPublishedfileSteamclient.CPublishedFile_GetDetails_Request.newBuilder().apply {
+                this.appid = appId
+                this.addPublishedfileids(pubFile.toLong())
+            }.build()
 
         val details = steamPublishedFile!!.getDetails(pubFileRequest).await()
 
@@ -274,6 +291,6 @@ class Steam3Session(
             return null
         }
 
-        throw ContentDownloaderException($"EResult ${callback.result.code()} (${callback.result}) while retrieving UGC details for ${ugcHandle.value}.")
+        throw ContentDownloaderException("EResult ${callback.result.code()} (${callback.result}) while retrieving UGC details for ${ugcHandle.value}.")
     }
 }
