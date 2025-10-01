@@ -11,6 +11,7 @@ import `in`.dragonbra.javasteam.steam.handlers.steamcloud.SteamCloud
 import `in`.dragonbra.javasteam.steam.handlers.steamcloud.callback.UGCDetailsCallback
 import `in`.dragonbra.javasteam.steam.handlers.steamcontent.CDNAuthToken
 import `in`.dragonbra.javasteam.steam.handlers.steamcontent.SteamContent
+import `in`.dragonbra.javasteam.steam.handlers.steamunifiedmessages.SteamUnifiedMessages
 import `in`.dragonbra.javasteam.steam.handlers.steamuser.SteamUser
 import `in`.dragonbra.javasteam.steam.steamclient.SteamClient
 import `in`.dragonbra.javasteam.types.KeyValue
@@ -45,6 +46,7 @@ class Steam3Session(
     internal val packageInfo = ConcurrentHashMap<Int, PICSProductInfo?>()
     internal val appBetaPasswords = ConcurrentHashMap<String, ByteArray>()
 
+    private var unifiedMessages: SteamUnifiedMessages? = null
     internal var steamUser: SteamUser? = null
     internal var steamContent: SteamContent? = null
     internal var steamApps: SteamApps? = null
@@ -60,15 +62,19 @@ class Steam3Session(
         steamContent = requireNotNull(steamClient.getHandler<SteamContent>())
         steamApps = requireNotNull(steamClient.getHandler<SteamApps>())
         steamCloud = requireNotNull(steamClient.getHandler<SteamCloud>())
+        unifiedMessages = requireNotNull(steamClient.getHandler<SteamUnifiedMessages>())
+        steamPublishedFile = requireNotNull(unifiedMessages?.createService<PublishedFile>())
     }
 
     override fun close() {
         logger?.debug("Closing...")
 
+        unifiedMessages = null
         steamUser = null
         steamContent = null
         steamApps = null
         steamCloud = null
+        steamPublishedFile = null
 
         cdnAuthTokens.values.forEach { it.cancel() }
         cdnAuthTokens.clear()
@@ -267,6 +273,7 @@ class Steam3Session(
         return privateBeta.depotSection
     }
 
+    @Throws(ContentDownloaderException::class)
     suspend fun getPublishedFileDetails(
         appId: Int,
         pubFile: PublishedFileID,

@@ -7,12 +7,19 @@ import `in`.dragonbra.javasteam.depotdownloader.data.DownloadItem
  * @since Oct 1, 2025
  */
 interface IDownloadListener {
+    // List<DownloadItem> callbacks.
     fun onItemAdded(item: DownloadItem, index: Int)
     fun onItemRemoved(item: DownloadItem, index: Int)
     fun onItemMoved(item: DownloadItem, fromIndex: Int, toIndex: Int)
     fun onQueueCleared(previousItems: List<DownloadItem>)
     fun onQueueChanged(currentItems: List<DownloadItem>)
     fun onQueueClosed()
+
+    // Download callbacks.
+    // TODO()
+
+    // Other
+    fun onAndroidEmulation(value: Boolean) {}
 
     // TODO (some maybe)
     // fun onQueueSize() // How many items are in the queue

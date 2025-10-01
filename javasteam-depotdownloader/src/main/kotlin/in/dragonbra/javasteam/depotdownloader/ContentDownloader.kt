@@ -74,7 +74,7 @@ import kotlin.collections.set
 import kotlin.text.toLongOrNull
 
 /**
- * TODO Description
+ * [ContentDownloader] is a JavaSteam module that is able to download Games, Workshop Items, and other content from Steam.
  * @param steamClient an instance of [SteamClient]
  * @param licenses a list of licenses the logged-in user has. This is provided by [LicenseListCallback]
  * @param debug enable or disable logging through [LogManager]
@@ -143,6 +143,8 @@ class ContentDownloader @JvmOverloads constructor(
         }
     }
 
+    // region [REGION] Private data classes.
+
     private data class DirectoryResult(val success: Boolean, val installDir: Path?)
 
     private data class Config(
@@ -162,6 +164,8 @@ class ContentDownloader @JvmOverloads constructor(
         var verifyAll: Boolean = false,
     )
 
+    // endregion
+
     init {
         if (debug) {
             logger = LogManager.getLogger(ContentDownloader::class.java)
@@ -175,9 +179,9 @@ class ContentDownloader @JvmOverloads constructor(
     // region [REGION] Downloading Operations
     @Throws(IllegalStateException::class)
     suspend fun downloadPubFile(appId: Int, publishedFileId: Long) {
-        val details = steam3!!.getPublishedFileDetails(appId, PublishedFileID(publishedFileId))
-
-        requireNotNull(details)
+        val details = requireNotNull(
+            steam3!!.getPublishedFileDetails(appId, PublishedFileID(publishedFileId))
+        ) { "Pub File Null" }
 
         if (details.fileUrl.isNullOrBlank().not()) {
             downloadWebFile(appId, details.filename, details.fileUrl)
@@ -1492,6 +1496,12 @@ class ContentDownloader @JvmOverloads constructor(
 
     fun isEmpty(): Boolean = items.isEmpty()
 
+    fun get(index: Int): DownloadItem? = items.getOrNull(index)
+
+    fun contains(item: DownloadItem): Boolean = items.contains(item)
+
+    fun indexOf(item: DownloadItem): Int = items.indexOf(item)
+
     fun addAll(items: List<DownloadItem>) {
         items.forEach(::add)
     }
@@ -1505,7 +1515,7 @@ class ContentDownloader @JvmOverloads constructor(
             scope.launch { processingChannel.send(item) }
         }
 
-        notifyListeners { listener -> listener.onItemAdded(item, index) }
+        notifyListeners { it.onItemAdded(item, index) }
     }
 
     fun addFirst(item: DownloadItem) {
@@ -1515,7 +1525,8 @@ class ContentDownloader @JvmOverloads constructor(
         }
 
         items.add(0, item)
-        notifyListeners { listener -> listener.onItemAdded(item, 0) }
+
+        notifyListeners { it.onItemAdded(item, 0) }
     }
 
     fun addAt(index: Int, item: DownloadItem): Boolean {
@@ -1526,7 +1537,7 @@ class ContentDownloader @JvmOverloads constructor(
 
         return try {
             items.add(index, item)
-            notifyListeners { listener -> listener.onItemAdded(item, index) }
+            notifyListeners { it.onItemAdded(item, index) }
             true
         } catch (e: IndexOutOfBoundsException) {
             false
@@ -1541,7 +1552,7 @@ class ContentDownloader @JvmOverloads constructor(
 
         return if (items.isNotEmpty()) {
             val item = items.removeAt(0)
-            notifyListeners { listener -> listener.onItemRemoved(item, 0) }
+            notifyListeners { it.onItemRemoved(item, 0) }
             item
         } else {
             null
@@ -1557,7 +1568,7 @@ class ContentDownloader @JvmOverloads constructor(
         return if (items.isNotEmpty()) {
             val lastIndex = items.size - 1
             val item = items.removeAt(lastIndex)
-            notifyListeners { listener -> listener.onItemRemoved(item, lastIndex) }
+            notifyListeners { it.onItemRemoved(item, lastIndex) }
             item
         } else {
             null
@@ -1573,7 +1584,7 @@ class ContentDownloader @JvmOverloads constructor(
         val index = items.indexOf(item)
         return if (index >= 0) {
             items.removeAt(index)
-            notifyListeners { listener -> listener.onItemRemoved(item, index) }
+            notifyListeners { it.onItemRemoved(item, index) }
             true
         } else {
             false
@@ -1588,7 +1599,7 @@ class ContentDownloader @JvmOverloads constructor(
 
         return try {
             val item = items.removeAt(index)
-            notifyListeners { listener -> listener.onItemRemoved(item, index) }
+            notifyListeners { it.onItemRemoved(item, index) }
             item
         } catch (e: IndexOutOfBoundsException) {
             null
@@ -1604,7 +1615,7 @@ class ContentDownloader @JvmOverloads constructor(
         return try {
             val item = items.removeAt(fromIndex)
             items.add(toIndex, item)
-            notifyListeners { listener -> listener.onItemMoved(item, fromIndex, toIndex) }
+            notifyListeners { it.onItemMoved(item, fromIndex, toIndex) }
             true
         } catch (e: IndexOutOfBoundsException) {
             false
@@ -1619,19 +1630,14 @@ class ContentDownloader @JvmOverloads constructor(
 
         val oldItems = items.toList()
         items.clear()
-        notifyListeners { listener -> listener.onQueueCleared(oldItems) }
+
+        notifyListeners { it.onQueueCleared(oldItems) }
     }
-
-    fun get(index: Int): DownloadItem? = items.getOrNull(index)
-
-    fun contains(item: DownloadItem): Boolean = items.contains(item)
-
-    fun indexOf(item: DownloadItem): Int = items.indexOf(item)
 
     // endregion
 
     /**
-     * Android emulation uses Windows, so this method sets internal configs to return "windows" if the device is android.
+     * Some android emulators prefer using "Windows", so this will set downloading to prefer the Windows version.
      */
     fun setAndroidEmulation(value: Boolean) {
         if (isStarted.get()) {
@@ -1640,6 +1646,8 @@ class ContentDownloader @JvmOverloads constructor(
         }
 
         config = config.copy(androidEmulation = value)
+
+        notifyListeners { it.onAndroidEmulation(config.androidEmulation) }
     }
 
     @Throws(IllegalStateException::class)
@@ -1803,11 +1811,7 @@ class ContentDownloader @JvmOverloads constructor(
         processingChannel.close()
 
         listeners.forEach { listener ->
-            try {
-                listener.onQueueClosed()
-            } catch (e: Exception) {
-                logger?.error(e)
-            }
+            listener.onQueueClosed()
         }
         listeners.clear()
 
