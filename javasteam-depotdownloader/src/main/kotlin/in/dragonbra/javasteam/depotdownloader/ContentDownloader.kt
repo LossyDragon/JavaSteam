@@ -17,6 +17,7 @@ import `in`.dragonbra.javasteam.enums.EDepotFileFlag
 import `in`.dragonbra.javasteam.steam.cdn.ClientLancache
 import `in`.dragonbra.javasteam.steam.cdn.Server
 import `in`.dragonbra.javasteam.steam.handlers.steamapps.License
+import `in`.dragonbra.javasteam.steam.handlers.steamapps.callback.LicenseListCallback
 import `in`.dragonbra.javasteam.steam.handlers.steamcloud.callback.UGCDetailsCallback
 import `in`.dragonbra.javasteam.steam.steamclient.SteamClient
 import `in`.dragonbra.javasteam.types.ChunkData
@@ -56,9 +57,11 @@ import kotlinx.coroutines.yield
 import okio.FileSystem
 import okio.Path
 import okio.Path.Companion.toPath
+import org.apache.commons.lang3.SystemUtils
 import java.io.Closeable
 import java.io.IOException
 import java.io.RandomAccessFile
+import java.lang.IllegalStateException
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.time.Instant
@@ -70,21 +73,36 @@ import kotlin.collections.mutableListOf
 import kotlin.collections.set
 import kotlin.text.toLongOrNull
 
+/**
+ * TODO Description
+ * @param steamClient an instance of [SteamClient]
+ * @param licenses a list of licenses the logged-in user has. This is provided by [LicenseListCallback]
+ * @param debug enable or disable logging through [LogManager]
+ * @param useLanCache try and detect a local Steam Cache server.
+ * @param maxDownloads the number of simultaneous downloads.
+ *
+ * @author Oxters
+ * @author Lossy
+ * @since Oct 29, 2024
+ */
 @Suppress("unused")
 class ContentDownloader @JvmOverloads constructor(
     private val steamClient: SteamClient,
     private val licenses: List<License>, // To be provided from [LicenseListCallback]
     private val debug: Boolean = false, // Enable debugging features, such as logging
+    private val useLanCache: Boolean = false, // Try and detect a lan cache server.
     private var maxDownloads: Int = 8, // Max concurrent downloads
-    useLanCache: Boolean = false, // Try and detect a lan cache server.
 ) : Closeable {
 
     companion object {
         const val INVALID_APP_ID: Int = Int.MAX_VALUE
         const val INVALID_DEPOT_ID: Int = Int.MAX_VALUE
         const val INVALID_MANIFEST_ID: Long = Long.MAX_VALUE
-        const val DEFAULT_BRANCH: String = "public"
+
         const val CONFIG_DIR: String = ".DepotDownloader"
+        const val DEFAULT_BRANCH: String = "public"
+        const val DEFAULT_DOWNLOAD_DIR: String = "depots"
+
         val STAGING_DIR: Path = CONFIG_DIR.toPath() / "staging"
     }
 
@@ -125,6 +143,8 @@ class ContentDownloader @JvmOverloads constructor(
         }
     }
 
+    private data class DirectoryResult(val success: Boolean, val installDir: Path?)
+
     private data class Config(
         val installPath: Path? = null,
         val betaPassword: String? = null,
@@ -133,6 +153,7 @@ class ContentDownloader @JvmOverloads constructor(
         val downloadAllLanguages: Boolean = false,
         val androidEmulation: Boolean = false,
         val downloadManifestOnly: Boolean = false,
+        val installToGameNameDirectory: Boolean = false,
 
         // Not used yet in code
         val usingFileList: Boolean = false,
@@ -149,23 +170,10 @@ class ContentDownloader @JvmOverloads constructor(
         logger?.debug("DepotDownloader launched with ${licenses.size} for account")
 
         steam3 = Steam3Session(steamClient, debug)
-
-        scope.launch {
-            if (useLanCache) {
-                ClientLancache.detectLancacheServer()
-            }
-
-            if (ClientLancache.useLanCacheServer) {
-                logger?.debug("Detected Lan-Cache server! Downloads will be directed through the Lancache.")
-
-                // Increasing the number of concurrent downloads when the cache is detected since the downloads will likely
-                // be served much faster than over the internet.  Steam internally has this behavior as well.
-                maxDownloads = if (ClientLancache.useLanCacheServer && maxDownloads == 8) 25 else maxDownloads
-            }
-        }
     }
 
     // region [REGION] Downloading Operations
+    @Throws(IllegalStateException::class)
     suspend fun downloadPubFile(appId: Int, publishedFileId: Long) {
         val details = steam3!!.getPublishedFileDetails(appId, PublishedFileID(publishedFileId))
 
@@ -221,20 +229,21 @@ class ContentDownloader @JvmOverloads constructor(
         }
     }
 
+    @Throws(IllegalStateException::class)
     suspend fun downloadWebFile(appId: Int, fileName: String, url: String) {
-        val installDir = createDirectories(appId, 0)
+        val (success, installDir) = createDirectories(appId, 0, appId)
 
-        if (installDir == null) {
+        if (!success) {
             logger?.debug("Error: Unable to create install directories!")
             return
         }
 
-        val stagingDir = installDir.resolve("staging")
-        val fileStagingPath = stagingDir.resolve(fileName)
-        val fileFinalPath = installDir.resolve(fileName)
+        val stagingDir = installDir!! / "staging"
+        val fileStagingPath = stagingDir / fileName
+        val fileFinalPath = installDir / fileName
 
-        fileFinalPath.parent?.let { filesystem.createDirectories(it) }
-        fileStagingPath.parent?.let { filesystem.createDirectories(it) }
+        filesystem.createDirectories(fileFinalPath.parent!!)
+        filesystem.createDirectories(fileStagingPath.parent!!)
 
         HttpClient.httpClient.use { client ->
             logger?.debug("Starting download of $fileName...")
@@ -308,6 +317,7 @@ class ContentDownloader @JvmOverloads constructor(
     }
 
     // L4D2 (app) supports LV
+    @Throws(IllegalStateException::class)
     suspend fun downloadApp(
         appId: Int,
         depotManifestIds: List<Pair<Int, Long>>,
@@ -324,7 +334,10 @@ class ContentDownloader @JvmOverloads constructor(
         cdnClientPool = CDNClientPool.init(steamClient, appId, debug)
 
         // Load our configuration data containing the depots currently installed
-        val configPath = requireNotNull(config.installPath)
+        var configPath = config.installPath
+        if (configPath == null) {
+            configPath = DEFAULT_DOWNLOAD_DIR.toPath()
+        }
 
         filesystem.createDirectories(configPath)
         DepotConfigStore.loadFromFile(configPath / CONFIG_DIR / "depot.config")
@@ -444,6 +457,7 @@ class ContentDownloader @JvmOverloads constructor(
         downloadSteam3(infos)
     }
 
+    @Throws(IllegalStateException::class)
     private suspend fun getDepotInfo(
         depotId: Int,
         appId: Int,
@@ -487,8 +501,8 @@ class ContentDownloader @JvmOverloads constructor(
 
         val uVersion = getSteam3AppBuildNumber(appId, branch)
 
-        val result = createDirectories(depotId, uVersion)
-        if (result == null) {
+        val (success, installDir) = createDirectories(depotId, uVersion, appId)
+        if (!success) {
             logger?.error("Error: Unable to create install directories!")
             return null
         }
@@ -508,7 +522,7 @@ class ContentDownloader @JvmOverloads constructor(
             appId = containingAppId,
             manifestId = manifestId,
             branch = branch,
-            installDir = result,
+            installDir = installDir!!,
             depotKey = depotKey
         )
     }
@@ -638,24 +652,65 @@ class ContentDownloader @JvmOverloads constructor(
         return depotChild["depotfromapp"].asInteger()
     }
 
-    // TODO Finish
-    // TODO Feasible to install in directory, but in its own sub-directory based off Game Name?
-    private fun createDirectories(depotId: Int, depotVersion: Int): Path? = try {
-        var installDir: Path
+    @Throws(IllegalStateException::class)
+    private fun createDirectories(depotId: Int, depotVersion: Int, appId: Int = 0): DirectoryResult {
+        var installDir: Path?
+        try {
+            if (config.installPath?.toString().isNullOrBlank()) {
+                // Android Check
+                if (SystemUtils.IS_OS_ANDROID) {
+                    // This should propagate up to the caller.
+                    throw IllegalStateException("Android must have an installation directory set.")
+                }
 
-        val depotPath = installPath.toPath() / depotId.toString()
-        filesystem.createDirectories(depotPath)
+                filesystem.createDirectories(DEFAULT_DOWNLOAD_DIR.toPath())
 
-        installDir = depotPath / depotVersion.toString()
-        filesystem.createDirectories(installDir)
+                if (config.installToGameNameDirectory) {
+                    val gameName = getAppName(appId)
 
-        filesystem.createDirectories(installDir / CONFIG_DIR)
-        filesystem.createDirectories(installDir / STAGING_DIR)
+                    if (gameName.isBlank()) {
+                        throw IOException("Game name is blank, cannot create directory")
+                    }
 
-        installDir
-    } catch (e: Exception) {
-        logger?.error(e)
-        null
+                    installDir = DEFAULT_DOWNLOAD_DIR.toPath() / gameName
+
+                    filesystem.createDirectories(installDir)
+                } else {
+                    val depotPath = DEFAULT_DOWNLOAD_DIR.toPath() / depotId.toString()
+                    filesystem.createDirectories(depotPath)
+
+                    installDir = depotPath / depotVersion.toString()
+                    filesystem.createDirectories(installDir)
+                }
+
+                filesystem.createDirectories(installDir / CONFIG_DIR)
+                filesystem.createDirectories(installDir / STAGING_DIR)
+            } else {
+                filesystem.createDirectories(config.installPath!!)
+
+                if (config.installToGameNameDirectory) {
+                    val gameName = getAppName(appId)
+
+                    if (gameName.isBlank()) {
+                        throw IOException("Game name is blank, cannot create directory")
+                    }
+
+                    installDir = config.installPath!! / gameName
+
+                    filesystem.createDirectories(installDir)
+                } else {
+                    installDir = config.installPath!!
+                }
+
+                filesystem.createDirectories(installDir / CONFIG_DIR)
+                filesystem.createDirectories(installDir / STAGING_DIR)
+            }
+        } catch (e: IOException) {
+            logger?.error(e)
+            return DirectoryResult(false, null)
+        }
+
+        return DirectoryResult(true, installDir)
     }
 
     private fun getAppName(appId: Int): String {
@@ -981,7 +1036,7 @@ class ContentDownloader @JvmOverloads constructor(
                 // First parallel loop - process files and enqueue chunks
                 files.map { file ->
                     async {
-                        yield()
+                        yield() // Does this matter if its before?
                         downloadSteam3DepotFile(
                             downloadCounter = downloadCounter,
                             depotFilesData = depotFilesData,
@@ -1587,6 +1642,7 @@ class ContentDownloader @JvmOverloads constructor(
         config = config.copy(androidEmulation = value)
     }
 
+    @Throws(IllegalStateException::class)
     fun start(): CompletableFuture<Boolean> = scope.future {
         if (isStarted.getAndSet(true)) {
             logger?.debug("Downloading already started.")
@@ -1612,10 +1668,25 @@ class ContentDownloader @JvmOverloads constructor(
 
             try {
                 runBlocking {
+                    if (useLanCache) {
+                        ClientLancache.detectLancacheServer()
+                    }
+
+                    if (ClientLancache.useLanCacheServer) {
+                        logger?.debug("Detected Lan-Cache server! Downloads will be directed through the Lancache.")
+
+                        // Increasing the number of concurrent downloads when the cache is detected since the downloads will likely
+                        // be served much faster than over the internet.  Steam internally has this behavior as well.
+                        if (maxDownloads == 8) {
+                            maxDownloads = 25
+                        }
+                    }
+
                     // Set some configuration values, first.
                     config = config.copy(
                         downloadManifestOnly = item.downloadManifestOnly,
-                        installPath = item.installDirectory.toPath()
+                        installPath = item.installDirectory?.toPath(),
+                        installToGameNameDirectory = item.installToGameNameDirectory,
                     )
 
                     // Sequential looping.
@@ -1714,7 +1785,7 @@ class ContentDownloader @JvmOverloads constructor(
                         }
                     }
                 }
-            } catch (e: Exception) {
+            } catch (e: IOException) {
                 logger?.error("Error downloading item ${item.appId}: ${e.message}", e)
                 throw e
             }

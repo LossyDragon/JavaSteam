@@ -15,7 +15,15 @@ import kotlinx.coroutines.sync.withLock
 import kotlin.jvm.Throws
 
 /**
- * [CDNClientPool] provides a pool of connections to CDN endpoints, requesting CDN tokens as needed
+ * [CDNClientPool] provides a pool of connections to CDN endpoints, requesting CDN tokens as needed.
+ * @param steamClient an instance of [SteamClient]
+ * @param appId the selected app id to ensure an endpoint supports the download.
+ * @param scope (optional) the [CoroutineScope] to use.
+ * @param debug enable or disable logging through [LogManager]
+ *
+ * @author Oxters
+ * @author Lossy
+ * @since Nov 7, 2024
  */
 class CDNClientPool(
     private val steamClient: SteamClient,

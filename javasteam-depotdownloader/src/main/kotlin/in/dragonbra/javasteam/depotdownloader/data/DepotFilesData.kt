@@ -4,6 +4,11 @@ import `in`.dragonbra.javasteam.types.DepotManifest
 import `in`.dragonbra.javasteam.types.FileData
 import okio.Path
 
+/**
+ * @author Oxters
+ * @author Lossy
+ * @since Oct 29, 2024
+ */
 data class DepotFilesData(
     val depotDownloadInfo: DepotDownloadInfo,
     val depotCounter: DepotDownloadCounter,

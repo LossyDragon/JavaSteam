@@ -75,6 +75,7 @@ loginkey.txt
 sentry.bin
 server_list.bin
 /steamapps/
+/depots/
 /userfiles/
 refreshtoken.txt
 

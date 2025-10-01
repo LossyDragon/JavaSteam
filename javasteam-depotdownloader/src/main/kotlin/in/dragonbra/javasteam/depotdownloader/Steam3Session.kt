@@ -26,6 +26,10 @@ import kotlinx.coroutines.withContext
 import java.io.Closeable
 import java.util.concurrent.ConcurrentHashMap
 
+/**
+ * @author Lossy
+ * @since Oct 1, 2025
+ */
 class Steam3Session(
     private val steamClient: SteamClient,
     debug: Boolean,

@@ -5,6 +5,10 @@ import kotlinx.serialization.json.Json
 import okio.FileSystem
 import okio.Path
 
+/**
+ * @author Lossy
+ * @since Oct 1, 2025
+ */
 @Serializable
 data class DepotConfigStore(
     val installedManifestIDs: MutableMap<Int, Long> = mutableMapOf(),

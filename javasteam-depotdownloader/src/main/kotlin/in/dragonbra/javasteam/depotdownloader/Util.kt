@@ -11,6 +11,10 @@ import org.apache.commons.lang3.SystemUtils
 import java.io.IOException
 import java.security.MessageDigest
 
+/**
+ * @author Lossy
+ * @since Oct 1, 2025
+ */
 object Util {
 
     @JvmOverloads

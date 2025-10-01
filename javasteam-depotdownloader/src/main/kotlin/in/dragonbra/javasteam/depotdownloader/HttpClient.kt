@@ -7,6 +7,10 @@ import io.ktor.client.engine.cio.endpoint
 import io.ktor.client.plugins.UserAgent
 import kotlinx.coroutines.isActive
 
+/**
+ * @author Lossy
+ * @since Oct 1, 2025
+ */
 object HttpClient {
 
     private var _httpClient: HttpClient? = null

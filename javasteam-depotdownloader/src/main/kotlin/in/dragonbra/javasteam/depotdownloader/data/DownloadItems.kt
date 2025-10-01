@@ -4,29 +4,49 @@ import `in`.dragonbra.javasteam.depotdownloader.ContentDownloader
 
 // https://kotlinlang.org/docs/coding-conventions.html#source-file-organization
 
+/**
+ * @author Lossy
+ * @since Oct 1, 2025
+ */
 abstract class DownloadItem(
     val appId: Int,
-    val installDirectory: String,
+    val installDirectory: String?,
+    val installToGameNameDirectory: Boolean,
     val downloadManifestOnly: Boolean,
 )
 
+/**
+ * @author Lossy
+ * @since Oct 1, 2025
+ */
 class UgcItem @JvmOverloads constructor(
     appId: Int,
-    installDirectory: String,
     val ugcId: Long = ContentDownloader.INVALID_MANIFEST_ID,
+    installToGameNameDirectory: Boolean = false,
+    installDirectory: String? = null,
     downloadManifestOnly: Boolean = false,
-) : DownloadItem(appId, installDirectory, downloadManifestOnly)
+) : DownloadItem(appId, installDirectory, installToGameNameDirectory, downloadManifestOnly)
 
+/**
+ * @author Lossy
+ * @since Oct 1, 2025
+ */
 class PubFileItem @JvmOverloads constructor(
     appId: Int,
-    installDirectory: String,
     val pubfile: Long = ContentDownloader.INVALID_MANIFEST_ID,
+    installToGameNameDirectory: Boolean = false,
+    installDirectory: String? = null,
     downloadManifestOnly: Boolean = false,
-) : DownloadItem(appId, installDirectory, downloadManifestOnly)
+) : DownloadItem(appId, installDirectory, installToGameNameDirectory, downloadManifestOnly)
 
+/**
+ * @author Lossy
+ * @since Oct 1, 2025
+ */
 class AppItem @JvmOverloads constructor(
     appId: Int,
-    installDirectory: String,
+    installToGameNameDirectory: Boolean = false,
+    installDirectory: String? = null,
     val branch: String? = null,
     val branchPassword: String? = null,
     val downloadAllPlatforms: Boolean = false,
@@ -39,4 +59,4 @@ class AppItem @JvmOverloads constructor(
     val depot: List<Int> = emptyList(),
     val manifest: List<Long> = emptyList(),
     downloadManifestOnly: Boolean = false,
-) : DownloadItem(appId, installDirectory, downloadManifestOnly)
+) : DownloadItem(appId, installDirectory, installToGameNameDirectory, downloadManifestOnly)

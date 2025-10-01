@@ -2,6 +2,10 @@ package `in`.dragonbra.javasteam.depotdownloader
 
 import `in`.dragonbra.javasteam.depotdownloader.data.DownloadItem
 
+/**
+ * @author Lossy
+ * @since Oct 1, 2025
+ */
 interface IDownloadListener {
     fun onItemAdded(item: DownloadItem, index: Int)
     fun onItemRemoved(item: DownloadItem, index: Int)

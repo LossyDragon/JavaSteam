@@ -2,6 +2,11 @@ package `in`.dragonbra.javasteam.depotdownloader.data
 
 import okio.Path
 
+/**
+ * @author Oxters
+ * @author Lossy
+ * @since Oct 29, 2024
+ */
 data class DepotDownloadInfo(
     val depotId: Int,
     val appId: Int,

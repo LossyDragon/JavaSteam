@@ -1,5 +1,9 @@
 package `in`.dragonbra.javasteam.depotdownloader.data
 
+/**
+ * @author Lossy
+ * @since Oct 1, 2025
+ */
 data class DownloadProgress(
     val fileName: String,
     val downloadedBytes: Long,
