@@ -5,11 +5,13 @@ import `in`.dragonbra.javasteam.depotdownloader.data.ChunkMatch
 import `in`.dragonbra.javasteam.depotdownloader.data.DepotDownloadCounter
 import `in`.dragonbra.javasteam.depotdownloader.data.DepotDownloadInfo
 import `in`.dragonbra.javasteam.depotdownloader.data.DepotFilesData
+import `in`.dragonbra.javasteam.depotdownloader.data.DepotProgress
 import `in`.dragonbra.javasteam.depotdownloader.data.DownloadItem
-import `in`.dragonbra.javasteam.depotdownloader.data.DownloadProgress
-import `in`.dragonbra.javasteam.depotdownloader.data.DownloadProgress.Status
+import `in`.dragonbra.javasteam.depotdownloader.data.DownloadStatus
+import `in`.dragonbra.javasteam.depotdownloader.data.FileProgress
 import `in`.dragonbra.javasteam.depotdownloader.data.FileStreamData
 import `in`.dragonbra.javasteam.depotdownloader.data.GlobalDownloadCounter
+import `in`.dragonbra.javasteam.depotdownloader.data.OverallProgress
 import `in`.dragonbra.javasteam.depotdownloader.data.PubFileItem
 import `in`.dragonbra.javasteam.depotdownloader.data.UgcItem
 import `in`.dragonbra.javasteam.enums.EAccountType
@@ -48,6 +50,7 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.future.future
 import kotlinx.coroutines.launch
@@ -117,6 +120,8 @@ class ContentDownloader @JvmOverloads constructor(
     private val isStarted: AtomicBoolean = AtomicBoolean(false)
     private val processingChannel = Channel<DownloadItem>(Channel.UNLIMITED)
     private val remainingItems = AtomicInteger(0)
+    private val lastFileProgressUpdate = ConcurrentHashMap<String, Long>()
+    private val progressUpdateInterval = 500L // ms
 
     private var steam3: Steam3Session? = null
 
@@ -125,6 +130,13 @@ class ContentDownloader @JvmOverloads constructor(
     private var config: Config = Config()
 
     // region [REGION] Private data classes.
+
+    private data class NetworkChunkItem(
+        val fileStreamData: FileStreamData,
+        val fileData: FileData,
+        val chunk: ChunkData,
+        val totalChunksForFile: Int,
+    )
 
     private data class DirectoryResult(val success: Boolean, val installDir: Path?)
 
@@ -218,14 +230,8 @@ class ContentDownloader @JvmOverloads constructor(
     suspend fun downloadWebFile(appId: Int, fileName: String, url: String) {
         val (success, installDir) = createDirectories(appId, 0, appId)
 
-        var progress = DownloadProgress()
-
         if (!success) {
             logger?.debug("Error: Unable to create install directories!")
-
-            progress = progress.copy(status = Status.FAILED)
-            notifyListeners { it.onDownloadProgress(appId, progress) }
-
             return
         }
 
@@ -239,18 +245,10 @@ class ContentDownloader @JvmOverloads constructor(
         HttpClient.httpClient.use { client ->
             logger?.debug("Starting download of $fileName...")
 
-            progress = progress.copy(status = Status.INTERMEDIATE)
-            notifyListeners { it.onDownloadProgress(appId, progress) }
-
             val response = client.get(url)
             val channel = response.bodyAsChannel()
 
             val totalBytes = response.headers[HttpHeaders.ContentLength]?.toLongOrNull()
-
-            var downloadedBytes = 0L
-            var lastProgressTime = System.currentTimeMillis()
-            var lastDownloadedBytes = 0L
-            val progressUpdateInterval = 1000L
 
             logger?.debug("File size: ${totalBytes?.let { Util.formatBytes(it) } ?: "Unknown"}")
 
@@ -267,48 +265,11 @@ class ContentDownloader @JvmOverloads constructor(
 
                         // Write from buffer to sink
                         sink.writeAll(buffer)
-
-                        downloadedBytes += bytesRead
-
-                        val currentTime = System.currentTimeMillis()
-                        if (currentTime - lastProgressTime >= progressUpdateInterval) {
-                            val timeDiff = (currentTime - lastProgressTime) / 1000.0
-                            val bytesDiff = downloadedBytes - lastDownloadedBytes
-                            val bytesPerSecond = bytesDiff / timeDiff
-
-                            val percentComplete = totalBytes?.let {
-                                (downloadedBytes.toDouble() / it.toDouble()) * 100.0
-                            }
-
-                            progress = progress.copy(
-                                fileName = fileName,
-                                downloadedBytes = downloadedBytes,
-                                totalBytes = totalBytes,
-                                bytesPerSecond = bytesPerSecond,
-                                percentComplete = percentComplete,
-                                status = Status.DOWNLOADING
-                            )
-
-                            logger?.debug(progress.formatProgress())
-
-                            lastProgressTime = currentTime
-                            lastDownloadedBytes = downloadedBytes
-                        }
                     }
                 }
             }
 
-            val totalTime = (System.currentTimeMillis() - (lastProgressTime - progressUpdateInterval)) / 1000.0
-            val averageSpeed = downloadedBytes / totalTime
-
-            progress = progress.copy(status = Status.INTERMEDIATE)
-            notifyListeners { it.onDownloadProgress(appId, progress) }
-
-            logger?.debug(
-                "Download completed. \n Final stats: " +
-                    "${Util.formatBytes(downloadedBytes)} in %.1f seconds (avg: %.2f MB/s)"
-                        .format(totalTime, averageSpeed / 1024.0 / 1024.0)
-            )
+            logger?.debug("Download completed.")
         }
 
         if (filesystem.exists(fileFinalPath)) {
@@ -379,8 +340,6 @@ class ContentDownloader @JvmOverloads constructor(
             depotIdsFound.addAll(depotIdsExpected)
         } else {
             logger?.debug("Using app branch: $branch")
-
-            notifyListeners { it.onDownloadProgress(appId, DownloadProgress(status = Status.INTERMEDIATE)) }
 
             depots?.children?.forEach { depotSection ->
                 @Suppress("VariableInitializerIsRedundant")
@@ -795,6 +754,8 @@ class ContentDownloader @JvmOverloads constructor(
         val depotsToDownload = ArrayList<DepotFilesData>(depots.size)
         val allFileNamesAllDepots = hashSetOf<String>()
 
+        var completedDepots = 0
+
         // First, fetch all the manifests for each depot (including previous manifests) and perform the initial setup
         depots.forEach { depot ->
             val depotFileData = processDepotManifestAndFiles(depot, downloadCounter)
@@ -820,6 +781,22 @@ class ContentDownloader @JvmOverloads constructor(
 
         depotsToDownload.forEach { depotFileData ->
             downloadSteam3DepotFiles(downloadCounter, depotFileData, allFileNamesAllDepots)
+
+            completedDepots++
+
+            val snapshot = synchronized(downloadCounter) {
+                OverallProgress(
+                    currentItem = completedDepots,
+                    totalItems = depotsToDownload.size,
+                    totalBytesDownloaded = downloadCounter.totalBytesUncompressed,
+                    totalBytesExpected = downloadCounter.completeDownloadSize,
+                    status = DownloadStatus.DOWNLOADING
+                )
+            }
+
+            notifyListeners { listener ->
+                listener.onOverallProgress(progress = snapshot)
+            }
         }
 
         logger?.debug(
@@ -867,6 +844,7 @@ class ContentDownloader @JvmOverloads constructor(
                 logger?.debug("Already have manifest ${depot.manifestId} for depot ${depot.depotId}.")
             } else {
                 logger?.debug("Downloading depot ${depot.depotId} manifest")
+                notifyListeners { it.onStatusUpdate("Downloading manifest for depot ${depot.depotId}") }
 
                 var manifestRequestCode: ULong = 0U
                 var manifestRequestCodeExpiration = Instant.MIN
@@ -1019,12 +997,6 @@ class ContentDownloader @JvmOverloads constructor(
         )
     }
 
-    data class NetworkChunkItem(
-        val fileStreamData: FileStreamData,
-        val fileData: FileData,
-        val chunk: ChunkData,
-    )
-
     @OptIn(DelicateCoroutinesApi::class)
     private suspend fun downloadSteam3DepotFiles(
         downloadCounter: GlobalDownloadCounter,
@@ -1040,6 +1012,8 @@ class ContentDownloader @JvmOverloads constructor(
         val networkChunkQueue = Channel<NetworkChunkItem>(Channel.UNLIMITED)
 
         try {
+            val filesCompleted = AtomicInteger(0)
+            val lastReportedProgress = AtomicInteger(0)
             coroutineScope {
                 // First parallel loop - process files and enqueue chunks
                 files.map { file ->
@@ -1051,26 +1025,76 @@ class ContentDownloader @JvmOverloads constructor(
                             file = file,
                             networkChunkQueue = networkChunkQueue
                         )
+
+                        val completed = filesCompleted.incrementAndGet()
+                        if (completed % 10 == 0 || completed == files.size) {
+                            val snapshot = synchronized(depotCounter) {
+                                DepotProgress(
+                                    depotId = depot.depotId,
+                                    filesCompleted = completed,
+                                    totalFiles = files.size,
+                                    bytesDownloaded = depotCounter.sizeDownloaded,
+                                    totalBytes = depotCounter.completeDownloadSize,
+                                    status = DownloadStatus.PREPARING // Changed from DOWNLOADING
+                                )
+                            }
+
+                            val lastReported = lastReportedProgress.get()
+                            if (completed > lastReported &&
+                                lastReportedProgress.compareAndSet(
+                                    lastReported,
+                                    completed
+                                )
+                            ) {
+                                notifyListeners { listener ->
+                                    listener.onDepotProgress(depot.depotId, snapshot)
+                                }
+                            }
+                        }
                     }
                 }.awaitAll()
 
                 // Close the channel to signal no more items will be added
                 networkChunkQueue.close()
 
-                // Second parallel loop - process chunks from queue
-                List(maxDownloads) {
-                    async {
-                        for (item in networkChunkQueue) {
-                            downloadSteam3DepotFileChunk(
-                                downloadCounter = downloadCounter,
-                                depotFilesData = depotFilesData,
-                                file = item.fileData,
-                                fileStreamData = item.fileStreamData,
-                                chunk = item.chunk
+                // After all files allocated, send one update showing preparation complete
+                val progressReporter = launch {
+                    while (true) {
+                        delay(1000)
+                        val snapshot = synchronized(depotCounter) {
+                            DepotProgress(
+                                depotId = depot.depotId,
+                                filesCompleted = files.size,
+                                totalFiles = files.size,
+                                bytesDownloaded = depotCounter.sizeDownloaded,
+                                totalBytes = depotCounter.completeDownloadSize,
+                                status = DownloadStatus.DOWNLOADING
                             )
                         }
+                        notifyListeners { listener ->
+                            listener.onDepotProgress(depot.depotId, snapshot)
+                        }
                     }
-                }.awaitAll()
+                }
+
+                // Second parallel loop - process chunks from queue
+                try {
+                    List(maxDownloads) {
+                        async {
+                            for (item in networkChunkQueue) {
+                                downloadSteam3DepotFileChunk(
+                                    downloadCounter = downloadCounter,
+                                    depotFilesData = depotFilesData,
+                                    file = item.fileData,
+                                    fileStreamData = item.fileStreamData,
+                                    chunk = item.chunk
+                                )
+                            }
+                        }
+                    }.awaitAll()
+                } finally {
+                    progressReporter.cancel()
+                }
             }
         } finally {
             if (!networkChunkQueue.isClosedForSend) {
@@ -1141,6 +1165,7 @@ class ContentDownloader @JvmOverloads constructor(
         val fileDidExist = filesystem.exists(fileFinalPath)
         if (!fileDidExist) {
             logger?.debug("Pre-allocating: $fileFinalPath")
+            notifyListeners { it.onStatusUpdate("Allocating file: ${file.fileName}") }
 
             // create new file. need all chunks
             try {
@@ -1251,6 +1276,8 @@ class ContentDownloader @JvmOverloads constructor(
                     }
 
                     logger?.debug("Validating $fileFinalPath")
+                    notifyListeners { it.onStatusUpdate("Validating: ${file.fileName}") }
+
                     neededChunks = Util.validateSteam3FileChecksums(
                         handle = handle,
                         chunkData = file.chunks.sortedBy { it.offset }
@@ -1303,7 +1330,14 @@ class ContentDownloader @JvmOverloads constructor(
         )
 
         neededChunks!!.forEach { chunk ->
-            networkChunkQueue.send(NetworkChunkItem(fileStreamData, file, chunk))
+            networkChunkQueue.send(
+                NetworkChunkItem(
+                    fileStreamData = fileStreamData,
+                    fileData = file,
+                    chunk = chunk,
+                    totalChunksForFile = neededChunks!!.size
+                )
+            )
         }
     }
 
@@ -1432,9 +1466,35 @@ class ContentDownloader @JvmOverloads constructor(
         synchronized(downloadCounter) {
             downloadCounter.totalBytesCompressed += chunk.compressedLength
             downloadCounter.totalBytesUncompressed += chunk.uncompressedLength
+        }
 
-            // TODO progress indication
-            // Ansi.Progress(downloadCounter.totalBytesUncompressed, downloadCounter.completeDownloadSize);
+        val now = System.currentTimeMillis()
+        val fileKey = "${depot.depotId}:${file.fileName}"
+        val lastUpdate = lastFileProgressUpdate[fileKey] ?: 0L
+
+        if (now - lastUpdate >= progressUpdateInterval || remainingChunks == 0) {
+            lastFileProgressUpdate[fileKey] = now
+
+            val totalChunks = file.chunks.size
+            val completedChunks = totalChunks - remainingChunks
+
+            // Approximate bytes based on completion ratio
+            val approximateBytesDownloaded = (file.totalSize * completedChunks) / totalChunks
+
+            notifyListeners { listener ->
+                listener.onFileProgress(
+                    depotId = depot.depotId,
+                    fileName = file.fileName,
+                    progress = FileProgress(
+                        fileName = file.fileName,
+                        bytesDownloaded = approximateBytesDownloaded,
+                        totalBytes = file.totalSize,
+                        chunksCompleted = completedChunks,
+                        totalChunks = totalChunks,
+                        status = if (remainingChunks == 0) DownloadStatus.COMPLETED else DownloadStatus.DOWNLOADING
+                    )
+                )
+            }
         }
 
         if (remainingChunks == 0) {
@@ -1477,14 +1537,7 @@ class ContentDownloader @JvmOverloads constructor(
     }
 
     private fun notifyListeners(action: (IDownloadListener) -> Unit) {
-        listeners.forEach { listener ->
-            try {
-                action(listener)
-                listener.onQueueChanged(getItems())
-            } catch (e: Exception) {
-                logger?.error(e)
-            }
-        }
+        listeners.forEach { listener -> action(listener) }
     }
 
     // endregion
@@ -1616,7 +1669,6 @@ class ContentDownloader @JvmOverloads constructor(
         return try {
             val item = items.removeAt(fromIndex)
             items.add(toIndex, item)
-            notifyListeners { it.onItemMoved(item, fromIndex, toIndex) }
             true
         } catch (e: IndexOutOfBoundsException) {
             false
@@ -1705,7 +1757,10 @@ class ContentDownloader @JvmOverloads constructor(
                                 logger?.debug("Invalid Pub File ID for ${item.appId}")
                                 return@runBlocking
                             }
+
                             logger?.debug("Downloading PUB File for ${item.appId}")
+
+                            notifyListeners { it.onDownloadStarted(item) }
                             downloadPubFile(item.appId, item.pubfile)
                         }
 
@@ -1714,13 +1769,14 @@ class ContentDownloader @JvmOverloads constructor(
                                 logger?.debug("Invalid UGC ID for ${item.appId}")
                                 return@runBlocking
                             }
+
                             logger?.debug("Downloading UGC File for ${item.appId}")
+
+                            notifyListeners { it.onDownloadStarted(item) }
                             downloadUGC(item.appId, item.ugcId)
                         }
 
                         is AppItem -> {
-                            logger?.debug("Downloading App for ${item.appId}")
-
                             val branch = item.branch ?: DEFAULT_BRANCH
                             config = config.copy(betaPassword = item.branchPassword)
 
@@ -1781,6 +1837,9 @@ class ContentDownloader @JvmOverloads constructor(
                                 )
                             }
 
+                            logger?.debug("Downloading App for ${item.appId}")
+
+                            notifyListeners { it.onDownloadStarted(item) }
                             downloadApp(
                                 appId = item.appId,
                                 depotManifestIds = depotManifestIds,
@@ -1793,9 +1852,14 @@ class ContentDownloader @JvmOverloads constructor(
                             )
                         }
                     }
+
+                    notifyListeners { it.onDownloadCompleted(item) }
                 }
             } catch (e: IOException) {
                 logger?.error("Error downloading item ${item.appId}: ${e.message}", e)
+
+                notifyListeners { it.onDownloadFailed(item, e) }
+
                 throw e
             }
         }
@@ -1811,9 +1875,7 @@ class ContentDownloader @JvmOverloads constructor(
         items.clear()
         processingChannel.close()
 
-        listeners.forEach { listener ->
-            listener.onQueueClosed()
-        }
+        lastFileProgressUpdate.clear()
         listeners.clear()
 
         steam3?.close()

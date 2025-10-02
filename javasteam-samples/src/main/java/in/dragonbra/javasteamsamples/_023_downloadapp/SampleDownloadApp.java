@@ -1,9 +1,8 @@
 package in.dragonbra.javasteamsamples._023_downloadapp;
 
 import in.dragonbra.javasteam.depotdownloader.ContentDownloader;
-import in.dragonbra.javasteam.depotdownloader.data.AppItem;
-import in.dragonbra.javasteam.depotdownloader.data.PubFileItem;
-import in.dragonbra.javasteam.depotdownloader.data.UgcItem;
+import in.dragonbra.javasteam.depotdownloader.IDownloadListener;
+import in.dragonbra.javasteam.depotdownloader.data.*;
 import in.dragonbra.javasteam.enums.EResult;
 import in.dragonbra.javasteam.steam.authentication.AuthPollResult;
 import in.dragonbra.javasteam.steam.authentication.AuthSessionDetails;
@@ -23,6 +22,7 @@ import in.dragonbra.javasteam.steam.steamclient.callbacks.ConnectedCallback;
 import in.dragonbra.javasteam.steam.steamclient.callbacks.DisconnectedCallback;
 import in.dragonbra.javasteam.util.log.DefaultLogListener;
 import in.dragonbra.javasteam.util.log.LogManager;
+import org.jetbrains.annotations.NotNull;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -49,7 +49,7 @@ import java.util.concurrent.ExecutionException;
  * called Rocky Mayhem
  */
 @SuppressWarnings("FieldCanBeLocal")
-public class SampleDownloadApp implements Runnable {
+public class SampleDownloadApp implements Runnable, IDownloadListener {
 
     private final int ROCKY_MAYHEM_APP_ID = 1303350;
 
@@ -248,7 +248,9 @@ public class SampleDownloadApp implements Runnable {
 
         // Initiate the DepotDownloader, it is a Closable so it can be cleaned up when no longer used.
         // You will need to subscribe to LicenseListCallback to obtain your app licenses.
-        try (var depotDownloader = new ContentDownloader(steamClient, licenseList, true)) {
+        try (var depotDownloader = new ContentDownloader(steamClient, licenseList, false)) {
+
+            depotDownloader.addListener(this);
 
             // An app id is required at minimum for all item types.
             var pubItem = new PubFileItem(
@@ -301,6 +303,8 @@ public class SampleDownloadApp implements Runnable {
             if (success) {
                 System.out.println("Download completed successfully");
             }
+
+            depotDownloader.removeListener(this);
         } catch (IllegalStateException | InterruptedException | ExecutionException e) {
             System.out.println("Something happened");
             System.err.println(e.getMessage());
@@ -314,5 +318,97 @@ public class SampleDownloadApp implements Runnable {
         System.out.println("Logged off of Steam: " + callback.getResult());
 
         isRunning = false;
+    }
+
+    // Depot Downloader Callbacks.
+
+    @Override
+    public void onItemAdded(@NotNull DownloadItem item, int index) {
+        System.out.println("Depot Downloader: Item Added: " + item.getAppId() + ", index: " + index);
+        System.out.println(" ---- ");
+    }
+
+    @Override
+    public void onItemRemoved(@NotNull DownloadItem item, int index) {
+        System.out.println("Depot Downloader: Item Removed: " + item.getAppId() + ", index: " + index);
+        System.out.println(" ---- ");
+    }
+
+    @Override
+    public void onQueueCleared(@NotNull List<? extends @NotNull DownloadItem> previousItems) {
+        System.out.println("Depot Downloader: Queue size of " + previousItems.size() + " cleared");
+        System.out.println(" ---- ");
+    }
+
+    @Override
+    public void onDownloadStarted(@NotNull DownloadItem item) {
+        System.out.println("Depot Downloader: Download started for item: " + item.getAppId());
+        System.out.println(" ---- ");
+    }
+
+    @Override
+    public void onDownloadCompleted(@NotNull DownloadItem item) {
+        System.out.println("Depot Downloader: Download completed for item: " + item.getAppId());
+        System.out.println(" ---- ");
+    }
+
+    @Override
+    public void onDownloadFailed(@NotNull DownloadItem item, @NotNull Throwable error) {
+        System.out.println("Depot Downloader: Download failed for item: " + item.getAppId());
+        System.err.println(error.getMessage());
+        System.out.println(" ---- ");
+    }
+
+    @Override
+    public void onOverallProgress(@NotNull OverallProgress progress) {
+        System.out.println("Depot Downloader: Overall Progress");
+        System.out.println("currentItem: " + progress.getCurrentItem());
+        System.out.println("totalItems: " + progress.getTotalItems());
+        System.out.println("totalBytesDownloaded: " + progress.getTotalBytesDownloaded());
+        System.out.println("totalBytesExpected: " + progress.getTotalBytesExpected());
+        System.out.println("status: " + progress.getStatus());
+        System.out.println("percentComplete: " + progress.getPercentComplete());
+        System.out.println(" ---- ");
+    }
+
+    @Override
+    public void onDepotProgress(int depotId, @NotNull DepotProgress progress) {
+        System.out.println("Depot Downloader: Depot Progress");
+        System.out.println("depotId: " + depotId);
+        System.out.println("depotId: " + progress.getDepotId());
+        System.out.println("filesCompleted: " + progress.getFilesCompleted());
+        System.out.println("totalFiles: " + progress.getTotalFiles());
+        System.out.println("bytesDownloaded: " + progress.getBytesDownloaded());
+        System.out.println("totalBytes: " + progress.getTotalBytes());
+        System.out.println("status: " + progress.getStatus());
+        System.out.println("percentComplete: " + progress.getPercentComplete());
+        System.out.println(" ---- ");
+    }
+
+    @Override
+    public void onFileProgress(int depotId, @NotNull String fileName, @NotNull FileProgress progress) {
+        System.out.println("Depot Downloader: File Progress");
+        System.out.println("depotId: " + depotId);
+        System.out.println("fileName: " + fileName);
+        System.out.println("fileName: " + progress.getFileName());
+        System.out.println("bytesDownloaded: " + progress.getBytesDownloaded());
+        System.out.println("totalBytes: " + progress.getTotalBytes());
+        System.out.println("chunksCompleted: " + progress.getChunksCompleted());
+        System.out.println("totalChunks: " + progress.getTotalChunks());
+        System.out.println("status: " + progress.getStatus());
+        System.out.println("percentComplete: " + progress.getPercentComplete());
+        System.out.println(" ---- ");
+    }
+
+    @Override
+    public void onStatusUpdate(@NotNull String message) {
+        System.out.println("Depot Downloader: Status Message: " + message);
+        System.out.println(" ---- ");
+    }
+
+    @Override
+    public void onAndroidEmulation(boolean value) {
+        System.out.println("Depot Downloader: Android Emulation: " + value);
+        System.out.println(" ---- ");
     }
 }
