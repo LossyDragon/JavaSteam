@@ -2,7 +2,10 @@ package `in`.dragonbra.javasteam.depotdownloader
 
 import `in`.dragonbra.javasteam.depotdownloader.data.DepotDownloadInfo
 import `in`.dragonbra.javasteam.enums.EDepotFileFlag
+import `in`.dragonbra.javasteam.types.ChunkData
 import `in`.dragonbra.javasteam.types.DepotManifest
+import `in`.dragonbra.javasteam.util.Adler32
+import okio.FileHandle
 import okio.FileSystem
 import okio.Path
 import okio.Path.Companion.toPath
@@ -118,6 +121,37 @@ object Util {
         }
 
         return digest.digest()
+    }
+
+    /**
+     * Validate a file against Steam3 Chunk data
+     *
+     * @param handle FileHandle to read from
+     * @param chunkData Array of ChunkData to validate against
+     * @return List of ChunkData that are needed
+     * @throws IOException If there's an error reading the file
+     */
+    @Throws(IOException::class)
+    fun validateSteam3FileChecksums(handle: FileHandle, chunkData: List<ChunkData>): List<ChunkData> {
+        val neededChunks = mutableListOf<ChunkData>()
+
+        for (data in chunkData) {
+            val chunk = ByteArray(data.uncompressedLength)
+            val read = handle.read(data.offset, chunk, 0, data.uncompressedLength)
+
+            val tempChunk = if (read > 0 && read < data.uncompressedLength) {
+                chunk.copyOf(read)
+            } else {
+                chunk
+            }
+
+            val adler = Adler32.calculate(tempChunk)
+            if (adler != data.checksum) {
+                neededChunks.add(data)
+            }
+        }
+
+        return neededChunks
     }
 
     @JvmStatic

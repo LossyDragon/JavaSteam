@@ -7,6 +7,7 @@ import `in`.dragonbra.javasteam.depotdownloader.data.DepotDownloadInfo
 import `in`.dragonbra.javasteam.depotdownloader.data.DepotFilesData
 import `in`.dragonbra.javasteam.depotdownloader.data.DownloadItem
 import `in`.dragonbra.javasteam.depotdownloader.data.DownloadProgress
+import `in`.dragonbra.javasteam.depotdownloader.data.DownloadProgress.Status
 import `in`.dragonbra.javasteam.depotdownloader.data.FileStreamData
 import `in`.dragonbra.javasteam.depotdownloader.data.GlobalDownloadCounter
 import `in`.dragonbra.javasteam.depotdownloader.data.PubFileItem
@@ -29,13 +30,13 @@ import `in`.dragonbra.javasteam.types.UGCHandle
 import `in`.dragonbra.javasteam.util.Adler32
 import `in`.dragonbra.javasteam.util.SteamKitWebRequestException
 import `in`.dragonbra.javasteam.util.Strings
-import `in`.dragonbra.javasteam.util.Utils
 import `in`.dragonbra.javasteam.util.log.LogManager
 import `in`.dragonbra.javasteam.util.log.Logger
 import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsChannel
 import io.ktor.http.HttpHeaders
 import io.ktor.utils.io.core.readAvailable
+import io.ktor.utils.io.core.remaining
 import io.ktor.utils.io.readRemaining
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -54,16 +55,15 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.yield
+import okio.Buffer
 import okio.FileSystem
 import okio.Path
 import okio.Path.Companion.toPath
+import okio.buffer
 import org.apache.commons.lang3.SystemUtils
 import java.io.Closeable
 import java.io.IOException
-import java.io.RandomAccessFile
 import java.lang.IllegalStateException
-import java.nio.ByteBuffer
-import java.nio.ByteOrder
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 import java.util.concurrent.*
@@ -124,25 +124,6 @@ class ContentDownloader @JvmOverloads constructor(
 
     private var config: Config = Config()
 
-    // .... Yo?
-    private val bufferPool = object {
-        private val pool = ConcurrentLinkedQueue<ByteArray>()
-        private val maxPoolSize = maxDownloads * 2
-
-        fun rent(size: Int): ByteArray {
-            pool.poll()?.let { buffer ->
-                if (buffer.size >= size) return buffer
-            }
-            return ByteArray(size)
-        }
-
-        fun release(buffer: ByteArray) {
-            if (pool.size < maxPoolSize) {
-                pool.offer(buffer)
-            }
-        }
-    }
-
     // region [REGION] Private data classes.
 
     private data class DirectoryResult(val success: Boolean, val installDir: Path?)
@@ -183,7 +164,7 @@ class ContentDownloader @JvmOverloads constructor(
             steam3!!.getPublishedFileDetails(appId, PublishedFileID(publishedFileId))
         ) { "Pub File Null" }
 
-        if (details.fileUrl.isNullOrBlank().not()) {
+        if (!details.fileUrl.isNullOrBlank()) {
             downloadWebFile(appId, details.filename, details.fileUrl)
         } else if (details.hcontentFile > 0) {
             downloadApp(
@@ -233,12 +214,18 @@ class ContentDownloader @JvmOverloads constructor(
         }
     }
 
-    @Throws(IllegalStateException::class)
+    @Throws(IllegalStateException::class, IOException::class)
     suspend fun downloadWebFile(appId: Int, fileName: String, url: String) {
         val (success, installDir) = createDirectories(appId, 0, appId)
 
+        var progress = DownloadProgress()
+
         if (!success) {
             logger?.debug("Error: Unable to create install directories!")
+
+            progress = progress.copy(status = Status.FAILED)
+            notifyListeners { it.onDownloadProgress(appId, progress) }
+
             return
         }
 
@@ -252,6 +239,9 @@ class ContentDownloader @JvmOverloads constructor(
         HttpClient.httpClient.use { client ->
             logger?.debug("Starting download of $fileName...")
 
+            progress = progress.copy(status = Status.INTERMEDIATE)
+            notifyListeners { it.onDownloadProgress(appId, progress) }
+
             val response = client.get(url)
             val channel = response.bodyAsChannel()
 
@@ -264,39 +254,45 @@ class ContentDownloader @JvmOverloads constructor(
 
             logger?.debug("File size: ${totalBytes?.let { Util.formatBytes(it) } ?: "Unknown"}")
 
-            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-            filesystem.write(fileStagingPath) {
+            filesystem.sink(fileStagingPath).buffer().use { sink ->
+                val buffer = Buffer()
                 while (!channel.isClosedForRead) {
                     val packet = channel.readRemaining(DEFAULT_BUFFER_SIZE.toLong())
                     if (!packet.exhausted()) {
-                        val bytesRead = packet.readAvailable(buffer)
-                        if (bytesRead > 0) {
-                            write(buffer, 0, bytesRead)
-                            downloadedBytes += bytesRead
+                        // Read from Ktor packet into Okio buffer
+                        val bytesRead = packet.remaining.toInt()
+                        val tempArray = ByteArray(bytesRead)
+                        packet.readAvailable(tempArray)
+                        buffer.write(tempArray)
 
-                            val currentTime = System.currentTimeMillis()
-                            if (currentTime - lastProgressTime >= progressUpdateInterval) {
-                                val timeDiff = (currentTime - lastProgressTime) / 1000.0
-                                val bytesDiff = downloadedBytes - lastDownloadedBytes
-                                val bytesPerSecond = bytesDiff / timeDiff
+                        // Write from buffer to sink
+                        sink.writeAll(buffer)
 
-                                val percentComplete = totalBytes?.let {
-                                    (downloadedBytes.toDouble() / it.toDouble()) * 100.0
-                                }
+                        downloadedBytes += bytesRead
 
-                                val progress = DownloadProgress(
-                                    fileName = fileName,
-                                    downloadedBytes = downloadedBytes,
-                                    totalBytes = totalBytes,
-                                    bytesPerSecond = bytesPerSecond,
-                                    percentComplete = percentComplete
-                                )
+                        val currentTime = System.currentTimeMillis()
+                        if (currentTime - lastProgressTime >= progressUpdateInterval) {
+                            val timeDiff = (currentTime - lastProgressTime) / 1000.0
+                            val bytesDiff = downloadedBytes - lastDownloadedBytes
+                            val bytesPerSecond = bytesDiff / timeDiff
 
-                                logger?.debug(progress.formatProgress())
-
-                                lastProgressTime = currentTime
-                                lastDownloadedBytes = downloadedBytes
+                            val percentComplete = totalBytes?.let {
+                                (downloadedBytes.toDouble() / it.toDouble()) * 100.0
                             }
+
+                            progress = progress.copy(
+                                fileName = fileName,
+                                downloadedBytes = downloadedBytes,
+                                totalBytes = totalBytes,
+                                bytesPerSecond = bytesPerSecond,
+                                percentComplete = percentComplete,
+                                status = Status.DOWNLOADING
+                            )
+
+                            logger?.debug(progress.formatProgress())
+
+                            lastProgressTime = currentTime
+                            lastDownloadedBytes = downloadedBytes
                         }
                     }
                 }
@@ -304,6 +300,9 @@ class ContentDownloader @JvmOverloads constructor(
 
             val totalTime = (System.currentTimeMillis() - (lastProgressTime - progressUpdateInterval)) / 1000.0
             val averageSpeed = downloadedBytes / totalTime
+
+            progress = progress.copy(status = Status.INTERMEDIATE)
+            notifyListeners { it.onDownloadProgress(appId, progress) }
 
             logger?.debug(
                 "Download completed. \n Final stats: " +
@@ -313,11 +312,16 @@ class ContentDownloader @JvmOverloads constructor(
         }
 
         if (filesystem.exists(fileFinalPath)) {
+            logger?.debug("Deleting $fileFinalPath")
             filesystem.delete(fileFinalPath)
         }
 
-        filesystem.atomicMove(fileStagingPath, fileFinalPath)
-        logger?.debug("File moved to final location: $fileFinalPath")
+        try {
+            filesystem.atomicMove(fileStagingPath, fileFinalPath)
+            logger?.debug("File '$fileStagingPath' moved to final location: $fileFinalPath")
+        } catch (e: IOException) {
+            throw e
+        }
     }
 
     // L4D2 (app) supports LV
@@ -375,6 +379,8 @@ class ContentDownloader @JvmOverloads constructor(
             depotIdsFound.addAll(depotIdsExpected)
         } else {
             logger?.debug("Using app branch: $branch")
+
+            notifyListeners { it.onDownloadProgress(appId, DownloadProgress(status = Status.INTERMEDIATE)) }
 
             depots?.children?.forEach { depotSection ->
                 @Suppress("VariableInitializerIsRedundant")
@@ -783,8 +789,6 @@ class ContentDownloader @JvmOverloads constructor(
     }
 
     private suspend fun downloadSteam3(depots: List<DepotDownloadInfo>): Unit = coroutineScope {
-        // TODO Indeterminate progress info
-
         cdnClientPool?.updateServerList()
 
         val downloadCounter = GlobalDownloadCounter()
@@ -1140,8 +1144,8 @@ class ContentDownloader @JvmOverloads constructor(
 
             // create new file. need all chunks
             try {
-                RandomAccessFile(fileFinalPath.toFile(), "rw").use { raf ->
-                    raf.setLength(file.totalSize)
+                filesystem.openReadWrite(fileFinalPath).use { handle ->
+                    handle.resize(file.totalSize)
                 }
             } catch (e: IOException) {
                 throw ContentDownloaderException("Failed to allocate file $fileFinalPath: ${e.message}")
@@ -1178,23 +1182,23 @@ class ContentDownloader @JvmOverloads constructor(
 
                     val copyChunks = arrayListOf<ChunkMatch>()
 
-                    RandomAccessFile(fileFinalPath.toFile(), "r").use { fsOld ->
+                    filesystem.openReadOnly(fileFinalPath).use { handle ->
                         orderedChunks.forEach { match ->
-                            fsOld.seek(match.oldChunk.offset)
-
                             // Read the chunk data into a byte array
                             val length = match.oldChunk.uncompressedLength
                             val buffer = ByteArray(length)
-                            fsOld.readFully(buffer)
+                            handle.read(match.oldChunk.offset, buffer, 0, length)
 
                             // Calculate Adler32 checksum
                             val adler = Adler32.calculate(buffer)
 
                             // Convert checksum to byte array for comparison
-                            val checksumBytes = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN)
-                                .putInt(match.oldChunk.checksum).array()
-                            val calculatedChecksumBytes = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN)
-                                .putInt(adler).array()
+                            val checksumBytes = Buffer().apply {
+                                writeIntLe(match.oldChunk.checksum)
+                            }.readByteArray()
+                            val calculatedChecksumBytes = Buffer().apply {
+                                writeIntLe(adler)
+                            }.readByteArray()
 
                             if (!calculatedChecksumBytes.contentEquals(checksumBytes)) {
                                 neededChunks.add(match.newChunk)
@@ -1208,10 +1212,10 @@ class ContentDownloader @JvmOverloads constructor(
                         filesystem.atomicMove(fileFinalPath, fileStagingPath)
 
                         try {
-                            RandomAccessFile(fileStagingPath.toFile(), "r").use { fsOld ->
-                                RandomAccessFile(fileFinalPath.toFile(), "rw").use { fs ->
+                            filesystem.openReadOnly(fileStagingPath).use { oldHandle ->
+                                filesystem.openReadWrite(fileFinalPath).use { newHandle ->
                                     try {
-                                        fs.setLength(file.totalSize)
+                                        newHandle.resize(file.totalSize)
                                     } catch (ex: IOException) {
                                         throw ContentDownloaderException(
                                             "Failed to resize file to expected size $fileFinalPath: ${ex.message}"
@@ -1219,12 +1223,9 @@ class ContentDownloader @JvmOverloads constructor(
                                     }
 
                                     for (match in copyChunks) {
-                                        fsOld.seek(match.oldChunk.offset)
                                         val tmp = ByteArray(match.oldChunk.uncompressedLength)
-                                        fsOld.readFully(tmp)
-
-                                        fs.seek(match.newChunk.offset)
-                                        fs.write(tmp)
+                                        oldHandle.read(match.oldChunk.offset, tmp, 0, tmp.size)
+                                        newHandle.write(match.newChunk.offset, tmp, 0, tmp.size)
                                     }
                                 }
                             }
@@ -1237,11 +1238,11 @@ class ContentDownloader @JvmOverloads constructor(
                 }
             } else {
                 // No old manifest or file not in old manifest. We must validate.
-                RandomAccessFile(fileFinalPath.toFile(), "rw").use { fs ->
+                filesystem.openReadWrite(fileFinalPath).use { handle ->
                     val fileSize = filesystem.metadata(fileFinalPath).size ?: 0L
                     if (fileSize.toULong() != file.totalSize.toULong()) {
                         try {
-                            fs.setLength(file.totalSize)
+                            handle.resize(file.totalSize)
                         } catch (ex: IOException) {
                             throw ContentDownloaderException(
                                 "Failed to allocate file $fileFinalPath: ${ex.message}"
@@ -1250,8 +1251,10 @@ class ContentDownloader @JvmOverloads constructor(
                     }
 
                     logger?.debug("Validating $fileFinalPath")
-                    neededChunks =
-                        Utils.validateSteam3FileChecksums(fs, file.chunks.sortedBy { it.offset }.toTypedArray())
+                    neededChunks = Util.validateSteam3FileChecksums(
+                        handle = handle,
+                        chunkData = file.chunks.sortedBy { it.offset }
+                    ).toMutableList()
                 }
             }
 
@@ -1294,7 +1297,7 @@ class ContentDownloader @JvmOverloads constructor(
         }
 
         val fileStreamData = FileStreamData(
-            fileStream = null,
+            fileHandle = null,
             fileLock = Mutex(),
             chunksToDownload = AtomicInteger(neededChunks!!.size)
         )
@@ -1319,7 +1322,7 @@ class ContentDownloader @JvmOverloads constructor(
         val chunkID = Strings.toHex(chunk.chunkID)
 
         var written = 0
-        val chunkBuffer = bufferPool.rent(chunk.uncompressedLength)
+        val chunkBuffer = ByteArray(chunk.uncompressedLength)
 
         try {
             do {
@@ -1401,23 +1404,21 @@ class ContentDownloader @JvmOverloads constructor(
             try {
                 fileStreamData.fileLock.lock()
 
-                if (fileStreamData.fileStream == null) {
+                if (fileStreamData.fileHandle == null) {
                     val fileFinalPath = depot.installDir / file.fileName
-                    fileStreamData.fileStream = RandomAccessFile(fileFinalPath.toFile(), "rw")
+                    fileStreamData.fileHandle = filesystem.openReadWrite(fileFinalPath)
                 }
 
-                fileStreamData.fileStream!!.seek(chunk.offset)
-                fileStreamData.fileStream!!.write(chunkBuffer, 0, written)
+                fileStreamData.fileHandle!!.write(chunk.offset, chunkBuffer, 0, written)
             } finally {
                 fileStreamData.fileLock.unlock()
             }
         } finally {
-            bufferPool.release(chunkBuffer)
         }
 
         val remainingChunks = fileStreamData.chunksToDownload.decrementAndGet()
         if (remainingChunks == 0) {
-            fileStreamData.fileStream?.close()
+            fileStreamData.fileHandle?.close()
         }
 
         var sizeDownloaded = 0L

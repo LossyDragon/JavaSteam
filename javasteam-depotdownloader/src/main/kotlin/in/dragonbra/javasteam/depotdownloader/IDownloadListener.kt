@@ -1,6 +1,7 @@
 package `in`.dragonbra.javasteam.depotdownloader
 
 import `in`.dragonbra.javasteam.depotdownloader.data.DownloadItem
+import `in`.dragonbra.javasteam.depotdownloader.data.DownloadProgress
 
 /**
  * @author Lossy
@@ -16,15 +17,9 @@ interface IDownloadListener {
     fun onQueueClosed()
 
     // Download callbacks.
+    fun onDownloadProgress(appId: Int, progress: DownloadProgress)
     // TODO()
 
     // Other
     fun onAndroidEmulation(value: Boolean) {}
-
-    // TODO (some maybe)
-    // fun onQueueSize() // How many items are in the queue
-    // fun onStatus() // Maybe sent an Enum on what is happening right now for each item:
-    //                // "Validating", "Pre-allocating", "Downloading chunk xxx", etc.
-    // fun onProgress() // Current Progress percent for item
-    // fun onError() // If debugging is false, maybe broadcast certain info, warnings, or errors.
 }
