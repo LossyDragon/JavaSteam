@@ -152,6 +152,8 @@ class DepotDownloader @JvmOverloads constructor(
 
     private var steam3: Steam3Session? = null
 
+    private var skipInternalDepotInfo: Boolean = false
+
     // region [REGION] Private data classes.
 
     private data class NetworkChunkItem(
@@ -388,88 +390,95 @@ class DepotDownloader @JvmOverloads constructor(
         }
 
         val hasSpecificDepots = depotManifestIds.isNotEmpty()
-        val depotIdsFound = mutableListOf<Int>()
-        val depotIdsExpected = depotManifestIds.map { x -> x.first }.toMutableList()
-        val depots = getSteam3AppSection(appId, EAppInfoSection.Depots)
 
-        if (isUgc) {
-            val workshopDepot = depots!!["workshopdepot"].asInteger()
-            if (workshopDepot != 0 && !depotIdsExpected.contains(workshopDepot)) {
-                depotIdsExpected.add(workshopDepot)
-                depotManifestIds = depotManifestIds.map { pair -> workshopDepot to pair.second }.toMutableList()
+        if (skipInternalDepotInfo) {
+            if (depotManifestIds.isEmpty()) {
+                throw DepotDownloaderException("Depots must be provided when skipInternalDepotInfo is enabled")
             }
-
-            depotIdsFound.addAll(depotIdsExpected)
         } else {
-            logger?.debug("Using app branch: $branch")
+            val depotIdsFound = mutableListOf<Int>()
+            val depotIdsExpected = depotManifestIds.map { x -> x.first }.toMutableList()
+            val depots = getSteam3AppSection(appId, EAppInfoSection.Depots)
 
-            depots?.children?.forEach { depotSection ->
-                if (depotSection.children.isEmpty()) {
-                    return@forEach
+            if (isUgc) {
+                val workshopDepot = depots!!["workshopdepot"].asInteger()
+                if (workshopDepot != 0 && !depotIdsExpected.contains(workshopDepot)) {
+                    depotIdsExpected.add(workshopDepot)
+                    depotManifestIds = depotManifestIds.map { pair -> workshopDepot to pair.second }.toMutableList()
                 }
 
-                val id: Int = depotSection.name?.toIntOrNull() ?: return@forEach
+                depotIdsFound.addAll(depotIdsExpected)
+            } else {
+                logger?.debug("Using app branch: $branch")
 
-                if (hasSpecificDepots && !depotIdsExpected.contains(id)) {
-                    return@forEach
-                }
+                depots?.children?.forEach { depotSection ->
+                    if (depotSection.children.isEmpty()) {
+                        return@forEach
+                    }
 
-                if (!hasSpecificDepots) {
-                    val depotConfig = depotSection["config"]
-                    if (depotConfig != KeyValue.INVALID) {
-                        if (!config.downloadAllPlatforms &&
-                            depotConfig["oslist"] != KeyValue.INVALID &&
-                            !depotConfig["oslist"].value.isNullOrBlank()
-                        ) {
-                            val osList = depotConfig["oslist"].value!!.split(",")
-                            if (osList.indexOf(os ?: Util.getSteamOS(config.androidEmulation)) == -1) {
+                    val id: Int = depotSection.name?.toIntOrNull() ?: return@forEach
+
+                    if (hasSpecificDepots && !depotIdsExpected.contains(id)) {
+                        return@forEach
+                    }
+
+                    if (!hasSpecificDepots) {
+                        val depotConfig = depotSection["config"]
+                        if (depotConfig != KeyValue.INVALID) {
+                            if (!config.downloadAllPlatforms &&
+                                depotConfig["oslist"] != KeyValue.INVALID &&
+                                !depotConfig["oslist"].value.isNullOrBlank()
+                            ) {
+                                val osList = depotConfig["oslist"].value!!.split(",")
+                                if (osList.indexOf(os ?: Util.getSteamOS(config.androidEmulation)) == -1) {
+                                    return@forEach
+                                }
+                            }
+
+                            if (!config.downloadAllArchs &&
+                                depotConfig["osarch"] != KeyValue.INVALID &&
+                                !depotConfig["osarch"].value.isNullOrBlank()
+                            ) {
+                                val depotArch = depotConfig["osarch"].value
+                                if (depotArch != (arch ?: Util.getSteamArch())) {
+                                    return@forEach
+                                }
+                            }
+
+                            if (!config.downloadAllLanguages &&
+                                depotConfig["language"] != KeyValue.INVALID &&
+                                !depotConfig["language"].value.isNullOrBlank()
+                            ) {
+                                val depotLang = depotConfig["language"].value
+                                if (depotLang != (language ?: "english")) {
+                                    return@forEach
+                                }
+                            }
+
+                            if (!lv &&
+                                depotConfig["lowviolence"] != KeyValue.INVALID &&
+                                depotConfig["lowviolence"].asBoolean()
+                            ) {
                                 return@forEach
                             }
                         }
+                    }
 
-                        if (!config.downloadAllArchs &&
-                            depotConfig["osarch"] != KeyValue.INVALID &&
-                            !depotConfig["osarch"].value.isNullOrBlank()
-                        ) {
-                            val depotArch = depotConfig["osarch"].value
-                            if (depotArch != (arch ?: Util.getSteamArch())) {
-                                return@forEach
-                            }
-                        }
+                    depotIdsFound.add(id)
 
-                        if (!config.downloadAllLanguages &&
-                            depotConfig["language"] != KeyValue.INVALID &&
-                            !depotConfig["language"].value.isNullOrBlank()
-                        ) {
-                            val depotLang = depotConfig["language"].value
-                            if (depotLang != (language ?: "english")) {
-                                return@forEach
-                            }
-                        }
-
-                        if (!lv &&
-                            depotConfig["lowviolence"] != KeyValue.INVALID &&
-                            depotConfig["lowviolence"].asBoolean()
-                        ) {
-                            return@forEach
-                        }
+                    if (!hasSpecificDepots) {
+                        depotManifestIds.add(id to INVALID_MANIFEST_ID)
                     }
                 }
 
-                depotIdsFound.add(id)
-
-                if (!hasSpecificDepots) {
-                    depotManifestIds.add(id to INVALID_MANIFEST_ID)
+                if (depotManifestIds.isEmpty() && !hasSpecificDepots) {
+                    throw DepotDownloaderException("Couldn't find any depots to download for app $appId")
                 }
-            }
 
-            if (depotManifestIds.isEmpty() && !hasSpecificDepots) {
-                throw DepotDownloaderException("Couldn't find any depots to download for app $appId")
-            }
-
-            if (depotIdsFound.size < depotIdsExpected.size) {
-                val remainingDepotIds = depotIdsExpected.subtract(depotIdsFound.toSet())
-                throw DepotDownloaderException("Depot ${remainingDepotIds.joinToString(", ")} not listed for app $appId")
+                if (depotIdsFound.size < depotIdsExpected.size) {
+                    val remainingDepotIds = depotIdsExpected.subtract(depotIdsFound.toSet())
+                    throw DepotDownloaderException("Depot ${remainingDepotIds.joinToString(", ")} not listed for app $appId")
+                }
             }
         }
 
@@ -519,7 +528,9 @@ class DepotDownloader @JvmOverloads constructor(
             }
         }
 
-        steam3!!.requestDepotKey(depotId, appId)
+        if (!skipInternalDepotInfo) {
+            steam3!!.requestDepotKey(depotId, appId)
+        }
 
         val depotKey = steam3!!.depotKeys[depotId]
         if (depotKey == null) {
@@ -1602,6 +1613,21 @@ class DepotDownloader @JvmOverloads constructor(
                 throw e
             }
         }
+    }
+
+    /**
+     * Sets whether to skip internal depot information fetching.
+     * When enabled, this will skip:
+     * - Requesting depot decryption keys via [requestDepotKey]
+     * - Fetching app info and depot sections for discovery
+     *
+     * When this flag is enabled, depot keys must be pre-populated in the Steam3Session
+     * depotKeys map, and depot information must be provided via AppItem parameters.
+     *
+     * @param skip If true, skip internal depot info fetching
+     */
+    fun skipInternalDepotInfo(skip: Boolean) {
+        skipInternalDepotInfo = skip
     }
 
     /**
