@@ -391,10 +391,8 @@ class DepotDownloader @JvmOverloads constructor(
 
         val hasSpecificDepots = depotManifestIds.isNotEmpty()
 
-        if (skipInternalDepotInfo) {
-            if (depotManifestIds.isEmpty()) {
-                throw DepotDownloaderException("Depots must be provided when skipInternalDepotInfo is enabled")
-            }
+        if (skipInternalDepotInfo && depotManifestIds.isEmpty()) {
+            throw DepotDownloaderException("Depots must be provided when skipInternalDepotInfo is enabled")
         } else {
             val depotIdsFound = mutableListOf<Int>()
             val depotIdsExpected = depotManifestIds.map { x -> x.first }.toMutableList()
