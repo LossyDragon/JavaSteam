@@ -47,6 +47,8 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.flow.consumeAsFlow
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
@@ -106,6 +108,7 @@ class DepotDownloader @JvmOverloads constructor(
     private val debug: Boolean = false,
     private val useLanCache: Boolean = false,
     private var maxDownloads: Int = 8,
+    private var maxFileWrites: Int = 8,
     private val androidEmulation: Boolean = false,
 ) : Closeable {
 
@@ -150,6 +153,8 @@ class DepotDownloader @JvmOverloads constructor(
 
     private var processingChannel = Channel<DownloadItem>(Channel.UNLIMITED)
 
+    private var fileWriteChannel = Channel<FileWriteItem>(Channel.UNLIMITED)
+
     private var steam3: Steam3Session? = null
 
     // region [REGION] Private data classes.
@@ -159,6 +164,17 @@ class DepotDownloader @JvmOverloads constructor(
         val fileData: FileData,
         val chunk: ChunkData,
         val totalChunksForFile: Int,
+    )
+
+    private data class FileWriteItem(
+        val depot: DepotDownloadInfo,
+        val depotDownloadCounter: DepotDownloadCounter,
+        val downloadCounter: GlobalDownloadCounter,
+        val written: Int,
+        val file: FileData,
+        val fileStreamData: FileStreamData,
+        val chunk: ChunkData,
+        val chunkBuffer: ByteArray,
     )
 
     private data class DirectoryResult(val success: Boolean, val installDir: Path?)
@@ -199,6 +215,15 @@ class DepotDownloader @JvmOverloads constructor(
         // Launch the processing loop
         scope.launch {
             processItems()
+        }
+
+        // Launch the file writing receivers
+        List(maxFileWrites) {
+            scope.launch {
+                fileWriteChannel.receiveAsFlow().collect { item ->
+                    processFileWrites(item)
+                }
+            }
         }
     }
 
@@ -1456,80 +1481,19 @@ class DepotDownloader @JvmOverloads constructor(
         // Throw the cancellation exception if requested so that this task is marked failed
         ensureActive()
 
-        try {
-            fileStreamData.fileLock.lock()
-
-            if (fileStreamData.fileHandle == null) {
-                val fileFinalPath = depot.installDir / file.fileName
-                fileStreamData.fileHandle = filesystem.openReadWrite(fileFinalPath)
-            }
-
-            fileStreamData.fileHandle!!.write(chunk.offset, chunkBuffer, 0, written)
-        } finally {
-            fileStreamData.fileLock.unlock()
-        }
-
-        val remainingChunks = fileStreamData.chunksToDownload.decrementAndGet()
-        if (remainingChunks == 0) {
-            fileStreamData.fileHandle?.close()
-
-            // File completed - notify with percentage
-            val sizeDownloaded = synchronized(depotDownloadCounter) {
-                depotDownloadCounter.sizeDownloaded += written.toLong()
-                depotDownloadCounter.depotBytesCompressed += chunk.compressedLength
-                depotDownloadCounter.depotBytesUncompressed += chunk.uncompressedLength
-                depotDownloadCounter.sizeDownloaded
-            }
-
-            synchronized(downloadCounter) {
-                downloadCounter.totalBytesCompressed += chunk.compressedLength
-                downloadCounter.totalBytesUncompressed += chunk.uncompressedLength
-            }
-
-            val fileFinalPath = depot.installDir / file.fileName
-            val depotPercentage = (sizeDownloaded.toFloat() / depotDownloadCounter.completeDownloadSize)
-
-            notifyListeners { listener ->
-                listener.onFileCompleted(
-                    depotId = depot.depotId,
-                    fileName = fileFinalPath.toString(),
-                    depotPercentComplete = depotPercentage
-                )
-            }
-
-            logger?.debug("%.2f%% %s".format(depotPercentage, fileFinalPath))
-        } else {
-            // Update counters and notify on chunk completion
-            val sizeDownloaded: Long
-            val depotPercentage: Float
-            val compressedBytes: Long
-            val uncompressedBytes: Long
-
-            synchronized(depotDownloadCounter) {
-                depotDownloadCounter.sizeDownloaded += written.toLong()
-                depotDownloadCounter.depotBytesCompressed += chunk.compressedLength
-                depotDownloadCounter.depotBytesUncompressed += chunk.uncompressedLength
-
-                sizeDownloaded = depotDownloadCounter.sizeDownloaded
-                compressedBytes = depotDownloadCounter.depotBytesCompressed
-                uncompressedBytes = depotDownloadCounter.depotBytesUncompressed
-                depotPercentage = (sizeDownloaded.toFloat() / depotDownloadCounter.completeDownloadSize)
-            }
-
-            synchronized(downloadCounter) {
-                downloadCounter.totalBytesCompressed += chunk.compressedLength
-                downloadCounter.totalBytesUncompressed += chunk.uncompressedLength
-            }
-
-            notifyListeners { listener ->
-                listener.onChunkCompleted(
-                    depotId = depot.depotId,
-                    depotPercentComplete = depotPercentage,
-                    compressedBytes = compressedBytes,
-                    uncompressedBytes = uncompressedBytes
-                )
-            }
-        }
+        // Queue the file write operation
+        fileWriteChannel.send(
+            FileWriteItem(
+                depot = depot,
+                depotDownloadCounter = depotDownloadCounter,
+                downloadCounter = downloadCounter,
+                written = written,
+                file = file,
+                fileStreamData = fileStreamData,
+                chunk = chunk,
+                chunkBuffer = chunkBuffer,
+            )
+        )
     }
 
     private fun testIsFileIncluded(filename: String): Boolean {
@@ -1564,8 +1528,10 @@ class DepotDownloader @JvmOverloads constructor(
         listeners.remove(listener)
     }
 
-    private fun notifyListeners(action: (IDownloadListener) -> Unit) {
-        listeners.forEach { listener -> action(listener) }
+    private suspend fun notifyListeners(action: (IDownloadListener) -> Unit) {
+        coroutineScope {
+            listeners.forEach { listener -> action(listener) }
+        }
     }
 
     // endregion
@@ -1742,6 +1708,7 @@ class DepotDownloader @JvmOverloads constructor(
 
     override fun close() {
         processingChannel.close()
+        fileWriteChannel.close()
 
         scope.cancel("DepotDownloader Closing")
 
@@ -1756,5 +1723,91 @@ class DepotDownloader @JvmOverloads constructor(
         cdnClientPool = null
 
         logger = null
+    }
+
+    private suspend fun processFileWrites(item: FileWriteItem) {
+        val depot = item.depot
+        val depotDownloadCounter = item.depotDownloadCounter
+        val downloadCounter = item.downloadCounter
+        val written = item.written
+        val file = item.file
+        val fileStreamData = item.fileStreamData
+        val chunk = item.chunk
+        val chunkBuffer = item.chunkBuffer
+
+        try {
+            fileStreamData.fileLock.lock()
+
+            if (fileStreamData.fileHandle == null) {
+                val fileFinalPath = depot.installDir / file.fileName
+                fileStreamData.fileHandle = filesystem.openReadWrite(fileFinalPath)
+            }
+
+            fileStreamData.fileHandle!!.write(chunk.offset, chunkBuffer, 0, written)
+        } finally {
+            fileStreamData.fileLock.unlock()
+        }
+
+        val remainingChunks = fileStreamData.chunksToDownload.decrementAndGet()
+        if (remainingChunks == 0) {
+            fileStreamData.fileHandle?.close()
+
+            // File completed - notify with percentage
+            val sizeDownloaded = synchronized(depotDownloadCounter) {
+                depotDownloadCounter.sizeDownloaded += written.toLong()
+                depotDownloadCounter.depotBytesCompressed += chunk.compressedLength
+                depotDownloadCounter.depotBytesUncompressed += chunk.uncompressedLength
+                depotDownloadCounter.sizeDownloaded
+            }
+
+            synchronized(downloadCounter) {
+                downloadCounter.totalBytesCompressed += chunk.compressedLength
+                downloadCounter.totalBytesUncompressed += chunk.uncompressedLength
+            }
+
+            val fileFinalPath = depot.installDir / file.fileName
+            val depotPercentage = (sizeDownloaded.toFloat() / depotDownloadCounter.completeDownloadSize)
+
+            notifyListeners { listener ->
+                listener.onFileCompleted(
+                    depotId = depot.depotId,
+                    fileName = fileFinalPath.toString(),
+                    depotPercentComplete = depotPercentage
+                )
+            }
+
+            logger?.debug("%.2f%% %s".format(depotPercentage, fileFinalPath))
+        } else {
+            // Update counters and notify on chunk completion
+            val sizeDownloaded: Long
+            val depotPercentage: Float
+            val compressedBytes: Long
+            val uncompressedBytes: Long
+
+            synchronized(depotDownloadCounter) {
+                depotDownloadCounter.sizeDownloaded += written.toLong()
+                depotDownloadCounter.depotBytesCompressed += chunk.compressedLength
+                depotDownloadCounter.depotBytesUncompressed += chunk.uncompressedLength
+
+                sizeDownloaded = depotDownloadCounter.sizeDownloaded
+                compressedBytes = depotDownloadCounter.depotBytesCompressed
+                uncompressedBytes = depotDownloadCounter.depotBytesUncompressed
+                depotPercentage = (sizeDownloaded.toFloat() / depotDownloadCounter.completeDownloadSize)
+            }
+
+            synchronized(downloadCounter) {
+                downloadCounter.totalBytesCompressed += chunk.compressedLength
+                downloadCounter.totalBytesUncompressed += chunk.uncompressedLength
+            }
+
+            notifyListeners { listener ->
+                listener.onChunkCompleted(
+                    depotId = depot.depotId,
+                    depotPercentComplete = depotPercentage,
+                    compressedBytes = compressedBytes,
+                    uncompressedBytes = uncompressedBytes
+                )
+            }
+        }
     }
 }
