@@ -85,6 +85,8 @@ class UnifiedInterfaceTest {
             "ClientComm.kt",
             "CloudConfigStore.kt",
             "CloudConfigStoreClient.kt",
+            "Store.kt",
+            "StoreClient.kt",
         )
     }
 }
