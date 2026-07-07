@@ -14,7 +14,7 @@ import `in`.dragonbra.javasteam.protobufs.webui.ServiceClientcomm.CClientComm_In
 import `in`.dragonbra.javasteam.protobufs.webui.ServiceClientcomm.CClientComm_LaunchClientApp_Request
 import `in`.dragonbra.javasteam.protobufs.webui.ServiceClientcomm.CClientComm_SetClientAppUpdateState_Request
 import `in`.dragonbra.javasteam.protobufs.webui.ServiceClientcomm.CClientComm_UninstallClientApp_Request
-import `in`.dragonbra.javasteam.rpc.service.ClientComm
+import `in`.dragonbra.javasteam.rpc.service.webui.ClientComm
 import `in`.dragonbra.javasteam.steam.handlers.ClientMsgHandler
 import `in`.dragonbra.javasteam.steam.handlers.steamunifiedmessages.SteamUnifiedMessages
 import `in`.dragonbra.javasteam.util.JavaSteamAddition

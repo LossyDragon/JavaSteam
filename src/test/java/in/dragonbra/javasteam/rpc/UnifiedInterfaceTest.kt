@@ -13,27 +13,45 @@ class UnifiedInterfaceTest {
 
     @Test
     fun testServiceCount() {
-        val interfaceDir = File(SERVICE_PATH)
+        assertServiceCount(SERVICE_PATH, knownServiceTypes)
+    }
+
+    @Test
+    fun testKnownServices() {
+        assertKnownServices(SERVICE_PATH, knownServiceTypes)
+    }
+
+    @Test
+    fun testWebUiServiceCount() {
+        assertServiceCount(WEBUI_SERVICE_PATH, knownWebUiServiceTypes)
+    }
+
+    @Test
+    fun testKnownWebUiServices() {
+        assertKnownServices(WEBUI_SERVICE_PATH, knownWebUiServiceTypes)
+    }
+
+    private fun assertServiceCount(path: String, knownTypes: Array<String>) {
+        val interfaceDir = File(path)
 
         Assertions.assertTrue(
             interfaceDir.exists() && interfaceDir.isDirectory,
             "${interfaceDir.name} should exist to test"
         )
 
-        val fileCount = interfaceDir.listFiles()
+        val fileCount = interfaceDir.listFiles { file -> file.isFile }
 
         Assertions.assertNotNull(fileCount, "Couldn't count files")
 
         Assertions.assertTrue(
-            knownServiceTypes.count() == fileCount!!.size,
+            knownTypes.count() == fileCount!!.size,
             "Interface count doesn't match known file types! Did something change in the .proto files?"
         )
     }
 
-    @Test
-    fun testKnownServices() {
-        for (filename in knownServiceTypes) {
-            val file = File(SERVICE_PATH, filename)
+    private fun assertKnownServices(path: String, knownTypes: Array<String>) {
+        for (filename in knownTypes) {
+            val file = File(path, filename)
             Assertions.assertTrue(file.exists() && file.isFile, "File $filename should exist")
         }
     }
@@ -41,6 +59,7 @@ class UnifiedInterfaceTest {
     private companion object {
         const val DIR_PATH = "build/generated/source/javasteam/main/java/in/dragonbra/javasteam/rpc/"
         const val SERVICE_PATH = "$DIR_PATH/service"
+        const val WEBUI_SERVICE_PATH = "$SERVICE_PATH/webui"
 
         /**
          * Any changes to then number of interfaces would need to reflect here. Otherwise, the test should fail.
@@ -76,12 +95,19 @@ class UnifiedInterfaceTest {
             "PlayerClient.kt",
             "RemoteClient.kt",
             "RemoteClientSteamClient.kt",
+            "Store.kt",
+            "StoreBrowse.kt",
+            "StoreClient.kt",
             "TwoFactor.kt",
             "UserAccount.kt",
             "PublishedFile.kt",
             "PublishedFileClient.kt",
+        )
 
-            // WebUI
+        /**
+         * Services generated from the webui .proto files, in the `service/webui` sub-package.
+         */
+        val knownWebUiServiceTypes = arrayOf(
             "ClientComm.kt",
             "CloudConfigStore.kt",
             "CloudConfigStoreClient.kt",
