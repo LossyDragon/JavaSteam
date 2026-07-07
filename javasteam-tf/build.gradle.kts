@@ -26,6 +26,11 @@ tasks.javadoc {
     exclude("**/in/dragonbra/javasteam/protobufs/**")
 }
 
+/* Jar */
+tasks.jar {
+    exclude("**/*.proto")
+}
+
 dependencies {
     implementation(libs.protobuf.java)
 }

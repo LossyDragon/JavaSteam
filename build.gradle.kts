@@ -112,6 +112,7 @@ tasks.jar {
     manifest {
         attributes["Automatic-Module-Name"] = "in.dragonbra.javasteam"
     }
+    exclude("**/*.proto")
 }
 
 /* Tasks */
