@@ -21,16 +21,7 @@ class UnifiedInterfaceTest {
         assertKnownServices(SERVICE_PATH, knownServiceTypes)
     }
 
-    @Test
-    fun testWebUiServiceCount() {
-        assertServiceCount(WEBUI_SERVICE_PATH, knownWebUiServiceTypes)
-    }
-
-    @Test
-    fun testKnownWebUiServices() {
-        assertKnownServices(WEBUI_SERVICE_PATH, knownWebUiServiceTypes)
-    }
-
+    @Suppress("SameParameterValue")
     private fun assertServiceCount(path: String, knownTypes: Array<String>) {
         val interfaceDir = File(path)
 
@@ -49,6 +40,7 @@ class UnifiedInterfaceTest {
         )
     }
 
+    @Suppress("SameParameterValue")
     private fun assertKnownServices(path: String, knownTypes: Array<String>) {
         for (filename in knownTypes) {
             val file = File(path, filename)
@@ -59,7 +51,6 @@ class UnifiedInterfaceTest {
     private companion object {
         const val DIR_PATH = "build/generated/source/javasteam/main/java/in/dragonbra/javasteam/rpc/"
         const val SERVICE_PATH = "$DIR_PATH/service"
-        const val WEBUI_SERVICE_PATH = "$SERVICE_PATH/webui"
 
         /**
          * Any changes to then number of interfaces would need to reflect here. Otherwise, the test should fail.
@@ -102,17 +93,6 @@ class UnifiedInterfaceTest {
             "UserAccount.kt",
             "PublishedFile.kt",
             "PublishedFileClient.kt",
-        )
-
-        /**
-         * Services generated from the webui .proto files, in the `service/webui` sub-package.
-         */
-        val knownWebUiServiceTypes = arrayOf(
-            "ClientComm.kt",
-            "CloudConfigStore.kt",
-            "CloudConfigStoreClient.kt",
-            "Store.kt",
-            "StoreClient.kt",
         )
     }
 }

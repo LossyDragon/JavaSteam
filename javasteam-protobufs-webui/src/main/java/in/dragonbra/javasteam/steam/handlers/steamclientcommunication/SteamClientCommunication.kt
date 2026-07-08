@@ -20,6 +20,7 @@ import `in`.dragonbra.javasteam.steam.handlers.steamunifiedmessages.SteamUnified
 import `in`.dragonbra.javasteam.util.JavaSteamAddition
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
+import kotlin.getValue
 
 /**
  * Allows controlling of other running Steam clients.

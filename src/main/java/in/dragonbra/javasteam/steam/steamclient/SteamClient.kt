@@ -45,11 +45,12 @@ import kotlin.time.Duration.Companion.milliseconds
  *
  * @constructor Initializes a new instance of the [SteamClient] class with a specific configuration.
  * @param configuration The configuration to use for this client.
+ * @param defaultScope The coroutine scope used for callbacks and handler coroutines, cancelled by [close].
  */
 @Suppress("unused")
 class SteamClient @JvmOverloads constructor(
     configuration: SteamConfiguration? = SteamConfiguration.createDefault(),
-    internal val defaultScope: CoroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob()),
+    val defaultScope: CoroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob()),
 ) : CMClient(configuration),
     Closeable {
 
@@ -87,7 +88,7 @@ class SteamClient @JvmOverloads constructor(
         addHandlerCore(SteamContent())
         addHandlerCore(SteamAuthTicket())
         addHandlerCore(SteamNotifications()) // JavaSteam Addition
-        // addHandlerCore(SteamClientCommunication()) // JavaSteam Addition, not enabled by default
+        // addHandlerCore(SteamClientCommunication()) // JavaSteam Addition, required javasteam-protobufs-webui dependency
 
         if (handlers.size != HANDLERS_COUNT) {
             logger.error("Handlers size didnt match handlers count (${handlers.size}) when initializing")
