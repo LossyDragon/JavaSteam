@@ -1,4 +1,6 @@
-import "in/dragonbra/javasteam/protobufs/steamclient/steammessages_unified_base.steamclient.proto";
+import "in/dragonbra/javasteam/protobufs/webui/common_base.proto";
+
+package webui;
 
 option java_package = "in.dragonbra.javasteam.protobufs.webui";
 
@@ -6,15 +8,15 @@ option optimize_for = SPEED;
 option java_generic_services = false;
 
 message CCloudConfigStore_Change_Notification {
-  repeated .CCloudConfigStore_NamespaceVersion versions = 2;
+  repeated CCloudConfigStore_NamespaceVersion versions = 2;
 }
 
 message CCloudConfigStore_Download_Request {
-  repeated .CCloudConfigStore_NamespaceVersion versions = 1;
+  repeated CCloudConfigStore_NamespaceVersion versions = 1;
 }
 
 message CCloudConfigStore_Download_Response {
-  repeated .CCloudConfigStore_NamespaceData data = 1;
+  repeated CCloudConfigStore_NamespaceData data = 1;
 }
 
 message CCloudConfigStore_Entry {
@@ -28,7 +30,7 @@ message CCloudConfigStore_Entry {
 message CCloudConfigStore_NamespaceData {
   optional uint32 enamespace = 1;
   optional uint64 version = 2;
-  repeated .CCloudConfigStore_Entry entries = 3;
+  repeated CCloudConfigStore_Entry entries = 3;
   optional uint64 horizon = 4;
 }
 
@@ -38,20 +40,21 @@ message CCloudConfigStore_NamespaceVersion {
 }
 
 message CCloudConfigStore_Upload_Request {
-  repeated .CCloudConfigStore_NamespaceData data = 1;
+  repeated CCloudConfigStore_NamespaceData data = 1;
 }
 
 message CCloudConfigStore_Upload_Response {
-  repeated .CCloudConfigStore_NamespaceVersion versions = 1;
+  repeated CCloudConfigStore_NamespaceVersion versions = 1;
 }
 
 service CloudConfigStore {
   // bConstMethod=true, ePrivilege=1
-  rpc Download (.CCloudConfigStore_Download_Request) returns (.CCloudConfigStore_Download_Response);
+  rpc Download (CCloudConfigStore_Download_Request) returns (CCloudConfigStore_Download_Response);
   // ePrivilege=1
-  rpc Upload (.CCloudConfigStore_Upload_Request) returns (.CCloudConfigStore_Upload_Response);
+  rpc Upload (CCloudConfigStore_Upload_Request) returns (CCloudConfigStore_Upload_Response);
 }
 
 service CloudConfigStoreClient {
-  rpc NotifyChange (.CCloudConfigStore_Change_Notification) returns (.NoResponse);
+  rpc NotifyChange (CCloudConfigStore_Change_Notification) returns (NoResponse);
 }
+

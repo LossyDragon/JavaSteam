@@ -49,9 +49,17 @@ jobs:
           path: javasteam-deadlock/build/libs
       - uses: actions/upload-artifact@v4
         with:
+          name: javasteam-dota2
+          path: javasteam-dota2/build/libs
+      - uses: actions/upload-artifact@v4
+        with:
           name: javasteam-tf
           path: javasteam-tf/build/libs
       - uses: actions/upload-artifact@v4
         with:
           name: javasteam-depotdownloader
           path: javasteam-depotdownloader/build/libs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: javasteam-protobufs-webui
+          path: javasteam-protobufs-webui/build/libs

@@ -14,12 +14,13 @@ import `in`.dragonbra.javasteam.protobufs.webui.ServiceClientcomm.CClientComm_In
 import `in`.dragonbra.javasteam.protobufs.webui.ServiceClientcomm.CClientComm_LaunchClientApp_Request
 import `in`.dragonbra.javasteam.protobufs.webui.ServiceClientcomm.CClientComm_SetClientAppUpdateState_Request
 import `in`.dragonbra.javasteam.protobufs.webui.ServiceClientcomm.CClientComm_UninstallClientApp_Request
-import `in`.dragonbra.javasteam.rpc.service.ClientComm
+import `in`.dragonbra.javasteam.rpc.service.webui.ClientComm
 import `in`.dragonbra.javasteam.steam.handlers.ClientMsgHandler
 import `in`.dragonbra.javasteam.steam.handlers.steamunifiedmessages.SteamUnifiedMessages
 import `in`.dragonbra.javasteam.util.JavaSteamAddition
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
+import kotlin.getValue
 
 /**
  * Allows controlling of other running Steam clients.

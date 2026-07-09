@@ -13,27 +13,37 @@ class UnifiedInterfaceTest {
 
     @Test
     fun testServiceCount() {
-        val interfaceDir = File(SERVICE_PATH)
+        assertServiceCount(SERVICE_PATH, knownServiceTypes)
+    }
+
+    @Test
+    fun testKnownServices() {
+        assertKnownServices(SERVICE_PATH, knownServiceTypes)
+    }
+
+    @Suppress("SameParameterValue")
+    private fun assertServiceCount(path: String, knownTypes: Array<String>) {
+        val interfaceDir = File(path)
 
         Assertions.assertTrue(
             interfaceDir.exists() && interfaceDir.isDirectory,
             "${interfaceDir.name} should exist to test"
         )
 
-        val fileCount = interfaceDir.listFiles()
+        val fileCount = interfaceDir.listFiles { file -> file.isFile }
 
         Assertions.assertNotNull(fileCount, "Couldn't count files")
 
         Assertions.assertTrue(
-            knownServiceTypes.count() == fileCount!!.size,
+            knownTypes.count() == fileCount!!.size,
             "Interface count doesn't match known file types! Did something change in the .proto files?"
         )
     }
 
-    @Test
-    fun testKnownServices() {
-        for (filename in knownServiceTypes) {
-            val file = File(SERVICE_PATH, filename)
+    @Suppress("SameParameterValue")
+    private fun assertKnownServices(path: String, knownTypes: Array<String>) {
+        for (filename in knownTypes) {
+            val file = File(path, filename)
             Assertions.assertTrue(file.exists() && file.isFile, "File $filename should exist")
         }
     }
@@ -76,15 +86,13 @@ class UnifiedInterfaceTest {
             "PlayerClient.kt",
             "RemoteClient.kt",
             "RemoteClientSteamClient.kt",
+            "Store.kt",
+            "StoreBrowse.kt",
+            "StoreClient.kt",
             "TwoFactor.kt",
             "UserAccount.kt",
             "PublishedFile.kt",
             "PublishedFileClient.kt",
-
-            // WebUI
-            "ClientComm.kt",
-            "CloudConfigStore.kt",
-            "CloudConfigStoreClient.kt",
         )
     }
 }

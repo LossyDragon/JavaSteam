@@ -1,26 +1,15 @@
-import org.gradle.api.tasks.testing.logging.TestLogEvent
-import org.gradle.kotlin.dsl.invoke
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jmailen.gradle.kotlinter.tasks.FormatTask
 import org.jmailen.gradle.kotlinter.tasks.LintTask
 
 plugins {
-    `maven-publish`
     alias(libs.plugins.kotlin.dokka)
     alias(libs.plugins.kotlin.jvm)
     alias(libs.plugins.kotlin.kotlinter)
-    alias(libs.plugins.maven.publish)
     alias(libs.plugins.protobuf.gradle)
-    id("jacoco")
+    id("maven-publish")
     id("signing")
-    projectversiongen
-    steamlanguagegen
     rpcinterfacegen
-}
-
-allprojects {
-    group = "in.dragonbra"
-    version = "1.8.1-SNAPSHOT"
 }
 
 repositories {
@@ -44,26 +33,22 @@ protobuf.protoc {
     artifact = libs.protobuf.protoc.get().toString()
 }
 
+/* Source Sets */
+sourceSets.main {
+    java.srcDirs(
+        // builtBy() fixes gradle warning "Execution optimizations have been disabled for task"
+        files("build/generated/source/javasteam/main/java").builtBy("generateRpcMethods")
+    )
+}
+
+/* Tasks */
+tasks["compileJava"].dependsOn("generateRpcMethods")
+tasks["compileKotlin"].dependsOn("generateRpcMethods")
+tasks["generateRpcMethods"].dependsOn("extractProto", "extractIncludeProto")
 
 /* Testing */
 tasks.test {
     useJUnitPlatform()
-    testLogging {
-        events = setOf(
-            TestLogEvent.FAILED,
-            TestLogEvent.PASSED,
-            TestLogEvent.SKIPPED,
-        )
-    }
-}
-
-/* Test Reporting */
-jacoco.toolVersion = libs.versions.jacoco.get()
-tasks.jacocoTestReport {
-    reports {
-        xml.required = false
-        html.required = false
-    }
 }
 
 /* Java-Kotlin Docs */
@@ -89,43 +74,6 @@ artifacts {
     archives(javadocJar)
 }
 
-/* Configuration */
-configurations {
-    configureEach {
-        // Only allow junit 5
-        exclude("junit", "junit")
-        exclude("org.junit.vintage", "junit-vintage-engine")
-    }
-}
-
-/* Source Sets */
-sourceSets.main {
-    java.srcDirs(
-        // builtBy() fixes gradle warning "Execution optimizations have been disabled for task"
-        files("build/generated/source/steamd/main/java").builtBy("generateSteamLanguage"),
-        files("build/generated/source/javasteam/main/java").builtBy("generateProjectVersion", "generateRpcMethods")
-    )
-}
-
-/* Basic Java 9 JPMS support */
-tasks.jar {
-    manifest {
-        attributes["Automatic-Module-Name"] = "in.dragonbra.javasteam"
-    }
-    exclude("**/*.proto")
-}
-
-/* Tasks */
-tasks["check"].dependsOn("jacocoTestReport")
-tasks["compileJava"].dependsOn("generateSteamLanguage", "generateProjectVersion", "generateRpcMethods")
-tasks["compileKotlin"].dependsOn("generateSteamLanguage", "generateProjectVersion", "generateRpcMethods")
-tasks["generateRpcMethods"].dependsOn("extractProto", "extractIncludeProto")
-afterEvaluate {
-    tasks.named("lintKotlin") {
-        dependsOn("formatKotlin")
-    }
-}
-
 /* Kotlinter */
 tasks.withType<LintTask> {
     val generatedFile = "${File.separator}build${File.separator}generated"
@@ -137,61 +85,35 @@ tasks.withType<FormatTask> {
     exclude { it.file.path.contains(generatedFile) }
 }
 
-/* JDK and Mockito self attachment fix */
-// "Mockito is currently self-attaching to enable the inline-mock-maker.
-//      This will no longer work in future releases of the JDK"
-val mockitoAgent = configurations.create("mockitoAgent")
-tasks.withType<Test> {
-    doFirst {
-        jvmArgs("-javaagent:${mockitoAgent.asPath}")
-    }
+/* Jar */
+tasks.jar {
+    exclude("**/*.proto")
 }
 
 dependencies {
-    mockitoAgent(libs.test.mock.core) { isTransitive = false }
+    api(rootProject)
 
-    implementation(libs.bundles.ktor)
-    implementation(libs.bundles.okHttp)
-    implementation(libs.commons.lang3)
     implementation(libs.kotlin.coroutines)
     implementation(libs.kotlin.stdib)
     implementation(libs.protobuf.java)
-    compileOnly(libs.xz)
-    compileOnly(libs.zstd)
 
     testImplementation(platform(libs.tests.junit.bom))
-    testImplementation(libs.bundles.testing)
+    testImplementation(libs.tests.junit.jupiter)
     testRuntimeOnly(libs.tests.junit.platform)
 }
 
 /* Artifact publishing */
-nexusPublishing {
-    // OSSRH reaches EOL on June 30, 2025
-    // https://central.sonatype.org/publish/publish-portal-ossrh-staging-api/#configuration
-    repositories {
-        sonatype {
-            nexusUrl.set(uri("https://ossrh-staging-api.central.sonatype.com/service/local/"))
-            snapshotRepositoryUrl.set(uri("https://central.sonatype.com/repository/maven-snapshots/"))
-
-            val ossrhUsername: String by project
-            val ossrhPassword: String by project
-            username = ossrhUsername
-            password = ossrhPassword
-        }
-    }
-}
-
 publishing {
     publications {
         create<MavenPublication>("mavenJava") {
             from(components["java"])
             artifact(javadocJar)
             pom {
-                name = "JavaSteam"
+                name = "JavaSteam-protobufs-webui"
                 packaging = "jar"
-                description = "Java library to interact with Valve's Steam network."
+                description = "Webui protobuf classes and services for JavaSteam."
                 url = "https://github.com/Longi94/JavaSteam"
-                inceptionYear = "2018"
+                inceptionYear = "2026"
                 scm {
                     connection = "scm:git:git://github.com/Longi94/JavaSteam.git"
                     developerConnection = "scm:git:ssh://github.com:Longi94/JavaSteam.git"

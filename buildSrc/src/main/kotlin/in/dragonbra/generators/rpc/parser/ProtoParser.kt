@@ -10,6 +10,7 @@ class ProtoParser(private val outputDir: File) {
     private companion object {
         private const val RPC_PACKAGE = "in.dragonbra.javasteam.rpc"
         private const val SERVICE_PACKAGE = "${RPC_PACKAGE}.service"
+        private const val WEBUI_SERVICE_PACKAGE = "${SERVICE_PACKAGE}.webui"
 
         private val suppressAnnotation = AnnotationSpec
             .builder(Suppress::class)
@@ -249,7 +250,10 @@ class ProtoParser(private val outputDir: File) {
         }
 
         // Build everything together and write it
-        FileSpec.builder(SERVICE_PACKAGE, service.name)
+        // Services from .proto files under "webui" go to their own sub-package to
+        // avoid clashing with same-named steamclient services (e.g. Store).
+        val servicePackage = if (parentPathName == "webui") WEBUI_SERVICE_PACKAGE else SERVICE_PACKAGE
+        FileSpec.builder(servicePackage, service.name)
             .addType(cBuilder.build())
             .build()
             .writeTo(outputDir)
