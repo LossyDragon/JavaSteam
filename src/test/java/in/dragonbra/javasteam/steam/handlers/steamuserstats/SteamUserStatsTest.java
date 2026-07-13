@@ -292,6 +292,32 @@ public class SteamUserStatsTest extends HandlerTestBase<SteamUserStats> {
         Assertions.assertTrue(expanded.get(2).isUnlocked());
     }
 
+    @Test
+    public void testGetExpandedAchievementsWithProgress() throws IOException {
+        // A locked achievement linked to a stat should expose its current/max progress
+        IPacketMsg testMsg = createProgressResponseMessage();
+
+        // Call handler to process the message
+        handler.handleMsg(testMsg);
+
+        // Verify the callback was posted
+        UserStatsCallback callback = verifyCallback();
+
+        List<AchievementBlocks> expanded = callback.getExpandedAchievements();
+        Assertions.assertEquals(1, expanded.size());
+
+        AchievementBlocks ach = expanded.get(0);
+        Assertions.assertEquals("ACH_SLAYER", ach.getName());
+        Assertions.assertFalse(ach.isUnlocked());
+
+        // Progress is pulled from the linked "enemies_killed" stat (45) against max_val (100)
+        Assertions.assertTrue(ach.getHasProgress());
+        Assertions.assertNotNull(ach.getProgressMax());
+        Assertions.assertNotNull(ach.getProgressCurrent());
+        Assertions.assertEquals(100f, ach.getProgressMax(), 0.001f);
+        Assertions.assertEquals(45f, ach.getProgressCurrent(), 0.001f);
+    }
+
     /**
      * Helper method to create a mock UserStatsResponse packet with achievement
      * data.
@@ -463,6 +489,91 @@ public class SteamUserStatsTest extends HandlerTestBase<SteamUserStats> {
         wrapper.getChildren().add(stats);
 
         // Serialize to binary format
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        wrapper.saveToStream(baos, true); // Binary format
+        return baos.toByteArray();
+    }
+
+    /**
+     * Helper method to create a UserStatsResponse packet with a single locked,
+     * stat-linked progress achievement (current 45, max 100).
+     */
+    private IPacketMsg createProgressResponseMessage() throws IOException {
+        ClientMsgProtobuf<CMsgClientGetUserStatsResponse.Builder> msg = new ClientMsgProtobuf<>(
+                CMsgClientGetUserStatsResponse.class, EMsg.ClientGetUserStatsResponse);
+
+        CMsgClientGetUserStatsResponse.Builder body = msg.getBody();
+        body.setGameId(440L);
+        body.setEresult(EResult.OK.code());
+        body.setCrcStats(123456);
+        body.setSchema(ByteString.copyFrom(createProgressSchema()));
+
+        // One achievement block with a single locked achievement
+        CMsgClientGetUserStatsResponse.Achievement_Blocks.Builder block = CMsgClientGetUserStatsResponse.Achievement_Blocks
+                .newBuilder();
+        block.setAchievementId(21);
+        block.addUnlockTime(0); // Locked
+        body.addAchievementBlocks(block);
+
+        // Current value of the linked stat (id 1)
+        body.addStats(CMsgClientGetUserStatsResponse.Stats.newBuilder()
+                .setStatId(1)
+                .setStatValue(45));
+
+        return CMClient.getPacketMsg(msg.serialize());
+    }
+
+    /**
+     * Helper method to create a schema with one progress achievement linked to a stat.
+     * The achievement references the "enemies_killed" stat with a max_val of 100.
+     */
+    private byte[] createProgressSchema() throws IOException {
+        KeyValue wrapper = new KeyValue("UserGameStatsSchema");
+        KeyValue stats = new KeyValue("stats");
+
+        // Stat definition the progress achievement is linked to
+        KeyValue stat1 = new KeyValue("1");
+        stat1.getChildren().add(new KeyValue("type", "1"));
+        stat1.getChildren().add(new KeyValue("name", "enemies_killed"));
+        stats.getChildren().add(stat1);
+
+        // Achievement block 21 with a single progress achievement
+        KeyValue block21 = new KeyValue("21");
+        block21.getChildren().add(new KeyValue("type", "4"));
+
+        KeyValue bits = new KeyValue("bits");
+        KeyValue bit0 = new KeyValue("0");
+        bit0.getChildren().add(new KeyValue("bit", "0"));
+        bit0.getChildren().add(new KeyValue("name", "ACH_SLAYER"));
+
+        KeyValue display = new KeyValue("display");
+        KeyValue name = new KeyValue("name");
+        name.getChildren().add(new KeyValue("english", "Slayer"));
+        display.getChildren().add(name);
+        KeyValue desc = new KeyValue("desc");
+        desc.getChildren().add(new KeyValue("english", "Kill 100 enemies"));
+        display.getChildren().add(desc);
+        display.getChildren().add(new KeyValue("icon", "slayer.jpg"));
+        display.getChildren().add(new KeyValue("icon_gray", "slayer_gray.jpg"));
+        display.getChildren().add(new KeyValue("hidden", "0"));
+        bit0.getChildren().add(display);
+
+        // Progress: current value comes from the "enemies_killed" stat, max 100
+        KeyValue progress = new KeyValue("progress");
+        progress.getChildren().add(new KeyValue("min_val", "0"));
+        progress.getChildren().add(new KeyValue("max_val", "100"));
+        KeyValue value = new KeyValue("value");
+        value.getChildren().add(new KeyValue("operation", "statvalue"));
+        value.getChildren().add(new KeyValue("operand1", "enemies_killed"));
+        progress.getChildren().add(value);
+        bit0.getChildren().add(progress);
+
+        bits.getChildren().add(bit0);
+        block21.getChildren().add(bits);
+        stats.getChildren().add(block21);
+
+        wrapper.getChildren().add(stats);
+
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         wrapper.saveToStream(baos, true); // Binary format
         return baos.toByteArray();

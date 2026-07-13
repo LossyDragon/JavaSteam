@@ -108,16 +108,27 @@ class UserStatsCallback(packetMsg: IPacketMsg) : CallbackMsg() {
     @JvmOverloads
     fun getExpandedAchievements(language: String = "english"): List<AchievementBlocks> {
         val expandedAchievements = mutableListOf<AchievementBlocks>()
+        val statIdToValue = this.stats.associate { it.statId to it.statValue }
 
         try {
-            val stats = schemaKeyValues["stats"]
-            if (stats == KeyValue.INVALID) {
+            val schemaStats = schemaKeyValues["stats"]
+            if (schemaStats == KeyValue.INVALID) {
                 return achievementBlocks // Return original blocks if schema parsing failed
+            }
+
+            // Stat name -> id, from the stat definitions (entries with a "name" but no "bits")
+            val statNameToId = HashMap<String, Int>()
+            for (entry in schemaStats.children) {
+                val id = entry.name?.toIntOrNull() ?: continue
+                val statName = entry["name"].value
+                if (statName != null && entry["bits"] == KeyValue.INVALID) {
+                    statNameToId[statName] = id
+                }
             }
 
             // Iterate through each achievement block
             for (block in achievementBlocks) {
-                val statBlock = stats[block.achievementId.toString()]
+                val statBlock = schemaStats[block.achievementId.toString()]
                 val bitsBlock = statBlock["bits"]
 
                 if (bitsBlock != KeyValue.INVALID) {
@@ -141,6 +152,21 @@ class UserStatsCallback(packetMsg: IPacketMsg) : CallbackMsg() {
                             0
                         }
 
+                        // Stat-linked progress (e.g. 45 / 100), if defined
+                        var progressCurrent: Float? = null
+                        var progressMax: Float? = null
+                        val progress = bitEntry["progress"]
+                        if (progress != KeyValue.INVALID) {
+                            val maxVal = progress["max_val"].value?.toFloatOrNull()
+                            val minVal = progress["min_val"].value?.toFloatOrNull() ?: 0f
+                            val operand = progress["value"]["operand1"].value
+                            val current = operand?.let { statNameToId[it] }?.let { statIdToValue[it]?.toFloat() }
+                            if (maxVal != null && maxVal > minVal) {
+                                progressMax = maxVal - minVal
+                                progressCurrent = ((current ?: 0f) - minVal).coerceIn(0f, progressMax)
+                            }
+                        }
+
                         // Create individual achievement entry
                         expandedAchievements.add(
                             AchievementBlocks(
@@ -151,7 +177,9 @@ class UserStatsCallback(packetMsg: IPacketMsg) : CallbackMsg() {
                                 description = description,
                                 icon = icon,
                                 iconGray = iconGray,
-                                hidden = hidden
+                                hidden = hidden,
+                                progressCurrent = progressCurrent,
+                                progressMax = progressMax
                             )
                         )
                     }
