@@ -15,6 +15,8 @@ import java.util.Date
  * @param icon the relative URL to the achievement's icon (You will still need to complete the URL with Steam's CDN URL and appId)
  * @param iconGray the relative URL to the achievement's grayscale icon (shown when locked) (You will still need to complete the URL with Steam's URL and appId)
  * @param hidden whether the achievement is hidden until unlocked
+ * @param progressCurrent current value of a stat-linked progress achievement, normalized so 0 == min_val (null if none)
+ * @param progressMax max value of a stat-linked progress achievement (max_val - min_val) (null if none)
  */
 @JavaSteamAddition
 data class AchievementBlocks(
@@ -26,7 +28,14 @@ data class AchievementBlocks(
     val icon: String? = null,
     val iconGray: String? = null,
     val hidden: Boolean = false,
+    val progressCurrent: Float? = null,
+    val progressMax: Float? = null,
 ) {
+    /**
+     * Returns true if this achievement tracks partial progress (e.g. 45 / 100).
+     */
+    val hasProgress: Boolean
+        get() = progressMax != null && progressMax > 0f
     /**
      * Returns true if this achievement is unlocked.
      * An achievement is considered unlocked if it has any non-zero unlock time.
