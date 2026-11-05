@@ -11,6 +11,7 @@ import `in`.dragonbra.javasteam.steam.handlers.steamunifiedmessages.callback.Ser
 import `in`.dragonbra.javasteam.steam.handlers.steamunifiedmessages.callback.ServiceMethodResponse
 import `in`.dragonbra.javasteam.types.AsyncJobSingle
 import java.util.concurrent.ConcurrentHashMap
+import java.util.function.Supplier
 
 /**
  * @author Lossy
@@ -91,7 +92,10 @@ class SteamUnifiedMessages : ClientMsgHandler() {
             EMsg.ServiceMethodCallFromClient
         }
 
-        val msg = ClientMsgProtobuf<TRequest>(message::class.java, eMsg).apply {
+        val msg = ClientMsgProtobuf({
+            @Suppress("UNCHECKED_CAST")
+            (message.newBuilderForType() as TRequest)
+        }, eMsg).apply {
             sourceJobID = client.getNextJobID()
             header.proto.targetJobName = name
             body.mergeFrom(message)
@@ -119,7 +123,10 @@ class SteamUnifiedMessages : ClientMsgHandler() {
         } else {
             EMsg.ServiceMethodCallFromClient
         }
-        val msg = ClientMsgProtobuf<TRequest>(message::class.java, eMsg).apply {
+        val msg = ClientMsgProtobuf({
+            @Suppress("UNCHECKED_CAST")
+            (message.newBuilderForType() as TRequest)
+        }, eMsg).apply {
             header.proto.targetJobName = name
             body.mergeFrom(message)
         }
@@ -158,18 +165,18 @@ class SteamUnifiedMessages : ClientMsgHandler() {
     }
 
     internal fun <TResponse : GeneratedMessage.Builder<TResponse>> handleResponseMsg(
-        serviceClass: Class<out AbstractMessage>,
+        newBody: Supplier<TResponse>,
         packetMsg: PacketClientMsgProtobuf,
     ) {
-        val callback = ServiceMethodResponse<TResponse>(serviceClass, packetMsg)
+        val callback = ServiceMethodResponse(newBody, packetMsg)
         client.postCallback(callback)
     }
 
     internal fun <TNotification : GeneratedMessage.Builder<TNotification>> handleNotificationMsg(
-        serviceClass: Class<out AbstractMessage>,
+        newBody: Supplier<TNotification>,
         packetMsg: PacketClientMsgProtobuf,
     ) {
-        val callback = ServiceMethodNotification<TNotification>(serviceClass, packetMsg)
+        val callback = ServiceMethodNotification(newBody, packetMsg)
         client.postCallback(callback)
     }
 }

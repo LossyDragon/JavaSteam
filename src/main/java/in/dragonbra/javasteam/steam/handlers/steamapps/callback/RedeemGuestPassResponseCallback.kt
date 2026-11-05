@@ -28,10 +28,7 @@ class RedeemGuestPassResponseCallback(packetMsg: IPacketMsg) : CallbackMsg() {
     val mustOwnAppID: Int
 
     init {
-        val redeemedGuestPass = ClientMsgProtobuf<CMsgClientRedeemGuestPassResponse.Builder>(
-            CMsgClientRedeemGuestPassResponse::class.java,
-            packetMsg
-        )
+        val redeemedGuestPass = ClientMsgProtobuf(CMsgClientRedeemGuestPassResponse::newBuilder, packetMsg)
         val msg = redeemedGuestPass.body
 
         jobID = redeemedGuestPass.targetJobID

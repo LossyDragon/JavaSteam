@@ -21,10 +21,7 @@ class GameConnectTokensCallback(packetMsg: IPacketMsg) : CallbackMsg() {
     val tokens: List<ByteArray>
 
     init {
-        val gcTokens = ClientMsgProtobuf<CMsgClientGameConnectTokens.Builder>(
-            CMsgClientGameConnectTokens::class.java,
-            packetMsg
-        )
+        val gcTokens = ClientMsgProtobuf(CMsgClientGameConnectTokens::newBuilder, packetMsg)
         val msg = gcTokens.body
 
         tokensToKeep = msg.maxTokensToKeep

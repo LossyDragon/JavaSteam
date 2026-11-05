@@ -23,10 +23,7 @@ class OfflineMessageNotificationCallback(packetMsg: IPacketMsg) : CallbackMsg() 
     val friendsWithOfflineMessages: List<SteamID>
 
     init {
-        val resp = ClientMsgProtobuf<CMsgClientOfflineMessageNotification.Builder>(
-            CMsgClientOfflineMessageNotification::class.java,
-            packetMsg
-        )
+        val resp = ClientMsgProtobuf(CMsgClientOfflineMessageNotification::newBuilder, packetMsg)
         val msg = resp.body
 
         messageCount = msg.offlineMessages

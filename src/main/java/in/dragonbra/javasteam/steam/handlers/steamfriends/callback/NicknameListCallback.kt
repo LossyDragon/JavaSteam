@@ -17,10 +17,7 @@ class NicknameListCallback(packetMsg: IPacketMsg) : CallbackMsg() {
     val nicknames: List<PlayerNickname>
 
     init {
-        val response = ClientMsgProtobuf<CMsgClientPlayerNicknameList.Builder>(
-            CMsgClientPlayerNicknameList::class.java,
-            packetMsg
-        )
+        val response = ClientMsgProtobuf(CMsgClientPlayerNicknameList::newBuilder, packetMsg)
 
         nicknames = response.body.nicknamesList.map { PlayerNickname(it) }
     }

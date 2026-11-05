@@ -58,8 +58,8 @@ class SteamApps : ClientMsgHandler() {
      * @return The Job ID of the request. This can be used to find the appropriate [AppOwnershipTicketCallback].
      */
     fun getAppOwnershipTicket(appId: Int): AsyncJobSingle<AppOwnershipTicketCallback> {
-        val request = ClientMsgProtobuf<CMsgClientGetAppOwnershipTicket.Builder>(
-            CMsgClientGetAppOwnershipTicket::class.java,
+        val request = ClientMsgProtobuf(
+            CMsgClientGetAppOwnershipTicket::newBuilder,
             EMsg.ClientGetAppOwnershipTicket
         ).apply {
             sourceJobID = client.getNextJobID()
@@ -81,8 +81,8 @@ class SteamApps : ClientMsgHandler() {
      * @return The Job ID of the request. This can be used to find the appropriate [DepotKeyCallback].
      */
     fun getDepotDecryptionKey(depotId: Int, appId: Int): AsyncJobSingle<DepotKeyCallback> {
-        val request = ClientMsgProtobuf<CMsgClientGetDepotDecryptionKey.Builder>(
-            CMsgClientGetDepotDecryptionKey::class.java,
+        val request = ClientMsgProtobuf(
+            CMsgClientGetDepotDecryptionKey::newBuilder,
             EMsg.ClientGetDepotDecryptionKey
         ).apply {
             sourceJobID = client.getNextJobID()
@@ -107,8 +107,8 @@ class SteamApps : ClientMsgHandler() {
     @JavaSteamAddition
     @JvmOverloads
     fun requestEncryptedAppTicket(appId: Int, userdata: ByteArray? = null): AsyncJobSingle<EncryptedAppTicketCallback> {
-        val request = ClientMsgProtobuf<CMsgClientRequestEncryptedAppTicket.Builder>(
-            CMsgClientRequestEncryptedAppTicket::class.java,
+        val request = ClientMsgProtobuf(
+            CMsgClientRequestEncryptedAppTicket::newBuilder,
             EMsg.ClientRequestEncryptedAppTicket
         ).apply {
             sourceJobID = client.getNextJobID()
@@ -149,8 +149,8 @@ class SteamApps : ClientMsgHandler() {
      * @return The Job ID of the request. This can be used to find the appropriate [PICSTokensCallback].
      */
     fun picsGetAccessTokens(appIds: Iterable<Int>, packageIds: Iterable<Int>): AsyncJobSingle<PICSTokensCallback> {
-        val request = ClientMsgProtobuf<CMsgClientPICSAccessTokenRequest.Builder>(
-            CMsgClientPICSAccessTokenRequest::class.java,
+        val request = ClientMsgProtobuf(
+            CMsgClientPICSAccessTokenRequest::newBuilder,
             EMsg.ClientPICSAccessTokenRequest
         ).apply {
             sourceJobID = client.getNextJobID()
@@ -179,8 +179,8 @@ class SteamApps : ClientMsgHandler() {
         sendAppChangeList: Boolean = true,
         sendPackageChangelist: Boolean = false,
     ): AsyncJobSingle<PICSChangesCallback> {
-        val request = ClientMsgProtobuf<CMsgClientPICSChangesSinceRequest.Builder>(
-            CMsgClientPICSChangesSinceRequest::class.java,
+        val request = ClientMsgProtobuf(
+            CMsgClientPICSChangesSinceRequest::newBuilder,
             EMsg.ClientPICSChangesSinceRequest
         ).apply {
             sourceJobID = client.getNextJobID()
@@ -231,8 +231,8 @@ class SteamApps : ClientMsgHandler() {
         packages: Iterable<PICSRequest>,
         metaDataOnly: Boolean = false,
     ): AsyncJobMultiple<PICSProductInfoCallback> {
-        val request = ClientMsgProtobuf<CMsgClientPICSProductInfoRequest.Builder>(
-            CMsgClientPICSProductInfoRequest::class.java,
+        val request = ClientMsgProtobuf(
+            CMsgClientPICSProductInfoRequest::newBuilder,
             EMsg.ClientPICSProductInfoRequest
         ).apply {
             sourceJobID = client.getNextJobID()
@@ -281,8 +281,8 @@ class SteamApps : ClientMsgHandler() {
      * @return The Job ID of the request. This can be used to find the appropriate [FreeLicenseCallback].
      */
     fun requestFreeLicense(apps: Iterable<Int>): AsyncJobSingle<FreeLicenseCallback> {
-        val request = ClientMsgProtobuf<CMsgClientRequestFreeLicense.Builder>(
-            CMsgClientRequestFreeLicense::class.java,
+        val request = ClientMsgProtobuf(
+            CMsgClientRequestFreeLicense::newBuilder,
             EMsg.ClientRequestFreeLicense
         ).apply {
             sourceJobID = client.getNextJobID()
@@ -304,8 +304,8 @@ class SteamApps : ClientMsgHandler() {
      * @return The Job ID of the request. This can be used to find the appropriate [CheckAppBetaPasswordCallback].
      */
     fun checkAppBetaPassword(app: Int, password: String): AsyncJobSingle<CheckAppBetaPasswordCallback> {
-        val request = ClientMsgProtobuf<CMsgClientCheckAppBetaPassword.Builder>(
-            CMsgClientCheckAppBetaPassword::class.java,
+        val request = ClientMsgProtobuf(
+            CMsgClientCheckAppBetaPassword::newBuilder,
             EMsg.ClientCheckAppBetaPassword
         ).apply {
             sourceJobID = client.getNextJobID()
@@ -352,8 +352,8 @@ class SteamApps : ClientMsgHandler() {
         branch: String,
         branchPasswordHash: ByteArray,
     ): AsyncJobSingle<PrivateBetaCallback> {
-        val request = ClientMsgProtobuf<CMsgClientPICSPrivateBetaRequest.Builder>(
-            CMsgClientPICSPrivateBetaRequest::class.java,
+        val request = ClientMsgProtobuf(
+            CMsgClientPICSPrivateBetaRequest::newBuilder,
             EMsg.ClientPICSPrivateBetaRequest
         ).apply {
             sourceJobID = client.getNextJobID()
@@ -405,10 +405,7 @@ class SteamApps : ClientMsgHandler() {
         cloudGamingPlatform: Int = 0,
         recentReAuthentication: Boolean = false,
     ) {
-        val request = ClientMsgProtobuf<CMsgClientGamesPlayed.Builder>(
-            CMsgClientGamesPlayed::class.java,
-            EMsg.ClientGamesPlayedWithDataBlob
-        ).apply {
+        val request = ClientMsgProtobuf(CMsgClientGamesPlayed::newBuilder, EMsg.ClientGamesPlayedWithDataBlob).apply {
             sourceJobID = client.getNextJobID()
 
             body.addAllGamesPlayed(

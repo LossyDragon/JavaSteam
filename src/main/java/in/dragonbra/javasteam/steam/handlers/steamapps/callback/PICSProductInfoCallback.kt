@@ -43,10 +43,7 @@ class PICSProductInfoCallback(packetMsg: IPacketMsg) : CallbackMsg() {
     val packages: Map<Int, PICSProductInfo>
 
     init {
-        val productResponse = ClientMsgProtobuf<CMsgClientPICSProductInfoResponse.Builder>(
-            CMsgClientPICSProductInfoResponse::class.java,
-            packetMsg
-        )
+        val productResponse = ClientMsgProtobuf(CMsgClientPICSProductInfoResponse::newBuilder, packetMsg)
         val msg = productResponse.body
 
         jobID = productResponse.targetJobID

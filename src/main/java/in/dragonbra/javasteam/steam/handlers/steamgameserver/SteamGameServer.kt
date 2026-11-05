@@ -46,7 +46,7 @@ class SteamGameServer : ClientMsgHandler() {
             return
         }
 
-        val logon = ClientMsgProtobuf<CMsgClientLogon.Builder>(CMsgClientLogon::class.java, EMsg.ClientLogonGameServer)
+        val logon = ClientMsgProtobuf(CMsgClientLogon::newBuilder, EMsg.ClientLogonGameServer)
 
         val gsId = SteamID(0, 0, client.universe, EAccountType.GameServer)
 
@@ -81,7 +81,7 @@ class SteamGameServer : ClientMsgHandler() {
         }
 
         // Was EMsg.ClientLogonGameServer, changed to match SK.
-        val logon = ClientMsgProtobuf<CMsgClientLogon.Builder>(CMsgClientLogon::class.java, EMsg.ClientLogon)
+        val logon = ClientMsgProtobuf(CMsgClientLogon::newBuilder, EMsg.ClientLogon)
 
         val gsId = SteamID(0, 0, client.universe, EAccountType.AnonGameServer)
 
@@ -106,7 +106,7 @@ class SteamGameServer : ClientMsgHandler() {
     fun logOff() {
         isExpectDisconnection = true
 
-        val logOff = ClientMsgProtobuf<CMsgClientLogOff.Builder>(CMsgClientLogOff::class.java, EMsg.ClientLogOff)
+        val logOff = ClientMsgProtobuf(CMsgClientLogOff::newBuilder, EMsg.ClientLogOff)
         client.send(logOff)
 
         // TODO: 2018-02-28 it seems like the socket is not closed after getting logged of or I am doing something horribly wrong, let's disconnect here
@@ -121,10 +121,7 @@ class SteamGameServer : ClientMsgHandler() {
     fun sendStatus(details: StatusDetails) {
         require(!(details.address != null && details.address is Inet6Address)) { "Only IPv4 addresses are supported." }
 
-        val status = ClientMsgProtobuf<CMsgGSServerType.Builder>(
-            CMsgGSServerType::class.java,
-            EMsg.GSServerType
-        ).apply {
+        val status = ClientMsgProtobuf(CMsgGSServerType::newBuilder, EMsg.GSServerType).apply {
             body.appIdServed = details.appID
             body.flags = EServerFlags.code(details.serverFlags)
             body.gameDir = details.gameDirectory

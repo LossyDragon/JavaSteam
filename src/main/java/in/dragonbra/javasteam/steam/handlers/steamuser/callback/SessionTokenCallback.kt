@@ -17,7 +17,7 @@ class SessionTokenCallback(packetMsg: IPacketMsg) : CallbackMsg() {
     val sessionToken: Long
 
     init {
-        val sessToken = ClientMsgProtobuf<CMsgClientSessionToken.Builder>(CMsgClientSessionToken::class.java, packetMsg)
+        val sessToken = ClientMsgProtobuf(CMsgClientSessionToken::newBuilder, packetMsg)
 
         sessionToken = sessToken.body.token
     }

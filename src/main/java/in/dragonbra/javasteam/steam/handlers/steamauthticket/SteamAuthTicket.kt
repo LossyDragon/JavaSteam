@@ -265,10 +265,7 @@ class SteamAuthTicket : ClientMsgHandler() {
     }
 
     private fun sendTickets() {
-        ClientMsgProtobuf<CMsgClientAuthList.Builder>(
-            CMsgClientAuthList::class.java,
-            EMsg.ClientAuthList
-        ).apply {
+        ClientMsgProtobuf(CMsgClientAuthList::newBuilder, EMsg.ClientAuthList).apply {
             body.tokensLeft = gameConnectTokens.size
 
             synchronized(ticketChangeLock) {
@@ -297,10 +294,7 @@ class SteamAuthTicket : ClientMsgHandler() {
     }
 
     private fun handleGameConnectTokens(packetMsg: IPacketMsg) {
-        val body = ClientMsgProtobuf<CMsgClientGameConnectTokens.Builder>(
-            CMsgClientGameConnectTokens::class.java,
-            packetMsg
-        ).body
+        val body = ClientMsgProtobuf(CMsgClientGameConnectTokens::newBuilder, packetMsg).body
 
         // Add tokens
         body.tokensList.forEach { tok ->
@@ -315,20 +309,14 @@ class SteamAuthTicket : ClientMsgHandler() {
 
     private fun handleTicketAuthComplete(packetMsg: IPacketMsg) {
         // Ticket successfully used to authorize user
-        val complete = ClientMsgProtobuf<CMsgClientTicketAuthComplete.Builder>(
-            CMsgClientTicketAuthComplete::class.java,
-            packetMsg
-        )
+        val complete = ClientMsgProtobuf(CMsgClientTicketAuthComplete::newBuilder, packetMsg)
         val inUse = TicketAuthCompleteCallback(complete.targetJobID, complete.body)
         client.postCallback(inUse)
     }
 
     private fun handleTicketAcknowledged(packetMsg: IPacketMsg) {
         // Ticket acknowledged as valid by Steam
-        val authAck = ClientMsgProtobuf<CMsgClientAuthListAck.Builder>(
-            CMsgClientAuthListAck::class.java,
-            packetMsg
-        )
+        val authAck = ClientMsgProtobuf(CMsgClientAuthListAck::newBuilder, packetMsg)
 
         // Complete per-CRC ack waiters: correlate on the acknowledged ticket CRCs rather than the JobID,
         // which Steam stopped echoing on repeated auth lists after its 2025-08 change (see SteamKit issue #1567).

@@ -55,10 +55,7 @@ class UserStatsCallback(packetMsg: IPacketMsg) : CallbackMsg() {
     val schemaKeyValues: KeyValue = KeyValue()
 
     init {
-        val msg = ClientMsgProtobuf<CMsgClientGetUserStatsResponse.Builder>(
-            CMsgClientGetUserStatsResponse::class.java,
-            packetMsg
-        )
+        val msg = ClientMsgProtobuf(CMsgClientGetUserStatsResponse::newBuilder, packetMsg)
         val resp = msg.body
 
         jobID = msg.targetJobID

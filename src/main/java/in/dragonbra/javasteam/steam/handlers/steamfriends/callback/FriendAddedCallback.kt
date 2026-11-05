@@ -28,10 +28,7 @@ class FriendAddedCallback(packetMsg: IPacketMsg) : CallbackMsg() {
     val personaName: String
 
     init {
-        val friendResponse = ClientMsgProtobuf<CMsgClientAddFriendResponse.Builder>(
-            CMsgClientAddFriendResponse::class.java,
-            packetMsg
-        )
+        val friendResponse = ClientMsgProtobuf(CMsgClientAddFriendResponse::newBuilder, packetMsg)
         val msg = friendResponse.body
 
         result = EResult.from(msg.eresult)

@@ -42,10 +42,7 @@ class MessageCallback(packetMsg: IPacketMsg) : CallbackMsg() {
     val message: IPacketGCMsg
 
     init {
-        val msg = ClientMsgProtobuf<CMsgGCClient.Builder>(
-            CMsgGCClient::class.java,
-            packetMsg
-        )
+        val msg = ClientMsgProtobuf(CMsgGCClient::newBuilder, packetMsg)
         val gcMsg = msg.body
 
         _eMsg = gcMsg.msgtype

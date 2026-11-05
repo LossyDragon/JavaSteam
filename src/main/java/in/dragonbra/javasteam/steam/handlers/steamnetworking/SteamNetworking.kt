@@ -25,8 +25,8 @@ class SteamNetworking : ClientMsgHandler() {
      * @return The Job ID of the request. This can be used to find the appropriate [NetworkingCertificateCallback].
      */
     fun requestNetworkingCertificate(appId: Int, publicKey: ByteArray): AsyncJobSingle<NetworkingCertificateCallback> {
-        val msg = ClientMsgProtobuf<CMsgClientNetworkingCertRequest.Builder>(
-            CMsgClientNetworkingCertRequest::class.java,
+        val msg = ClientMsgProtobuf(
+            CMsgClientNetworkingCertRequest::newBuilder,
             EMsg.ClientNetworkingCertRequest
         ).apply {
             sourceJobID = client.getNextJobID()

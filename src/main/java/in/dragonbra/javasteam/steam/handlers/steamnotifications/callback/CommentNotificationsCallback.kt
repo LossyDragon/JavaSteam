@@ -26,10 +26,7 @@ class CommentNotificationsCallback(packetMsg: IPacketMsg) : CallbackMsg() {
     val commentSubscriptionsCount: Int
 
     init {
-        val resp = ClientMsgProtobuf<CMsgClientCommentNotifications.Builder>(
-            CMsgClientCommentNotifications::class.java,
-            packetMsg
-        )
+        val resp = ClientMsgProtobuf(CMsgClientCommentNotifications::newBuilder, packetMsg)
         val msg = resp.body
 
         commentCount = msg.countNewComments

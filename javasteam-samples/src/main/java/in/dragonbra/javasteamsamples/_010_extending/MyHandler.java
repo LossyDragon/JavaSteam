@@ -77,7 +77,7 @@ public class MyHandler extends ClientMsgHandler {
     private void handleLogonResponse(IPacketMsg packetMsg) {
         // in order to get at the message contents, we need to wrap the packet message
         // in an object that gives us access to the message body
-        ClientMsgProtobuf<CMsgClientLogonResponse.Builder> logonResponse = new ClientMsgProtobuf<>(CMsgClientLogonResponse.class, packetMsg);
+        ClientMsgProtobuf<CMsgClientLogonResponse.Builder> logonResponse = new ClientMsgProtobuf<>(CMsgClientLogonResponse::newBuilder, packetMsg);
 
         // the raw body of the message often doesn't make use of useful types, so we need to
         // cast them to types that are prettier for the user to handle

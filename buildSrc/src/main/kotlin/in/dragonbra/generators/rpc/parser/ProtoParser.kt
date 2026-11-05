@@ -137,8 +137,7 @@ class ProtoParser(private val outputDir: File) {
                     method.responseType
                 )
                 responseBlock.addStatement(
-                    "\"${method.methodName}\" -> postResponseMsg<%T.Builder>(\n%T::class.java,\npacketMsg\n)",
-                    className,
+                    "\"${method.methodName}\" -> postResponseMsg(%T::newBuilder, packetMsg)",
                     className
                 )
             } else {
@@ -149,8 +148,7 @@ class ProtoParser(private val outputDir: File) {
                     method.requestType
                 )
                 notificationBlock.addStatement(
-                    "\"${method.methodName}\" -> postNotificationMsg<%T.Builder>(\n%T::class.java,\npacketMsg\n)",
-                    className,
+                    "\"${method.methodName}\" -> postNotificationMsg(%T::newBuilder, packetMsg)",
                     className
                 )
             }

@@ -134,7 +134,7 @@ public abstract class CMClient {
 
         heartBeatFunc = new ScheduledFunction(() -> {
             var heartbeat = new ClientMsgProtobuf<CMsgClientHeartBeat.Builder>(
-                    CMsgClientHeartBeat.class, EMsg.ClientHeartBeat);
+                    CMsgClientHeartBeat::newBuilder, EMsg.ClientHeartBeat);
             heartbeat.getBody().setSendReply(true); // Ping Pong
             send(heartbeat);
         }, 5000);
@@ -312,7 +312,7 @@ public abstract class CMClient {
      * Called when the client is securely isConnected to Steam3.
      */
     protected void onClientConnected() {
-        ClientMsgProtobuf<CMsgClientHello.Builder> request = new ClientMsgProtobuf<>(CMsgClientHello.class, EMsg.ClientHello);
+        ClientMsgProtobuf<CMsgClientHello.Builder> request = new ClientMsgProtobuf<>(CMsgClientHello::newBuilder, EMsg.ClientHello);
         request.getBody().setProtocolVersion(MsgClientLogon.CurrentProtocol);
 
         send(request);
@@ -380,7 +380,7 @@ public abstract class CMClient {
             return;
         }
 
-        var msgMulti = new ClientMsgProtobuf<CMsgMulti.Builder>(CMsgMulti.class, packetMsg);
+        var msgMulti = new ClientMsgProtobuf<CMsgMulti.Builder>(CMsgMulti::newBuilder, packetMsg);
         var payload = msgMulti.getBody().getMessageBody().toByteArray();
 
         try (var payloadBuffer = new Buffer().write(payload)) {
@@ -416,7 +416,7 @@ public abstract class CMClient {
             return;
         }
 
-        ClientMsgProtobuf<CMsgClientLogonResponse.Builder> logonResp = new ClientMsgProtobuf<>(CMsgClientLogonResponse.class, packetMsg);
+        ClientMsgProtobuf<CMsgClientLogonResponse.Builder> logonResp = new ClientMsgProtobuf<>(CMsgClientLogonResponse::newBuilder, packetMsg);
 
         EResult logonResponse = EResult.from(logonResp.getBody().getEresult());
         EResult extendedResponse = EResult.from(logonResp.getBody().getEresultExtended());
@@ -459,7 +459,7 @@ public abstract class CMClient {
         heartBeatFunc.stop();
 
         if (packetMsg.isProto()) {
-            ClientMsgProtobuf<CMsgClientLoggedOff.Builder> logoffMsg = new ClientMsgProtobuf<>(CMsgClientLoggedOff.class, packetMsg);
+            ClientMsgProtobuf<CMsgClientLoggedOff.Builder> logoffMsg = new ClientMsgProtobuf<>(CMsgClientLoggedOff::newBuilder, packetMsg);
             EResult logoffResult = EResult.from(logoffMsg.getBody().getEresult());
 
             logger.debug("handleLoggedOff got " + logoffResult);
@@ -487,7 +487,7 @@ public abstract class CMClient {
     }
 
     private void handleSessionToken(IPacketMsg packetMsg) {
-        ClientMsgProtobuf<CMsgClientSessionToken.Builder> sessToken = new ClientMsgProtobuf<>(CMsgClientSessionToken.class, packetMsg);
+        ClientMsgProtobuf<CMsgClientSessionToken.Builder> sessToken = new ClientMsgProtobuf<>(CMsgClientSessionToken::newBuilder, packetMsg);
 
         sessionToken = sessToken.getBody().getToken();
     }

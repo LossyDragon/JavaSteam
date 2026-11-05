@@ -41,10 +41,7 @@ class FindOrCreateLeaderboardCallback(packetMsg: IPacketMsg) : CallbackMsg() {
     val displayType: ELeaderboardDisplayType?
 
     init {
-        val msg = ClientMsgProtobuf<CMsgClientLBSFindOrCreateLBResponse.Builder>(
-            CMsgClientLBSFindOrCreateLBResponse::class.java,
-            packetMsg
-        )
+        val msg = ClientMsgProtobuf(CMsgClientLBSFindOrCreateLBResponse::newBuilder, packetMsg)
         val resp = msg.body
 
         jobID = msg.targetJobID

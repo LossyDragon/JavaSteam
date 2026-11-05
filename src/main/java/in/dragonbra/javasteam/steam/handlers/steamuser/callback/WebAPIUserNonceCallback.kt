@@ -22,10 +22,7 @@ class WebAPIUserNonceCallback(packetMsg: IPacketMsg) : CallbackMsg() {
     val nonce: String
 
     init {
-        val userNonce = ClientMsgProtobuf<CMsgClientRequestWebAPIAuthenticateUserNonceResponse.Builder>(
-            CMsgClientRequestWebAPIAuthenticateUserNonceResponse::class.java,
-            packetMsg
-        )
+        val userNonce = ClientMsgProtobuf(CMsgClientRequestWebAPIAuthenticateUserNonceResponse::newBuilder, packetMsg)
         val body = userNonce.body
 
         jobID = userNonce.targetJobID

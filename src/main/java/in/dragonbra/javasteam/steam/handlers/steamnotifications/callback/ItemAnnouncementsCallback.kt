@@ -16,10 +16,7 @@ class ItemAnnouncementsCallback(packetMsg: IPacketMsg) : CallbackMsg() {
     val count: Int
 
     init {
-        val resp = ClientMsgProtobuf<CMsgClientItemAnnouncements.Builder>(
-            CMsgClientItemAnnouncements::class.java,
-            packetMsg
-        )
+        val resp = ClientMsgProtobuf(CMsgClientItemAnnouncements::newBuilder, packetMsg)
         val msg = resp.body
 
         count = msg.countNewItems

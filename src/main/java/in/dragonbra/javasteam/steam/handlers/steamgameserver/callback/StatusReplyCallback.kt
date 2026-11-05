@@ -16,10 +16,7 @@ class StatusReplyCallback(packetMsg: IPacketMsg) : CallbackMsg() {
     val isSecure: Boolean
 
     init {
-        val statusReply = ClientMsgProtobuf<CMsgGSStatusReply.Builder>(
-            CMsgGSStatusReply::class.java,
-            packetMsg
-        )
+        val statusReply = ClientMsgProtobuf(CMsgGSStatusReply::newBuilder, packetMsg)
 
         isSecure = statusReply.body.isSecure
     }

@@ -76,7 +76,7 @@ class ClanStateCallback(packetMsg: IPacketMsg) : CallbackMsg() {
     val announcements: List<Event>
 
     init {
-        val clanState = ClientMsgProtobuf<CMsgClientClanState.Builder>(CMsgClientClanState::class.java, packetMsg)
+        val clanState = ClientMsgProtobuf(CMsgClientClanState::newBuilder, packetMsg)
         val msg = clanState.body
 
         clanID = SteamID(msg.steamidClan)

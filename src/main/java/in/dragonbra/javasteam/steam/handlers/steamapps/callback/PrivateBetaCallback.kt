@@ -24,10 +24,7 @@ class PrivateBetaCallback(packetMsg: IPacketMsg) : CallbackMsg() {
     val depotSection: KeyValue
 
     init {
-        val response = ClientMsgProtobuf<CMsgClientPICSPrivateBetaResponse.Builder>(
-            CMsgClientPICSPrivateBetaResponse::class.java,
-            packetMsg
-        )
+        val response = ClientMsgProtobuf(CMsgClientPICSPrivateBetaResponse::newBuilder, packetMsg)
         val msg = response.body
 
         jobID = response.targetJobID

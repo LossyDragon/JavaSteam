@@ -60,10 +60,7 @@ class ProfileInfoCallback : CallbackMsg {
     val summary: String
 
     constructor(packetMsg: IPacketMsg) {
-        val responseMsg = ClientMsgProtobuf<CMsgClientFriendProfileInfoResponse.Builder>(
-            CMsgClientFriendProfileInfoResponse::class.java,
-            packetMsg
-        )
+        val responseMsg = ClientMsgProtobuf(CMsgClientFriendProfileInfoResponse::newBuilder, packetMsg)
         val response = responseMsg.body
 
         jobID = responseMsg.targetJobID

@@ -18,10 +18,7 @@ class NicknameCallback(packetMsg: IPacketMsg) : CallbackMsg() {
     val result: EResult
 
     init {
-        val response = ClientMsgProtobuf<CMsgClientSetPlayerNicknameResponse.Builder>(
-            CMsgClientSetPlayerNicknameResponse::class.java,
-            packetMsg
-        )
+        val response = ClientMsgProtobuf(CMsgClientSetPlayerNicknameResponse::newBuilder, packetMsg)
 
         jobID = response.targetJobID
         result = EResult.from(response.body.eresult)

@@ -31,10 +31,7 @@ class LeaderboardEntriesCallback(packetMsg: IPacketMsg) : CallbackMsg() {
     val entries: List<LeaderboardEntry>
 
     init {
-        val msg = ClientMsgProtobuf<CMsgClientLBSGetLBEntriesResponse.Builder>(
-            CMsgClientLBSGetLBEntriesResponse::class.java,
-            packetMsg
-        )
+        val msg = ClientMsgProtobuf(CMsgClientLBSGetLBEntriesResponse::newBuilder, packetMsg)
         val resp = msg.body
 
         jobID = msg.targetJobID

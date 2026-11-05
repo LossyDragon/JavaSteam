@@ -50,10 +50,8 @@ class ChatInviteCallback(packetMsg: IPacketMsg) : CallbackMsg() {
     val gameID: GameID
 
     init {
-        val chatInvite = ClientMsgProtobuf<CMsgClientChatInvite.Builder>(
-            CMsgClientChatInvite::class.java,
-            packetMsg
-        )
+        val chatInvite = ClientMsgProtobuf(CMsgClientChatInvite::newBuilder, packetMsg)
+
         val invite = chatInvite.body
 
         invitedID = SteamID(invite.steamIdInvited)

@@ -28,10 +28,7 @@ class AppOwnershipTicketCallback(packetMsg: IPacketMsg) : CallbackMsg() {
     val ticket: ByteArray
 
     init {
-        val ticketResponse = ClientMsgProtobuf<CMsgClientGetAppOwnershipTicketResponse.Builder>(
-            CMsgClientGetAppOwnershipTicketResponse::class.java,
-            packetMsg
-        )
+        val ticketResponse = ClientMsgProtobuf(CMsgClientGetAppOwnershipTicketResponse::newBuilder, packetMsg)
         val msg = ticketResponse.body
 
         jobID = ticketResponse.targetJobID

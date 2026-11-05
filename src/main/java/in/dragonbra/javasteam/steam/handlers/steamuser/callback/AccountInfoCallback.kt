@@ -35,7 +35,7 @@ class AccountInfoCallback(packetMsg: IPacketMsg) : CallbackMsg() {
     val accountFlags: EnumSet<EAccountFlags>
 
     init {
-        val accInfo = ClientMsgProtobuf<CMsgClientAccountInfo.Builder>(CMsgClientAccountInfo::class.java, packetMsg)
+        val accInfo = ClientMsgProtobuf(CMsgClientAccountInfo::newBuilder, packetMsg)
         val msg = accInfo.body
 
         personaName = msg.personaName

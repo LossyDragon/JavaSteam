@@ -18,10 +18,7 @@ class AliasHistoryCallback(packetMsg: IPacketMsg) : CallbackMsg() {
     val responses: List<NameTableInstance>
 
     init {
-        val resp = ClientMsgProtobuf<CMsgClientAMGetPersonaNameHistoryResponse.Builder>(
-            CMsgClientAMGetPersonaNameHistoryResponse::class.java,
-            packetMsg
-        )
+        val resp = ClientMsgProtobuf(CMsgClientAMGetPersonaNameHistoryResponse::newBuilder, packetMsg)
         jobID = resp.targetJobID
 
         responses = resp.body.responsesList.map { NameTableInstance(it) }

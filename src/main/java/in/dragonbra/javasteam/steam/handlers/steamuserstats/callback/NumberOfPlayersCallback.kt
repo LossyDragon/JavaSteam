@@ -24,10 +24,7 @@ class NumberOfPlayersCallback(packetMsg: IPacketMsg) : CallbackMsg() {
     val numPlayers: Int
 
     init {
-        val msg = ClientMsgProtobuf<CMsgDPGetNumberOfCurrentPlayersResponse.Builder>(
-            CMsgDPGetNumberOfCurrentPlayersResponse::class.java,
-            packetMsg
-        )
+        val msg = ClientMsgProtobuf(CMsgDPGetNumberOfCurrentPlayersResponse::newBuilder, packetMsg)
         val resp = msg.body
 
         jobID = msg.targetJobID

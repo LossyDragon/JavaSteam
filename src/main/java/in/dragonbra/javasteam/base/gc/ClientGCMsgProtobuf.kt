@@ -2,6 +2,7 @@ package `in`.dragonbra.javasteam.base.gc
 
 import com.google.protobuf.AbstractMessage
 import com.google.protobuf.GeneratedMessage
+import `in`.dragonbra.javasteam.base.ClientMsgProtobuf
 import `in`.dragonbra.javasteam.generated.MsgGCHdrProtoBuf
 import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesBase
 import `in`.dragonbra.javasteam.types.JobID
@@ -10,19 +11,19 @@ import `in`.dragonbra.javasteam.util.log.Logger
 import `in`.dragonbra.javasteam.util.stream.MemoryStream
 import `in`.dragonbra.javasteam.util.stream.SeekOrigin
 import java.io.IOException
-import java.lang.reflect.InvocationTargetException
+import java.util.function.Supplier
 
 /**
  * Represents a protobuf backed game coordinator message.
  * @constructor Initializes a new instance of the [ClientGCMsgProtobuf] class.
  * This is a client send constructor.
- * @param clazz The type of the body.
+ * @param newBody Factory for the body builder, typically a `newBuilder` method reference such as `CMsgClientHello::newBuilder`.
  * @param eMsg The network message type this client message represents.
  * @param payloadReserve The number of bytes to initialize the payload capacity to.
  */
 @Suppress("unused")
 class ClientGCMsgProtobuf<BodyType : GeneratedMessage.Builder<BodyType>> @JvmOverloads constructor(
-    private val clazz: Class<out AbstractMessage>,
+    private val newBody: Supplier<BodyType>,
     eMsg: Int,
     payloadReserve: Int = 64,
 ) : GCMsgBase<MsgGCHdrProtoBuf>(MsgGCHdrProtoBuf::class.java, payloadReserve) {
@@ -34,7 +35,7 @@ class ClientGCMsgProtobuf<BodyType : GeneratedMessage.Builder<BodyType>> @JvmOve
     /**
      * Gets the body structure of this message.
      */
-    lateinit var body: BodyType
+    var body: BodyType = newBody.get()
         private set
 
     /**
@@ -78,13 +79,13 @@ class ClientGCMsgProtobuf<BodyType : GeneratedMessage.Builder<BodyType>> @JvmOve
 
     /**
      * Initializes a new instance of the [ClientGCMsgProtobuf] class.
-     * This is a client send constructor.
-     * @param clazz The type of the body.
-     * @param msg The network message type this client message represents.
+     * This is a client receive constructor.
+     * @param newBody Factory for the body builder, typically a `newBuilder` method reference.
+     * @param msg The packet message to deserialize.
      */
-    constructor(clazz: Class<out AbstractMessage>, msg: IPacketGCMsg) : this(clazz, msg.msgType) {
+    constructor(newBody: Supplier<BodyType>, msg: IPacketGCMsg) : this(newBody, msg.msgType) {
         if (!msg.isProto) {
-            logger.debug("ClientMsgProtobuf<${clazz.simpleName}> used for non-proto message!")
+            logger.debug("ClientGCMsgProtobuf<${body.javaClass.simpleName}> used for non-proto message!")
         }
 
         deserialize(msg.data)
@@ -93,35 +94,23 @@ class ClientGCMsgProtobuf<BodyType : GeneratedMessage.Builder<BodyType>> @JvmOve
     /**
      * Initializes a new instance of the [ClientGCMsgProtobuf] class.
      * This is a reply constructor.
-     * @param clazz The type of the body.
+     * @param newBody Factory for the body builder, typically a `newBuilder` method reference.
      * @param eMsg The network message type this client message represents.
      * @param msg  The message that this instance is a reply for.
      * @param payloadReserve The number of bytes to initialize the payload capacity to.
      */
     @JvmOverloads
     constructor(
-        clazz: Class<out AbstractMessage>,
+        newBody: Supplier<BodyType>,
         eMsg: Int,
         msg: GCMsgBase<MsgGCHdrProtoBuf>,
         payloadReserve: Int = 64,
-    ) : this(clazz, eMsg, payloadReserve) {
+    ) : this(newBody, eMsg, payloadReserve) {
         // our target is where the message came from
         header.proto.setJobidTarget(msg.header.proto.jobidSource)
     }
 
     init {
-        try {
-            val m = clazz.getMethod("newBuilder")
-            @Suppress("UNCHECKED_CAST")
-            body = m.invoke(null) as BodyType
-        } catch (e: IllegalAccessException) {
-            logger.error(e)
-        } catch (e: NoSuchMethodException) {
-            logger.error(e)
-        } catch (e: InvocationTargetException) {
-            logger.error(e)
-        }
-
         header.setEMsg(eMsg)
     }
 
@@ -152,20 +141,11 @@ class ClientGCMsgProtobuf<BodyType : GeneratedMessage.Builder<BodyType>> @JvmOve
         try {
             MemoryStream(data).use { ms ->
                 header.deserialize(ms)
-                val m = clazz.getMethod("newBuilder")
-                @Suppress("UNCHECKED_CAST")
-                body = m.invoke(null) as BodyType
-                body.mergeFrom(ms)
+                body = newBody.get().mergeFrom(ms)
                 payload.write(data, ms.position.toInt(), ms.available())
                 payload.seek(0, SeekOrigin.BEGIN)
             }
         } catch (e: IOException) {
-            logger.error(e)
-        } catch (e: IllegalAccessException) {
-            logger.error(e)
-        } catch (e: NoSuchMethodException) {
-            logger.error(e)
-        } catch (e: InvocationTargetException) {
             logger.error(e)
         }
     }

@@ -36,10 +36,7 @@ class FriendMsgCallback(packetMsg: IPacketMsg) : CallbackMsg() {
         private set
 
     init {
-        val friendMsg = ClientMsgProtobuf<CMsgClientFriendMsgIncoming.Builder>(
-            CMsgClientFriendMsgIncoming::class.java,
-            packetMsg
-        )
+        val friendMsg = ClientMsgProtobuf(CMsgClientFriendMsgIncoming::newBuilder, packetMsg)
         val msg = friendMsg.body
 
         sender = SteamID(msg.steamidFrom)

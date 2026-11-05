@@ -43,10 +43,7 @@ class WalletInfoCallback(packetMsg: IPacketMsg) : CallbackMsg() {
     val longBalanceDelayed: Long
 
     init {
-        val walletInfo = ClientMsgProtobuf<CMsgClientWalletInfoUpdate.Builder>(
-            CMsgClientWalletInfoUpdate::class.java,
-            packetMsg
-        )
+        val walletInfo = ClientMsgProtobuf(CMsgClientWalletInfoUpdate::newBuilder, packetMsg)
         val wallet = walletInfo.body
 
         isHasWallet = wallet.hasWallet

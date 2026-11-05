@@ -31,10 +31,7 @@ class PICSTokensCallback(packetMsg: IPacketMsg) : CallbackMsg() {
     val appTokens: Map<Int, Long>
 
     init {
-        val tokensResponse = ClientMsgProtobuf<CMsgClientPICSAccessTokenResponse.Builder>(
-            CMsgClientPICSAccessTokenResponse::class.java,
-            packetMsg
-        )
+        val tokensResponse = ClientMsgProtobuf(CMsgClientPICSAccessTokenResponse::newBuilder, packetMsg)
         val msg = tokensResponse.body
 
         jobID = tokensResponse.targetJobID

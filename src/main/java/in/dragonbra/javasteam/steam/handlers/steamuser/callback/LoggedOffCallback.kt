@@ -20,8 +20,8 @@ class LoggedOffCallback(packetMsg: IPacketMsg) : CallbackMsg() {
 
     init {
         if (packetMsg.isProto) {
-            val loggedOff = ClientMsgProtobuf<SteammessagesClientserverLogin.CMsgClientLoggedOff.Builder>(
-                SteammessagesClientserverLogin.CMsgClientLoggedOff::class.java,
+            val loggedOff = ClientMsgProtobuf(
+                SteammessagesClientserverLogin.CMsgClientLoggedOff::newBuilder,
                 packetMsg
             )
             result = EResult.from(loggedOff.body.eresult)

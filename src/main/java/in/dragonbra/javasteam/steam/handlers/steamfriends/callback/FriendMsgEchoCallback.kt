@@ -40,10 +40,7 @@ class FriendMsgEchoCallback(packetMsg: IPacketMsg) : CallbackMsg() {
     val rTime32ServerTimestamp: Int
 
     init {
-        val friendEchoMsg = ClientMsgProtobuf<CMsgClientFriendMsgIncoming.Builder>(
-            CMsgClientFriendMsgIncoming::class.java,
-            packetMsg
-        )
+        val friendEchoMsg = ClientMsgProtobuf(CMsgClientFriendMsgIncoming::newBuilder, packetMsg)
         val msg = friendEchoMsg.body
 
         recipient = SteamID(msg.steamidFrom)

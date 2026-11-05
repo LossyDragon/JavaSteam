@@ -45,10 +45,7 @@ class TicketAuthCallback(packetMsg: IPacketMsg) : CallbackMsg() {
     val ticketSequence: Int
 
     init {
-        val authComplete = ClientMsgProtobuf<CMsgClientTicketAuthComplete.Builder>(
-            CMsgClientTicketAuthComplete::class.java,
-            packetMsg
-        )
+        val authComplete = ClientMsgProtobuf(CMsgClientTicketAuthComplete::newBuilder, packetMsg)
         val tickAuth = authComplete.body
 
         steamID = SteamID(tickAuth.steamId)

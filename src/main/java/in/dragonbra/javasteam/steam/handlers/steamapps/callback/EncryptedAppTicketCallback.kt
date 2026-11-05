@@ -31,10 +31,7 @@ class EncryptedAppTicketCallback(packetMsg: IPacketMsg) : CallbackMsg() {
     val encryptedAppTicket: EncryptedAppTicket?
 
     init {
-        val ticketResponse = ClientMsgProtobuf<CMsgClientRequestEncryptedAppTicketResponse.Builder>(
-            CMsgClientRequestEncryptedAppTicketResponse::class.java,
-            packetMsg
-        )
+        val ticketResponse = ClientMsgProtobuf(CMsgClientRequestEncryptedAppTicketResponse::newBuilder, packetMsg)
         val msg = ticketResponse.body
 
         jobID = ticketResponse.targetJobID

@@ -69,7 +69,7 @@ class SteamUser : ClientMsgHandler() {
             return
         }
 
-        val logon = ClientMsgProtobuf<CMsgClientLogon.Builder>(CMsgClientLogon::class.java, EMsg.ClientLogon)
+        val logon = ClientMsgProtobuf(CMsgClientLogon::newBuilder, EMsg.ClientLogon)
 
         val steamID = SteamID(details.accountID, details.accountInstance, client.universe, EAccountType.Individual)
 
@@ -152,7 +152,7 @@ class SteamUser : ClientMsgHandler() {
             return
         }
 
-        val logon = ClientMsgProtobuf<CMsgClientLogon.Builder>(CMsgClientLogon::class.java, EMsg.ClientLogon)
+        val logon = ClientMsgProtobuf(CMsgClientLogon::newBuilder, EMsg.ClientLogon)
 
         val auId = SteamID(0, 0, client.universe, EAccountType.AnonUser)
 
@@ -176,7 +176,7 @@ class SteamUser : ClientMsgHandler() {
     fun logOff() {
         isExpectDisconnection = true
 
-        val logOff = ClientMsgProtobuf<CMsgClientLogOff.Builder>(CMsgClientLogOff::class.java, EMsg.ClientLogOff)
+        val logOff = ClientMsgProtobuf(CMsgClientLogOff::newBuilder, EMsg.ClientLogOff)
         client.send(logOff)
 
         // TODO: 2018-02-28 it seems like the socket is not closed after getting logged of or I am doing something horribly wrong, let's disconnect here
@@ -192,8 +192,8 @@ class SteamUser : ClientMsgHandler() {
     fun kickPlayingSession(
         onlyStopGame: Boolean = false,
     ) {
-        val request = ClientMsgProtobuf<CMsgClientKickPlayingSession.Builder>(
-            CMsgClientKickPlayingSession::class.java,
+        val request = ClientMsgProtobuf(
+            CMsgClientKickPlayingSession::newBuilder,
             EMsg.ClientKickPlayingSession
         ).apply {
             body.onlyStopGame = onlyStopGame

@@ -23,10 +23,7 @@ class SteamMasterServer : ClientMsgHandler() {
      * @return The Job ID of the request. This can be used to find the appropriate [QueryCallback].
      */
     fun serverQuery(details: QueryDetails): AsyncJobSingle<QueryCallback> {
-        val query = ClientMsgProtobuf<CMsgClientGMSServerQuery.Builder>(
-            CMsgClientGMSServerQuery::class.java,
-            EMsg.ClientGMSServerQuery
-        ).apply {
+        val query = ClientMsgProtobuf(CMsgClientGMSServerQuery::newBuilder, EMsg.ClientGMSServerQuery).apply {
             sourceJobID = client.getNextJobID()
 
             body.appId = details.appID

@@ -36,10 +36,7 @@ class PurchaseResponseCallback(packetMsg: IPacketMsg) : CallbackMsg() {
     val purchaseReceiptInfo: KeyValue
 
     init {
-        val purchaseResponse = ClientMsgProtobuf<CMsgClientPurchaseResponse.Builder>(
-            CMsgClientPurchaseResponse::class.java,
-            packetMsg
-        )
+        val purchaseResponse = ClientMsgProtobuf(CMsgClientPurchaseResponse::newBuilder, packetMsg)
         val msg = purchaseResponse.body
 
         jobID = purchaseResponse.targetJobID

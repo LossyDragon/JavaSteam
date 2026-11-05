@@ -17,10 +17,7 @@ class UserNotificationsCallback(packetMsg: IPacketMsg) : CallbackMsg() {
     val notifications: List<Notification>
 
     init {
-        val resp = ClientMsgProtobuf<CMsgClientUserNotifications.Builder>(
-            CMsgClientUserNotifications::class.java,
-            packetMsg
-        )
+        val resp = ClientMsgProtobuf(CMsgClientUserNotifications::newBuilder, packetMsg)
         val msg = resp.body
 
         notifications = msg.notificationsList.map(::Notification)

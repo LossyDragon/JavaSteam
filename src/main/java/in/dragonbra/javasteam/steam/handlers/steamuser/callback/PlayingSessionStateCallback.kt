@@ -23,8 +23,8 @@ class PlayingSessionStateCallback(packetMsg: IPacketMsg) : CallbackMsg() {
     val playingAppID: Int
 
     init {
-        val playingSessionState = ClientMsgProtobuf<SteammessagesClientserver2.CMsgClientPlayingSessionState.Builder>(
-            SteammessagesClientserver2.CMsgClientPlayingSessionState::class.java,
+        val playingSessionState = ClientMsgProtobuf(
+            SteammessagesClientserver2.CMsgClientPlayingSessionState::newBuilder,
             packetMsg
         )
         val msg = playingSessionState.body

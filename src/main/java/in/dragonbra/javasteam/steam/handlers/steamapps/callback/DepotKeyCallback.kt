@@ -28,10 +28,7 @@ class DepotKeyCallback(packetMsg: IPacketMsg) : CallbackMsg() {
     val depotKey: ByteArray
 
     init {
-        val keyResponse = ClientMsgProtobuf<CMsgClientGetDepotDecryptionKeyResponse.Builder>(
-            CMsgClientGetDepotDecryptionKeyResponse::class.java,
-            packetMsg
-        )
+        val keyResponse = ClientMsgProtobuf(CMsgClientGetDepotDecryptionKeyResponse::newBuilder, packetMsg)
         val msg = keyResponse.body
 
         jobID = keyResponse.targetJobID

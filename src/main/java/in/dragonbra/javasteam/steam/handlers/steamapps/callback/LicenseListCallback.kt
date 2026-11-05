@@ -23,10 +23,7 @@ class LicenseListCallback(packetMsg: IPacketMsg) : CallbackMsg() {
     val licenseList: List<License>
 
     init {
-        val licenseListResp = ClientMsgProtobuf<CMsgClientLicenseList.Builder>(
-            CMsgClientLicenseList::class.java,
-            packetMsg
-        )
+        val licenseListResp = ClientMsgProtobuf(CMsgClientLicenseList::newBuilder, packetMsg)
         val msg = licenseListResp.body
 
         result = EResult.from(msg.eresult)

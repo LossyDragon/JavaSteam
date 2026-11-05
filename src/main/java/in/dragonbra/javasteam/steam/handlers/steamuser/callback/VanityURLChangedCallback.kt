@@ -16,10 +16,7 @@ class VanityURLChangedCallback(packetMsg: IPacketMsg) : CallbackMsg() {
     val vanityUrl: String
 
     init {
-        val vanityUrl = ClientMsgProtobuf<CMsgClientVanityURLChangedNotification.Builder>(
-            CMsgClientVanityURLChangedNotification::class.java,
-            packetMsg
-        )
+        val vanityUrl = ClientMsgProtobuf(CMsgClientVanityURLChangedNotification::newBuilder, packetMsg)
 
         jobID = vanityUrl.targetJobID
 

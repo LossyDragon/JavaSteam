@@ -33,8 +33,8 @@ class SteamUserStats : ClientMsgHandler() {
      * @return The Job ID of the request. This can be used to find the appropriate [NumberOfPlayersCallback].
      */
     fun getNumberOfCurrentPlayers(appId: Int): AsyncJobSingle<NumberOfPlayersCallback> {
-        val msg = ClientMsgProtobuf<CMsgDPGetNumberOfCurrentPlayers.Builder>(
-            CMsgDPGetNumberOfCurrentPlayers::class.java,
+        val msg = ClientMsgProtobuf(
+            CMsgDPGetNumberOfCurrentPlayers::newBuilder,
             EMsg.ClientGetNumberOfCurrentPlayersDP
         ).apply {
             sourceJobID = client.getNextJobID()
@@ -57,10 +57,7 @@ class SteamUserStats : ClientMsgHandler() {
      * @return The Job ID of the request. This can be used to find the appropriate [FindOrCreateLeaderboardCallback].
      */
     fun findLeaderBoard(appId: Int, name: String?): AsyncJobSingle<FindOrCreateLeaderboardCallback> {
-        val msg = ClientMsgProtobuf<CMsgClientLBSFindOrCreateLB.Builder>(
-            CMsgClientLBSFindOrCreateLB::class.java,
-            EMsg.ClientLBSFindOrCreateLB
-        ).apply {
+        val msg = ClientMsgProtobuf(CMsgClientLBSFindOrCreateLB::newBuilder, EMsg.ClientLBSFindOrCreateLB).apply {
             sourceJobID = (client.getNextJobID())
 
             // routing_appid has to be set correctly to receive a response
@@ -93,10 +90,7 @@ class SteamUserStats : ClientMsgHandler() {
         sortMethod: ELeaderboardSortMethod,
         displayType: ELeaderboardDisplayType,
     ): AsyncJobSingle<FindOrCreateLeaderboardCallback> {
-        val msg = ClientMsgProtobuf<CMsgClientLBSFindOrCreateLB.Builder>(
-            CMsgClientLBSFindOrCreateLB::class.java,
-            EMsg.ClientLBSFindOrCreateLB
-        ).apply {
+        val msg = ClientMsgProtobuf(CMsgClientLBSFindOrCreateLB::newBuilder, EMsg.ClientLBSFindOrCreateLB).apply {
             sourceJobID = client.getNextJobID()
 
             // routing_appid has to be set correctly to receive a response
@@ -133,10 +127,7 @@ class SteamUserStats : ClientMsgHandler() {
         rangeEnd: Int,
         dataRequest: ELeaderboardDataRequest,
     ): AsyncJobSingle<LeaderboardEntriesCallback> {
-        val msg = ClientMsgProtobuf<CMsgClientLBSGetLBEntries.Builder>(
-            CMsgClientLBSGetLBEntries::class.java,
-            EMsg.ClientLBSGetLBEntries
-        ).apply {
+        val msg = ClientMsgProtobuf(CMsgClientLBSGetLBEntries::newBuilder, EMsg.ClientLBSGetLBEntries).apply {
             sourceJobID = client.getNextJobID()
 
             body.appId = appId
@@ -165,10 +156,7 @@ class SteamUserStats : ClientMsgHandler() {
         id: Int,
         users: List<SteamID>,
     ): AsyncJobSingle<LeaderboardEntriesCallback> {
-        val msg = ClientMsgProtobuf<CMsgClientLBSGetLBEntries.Builder>(
-            CMsgClientLBSGetLBEntries::class.java,
-            EMsg.ClientLBSGetLBEntries
-        ).apply {
+        val msg = ClientMsgProtobuf(CMsgClientLBSGetLBEntries::newBuilder, EMsg.ClientLBSGetLBEntries).apply {
             sourceJobID = client.getNextJobID()
 
             // routing_appid has to be set correctly to receive a response
@@ -196,10 +184,7 @@ class SteamUserStats : ClientMsgHandler() {
      */
     @JavaSteamAddition
     fun getUserStats(appId: Int, steamID: SteamID): AsyncJobSingle<UserStatsCallback> {
-        val msg = ClientMsgProtobuf<CMsgClientGetUserStats.Builder>(
-            CMsgClientGetUserStats::class.java,
-            EMsg.ClientGetUserStats
-        ).apply {
+        val msg = ClientMsgProtobuf(CMsgClientGetUserStats::newBuilder, EMsg.ClientGetUserStats).apply {
             sourceJobID = client.getNextJobID()
 
             body.gameId = appId.toLong()

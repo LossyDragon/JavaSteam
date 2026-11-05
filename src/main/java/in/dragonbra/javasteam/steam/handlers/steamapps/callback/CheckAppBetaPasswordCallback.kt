@@ -23,10 +23,7 @@ class CheckAppBetaPasswordCallback(packetMsg: IPacketMsg) : CallbackMsg() {
     val betaPasswords: Map<String, ByteArray>
 
     init {
-        val response = ClientMsgProtobuf<CMsgClientCheckAppBetaPasswordResponse.Builder>(
-            CMsgClientCheckAppBetaPasswordResponse::class.java,
-            packetMsg
-        )
+        val response = ClientMsgProtobuf(CMsgClientCheckAppBetaPasswordResponse::newBuilder, packetMsg)
         val msg = response.body
 
         jobID = response.targetJobID

@@ -24,10 +24,7 @@ class SteamScreenshots : ClientMsgHandler() {
      * @return The Job ID of the request. This can be used to find the appropriate [ScreenshotAddedCallback].
      */
     fun addScreenshot(details: ScreenshotDetails): AsyncJobSingle<ScreenshotAddedCallback> {
-        val msg = ClientMsgProtobuf<CMsgClientUCMAddScreenshot.Builder>(
-            CMsgClientUCMAddScreenshot::class.java,
-            EMsg.ClientUCMAddScreenshot
-        ).apply {
+        val msg = ClientMsgProtobuf(CMsgClientUCMAddScreenshot::newBuilder, EMsg.ClientUCMAddScreenshot).apply {
             sourceJobID = client.getNextJobID()
 
             if (details.gameID != null) {

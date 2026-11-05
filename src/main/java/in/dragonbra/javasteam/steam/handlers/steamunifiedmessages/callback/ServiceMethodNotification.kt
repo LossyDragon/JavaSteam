@@ -1,12 +1,12 @@
 package `in`.dragonbra.javasteam.steam.handlers.steamunifiedmessages.callback
 
-import com.google.protobuf.AbstractMessage
 import com.google.protobuf.GeneratedMessage
 import `in`.dragonbra.javasteam.base.ClientMsgProtobuf
 import `in`.dragonbra.javasteam.base.PacketClientMsgProtobuf
 import `in`.dragonbra.javasteam.steam.handlers.steamunifiedmessages.SteamUnifiedMessages
 import `in`.dragonbra.javasteam.steam.steamclient.callbackmgr.CallbackMsg
 import `in`.dragonbra.javasteam.types.JobID
+import java.util.function.Supplier
 
 /**
  * @author Lossy
@@ -16,7 +16,7 @@ import `in`.dragonbra.javasteam.types.JobID
  */
 @Suppress("MemberVisibilityCanBePrivate")
 class ServiceMethodNotification<T : GeneratedMessage.Builder<T>>(
-    clazz: Class<out AbstractMessage>,
+    newBody: Supplier<T>,
     packetMsg: PacketClientMsgProtobuf,
 ) : CallbackMsg() {
 
@@ -33,6 +33,6 @@ class ServiceMethodNotification<T : GeneratedMessage.Builder<T>>(
     init {
         jobID = JobID.INVALID
         jobName = packetMsg.header.proto.targetJobName
-        body = ClientMsgProtobuf<T>(clazz, packetMsg).body
+        body = ClientMsgProtobuf(newBody, packetMsg).body
     }
 }

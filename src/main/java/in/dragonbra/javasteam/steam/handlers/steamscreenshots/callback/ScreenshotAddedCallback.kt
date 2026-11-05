@@ -24,10 +24,7 @@ class ScreenshotAddedCallback(packetMsg: IPacketMsg) : CallbackMsg() {
     val screenshotID: UGCHandle
 
     init {
-        val resp = ClientMsgProtobuf<CMsgClientUCMAddScreenshotResponse.Builder>(
-            CMsgClientUCMAddScreenshotResponse::class.java,
-            packetMsg
-        )
+        val resp = ClientMsgProtobuf(CMsgClientUCMAddScreenshotResponse::newBuilder, packetMsg)
         val msg = resp.body
 
         jobID = resp.targetJobID

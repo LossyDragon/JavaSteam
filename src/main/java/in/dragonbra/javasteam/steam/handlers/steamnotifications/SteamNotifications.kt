@@ -23,8 +23,8 @@ class SteamNotifications : ClientMsgHandler() {
      * Results are returned in a [CommentNotificationsCallback].
      */
     fun requestCommentNotifications() {
-        ClientMsgProtobuf<CMsgClientRequestCommentNotifications.Builder>(
-            CMsgClientRequestCommentNotifications::class.java,
+        ClientMsgProtobuf(
+            CMsgClientRequestCommentNotifications::newBuilder,
             EMsg.ClientRequestCommentNotifications
         ).also(client::send)
     }
@@ -34,8 +34,8 @@ class SteamNotifications : ClientMsgHandler() {
      * Results are returned in a [ItemAnnouncementsCallback].
      */
     fun requestItemAnnouncements() {
-        ClientMsgProtobuf<CMsgClientRequestItemAnnouncements.Builder>(
-            CMsgClientRequestItemAnnouncements::class.java,
+        ClientMsgProtobuf(
+            CMsgClientRequestItemAnnouncements::newBuilder,
             EMsg.ClientRequestItemAnnouncements
         ).also(client::send)
     }
@@ -45,8 +45,8 @@ class SteamNotifications : ClientMsgHandler() {
      * Results are returned in a [OfflineMessageNotificationCallback].
      */
     fun requestOfflineMessageCount() {
-        ClientMsgProtobuf<CMsgClientRequestOfflineMessageCount.Builder>(
-            CMsgClientRequestOfflineMessageCount::class.java,
+        ClientMsgProtobuf(
+            CMsgClientRequestOfflineMessageCount::newBuilder,
             EMsg.ClientChatRequestOfflineMessageCount
         ).also(client::send)
     }

@@ -47,10 +47,7 @@ class PICSChangesCallback(packetMsg: IPacketMsg) : CallbackMsg() {
     val appChanges: Map<Int, PICSChangeData>
 
     init {
-        val changesResponse = ClientMsgProtobuf<CMsgClientPICSChangesSinceResponse.Builder>(
-            CMsgClientPICSChangesSinceResponse::class.java,
-            packetMsg
-        )
+        val changesResponse = ClientMsgProtobuf(CMsgClientPICSChangesSinceResponse::newBuilder, packetMsg)
         val msg = changesResponse.body
 
         jobID = changesResponse.targetJobID

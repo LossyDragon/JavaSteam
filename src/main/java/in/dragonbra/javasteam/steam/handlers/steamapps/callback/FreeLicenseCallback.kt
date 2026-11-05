@@ -30,10 +30,7 @@ class FreeLicenseCallback(packetMsg: IPacketMsg) : CallbackMsg() {
     val grantedPackages: List<Int>
 
     init {
-        val grantedLicenses = ClientMsgProtobuf<CMsgClientRequestFreeLicenseResponse.Builder>(
-            CMsgClientRequestFreeLicenseResponse::class.java,
-            packetMsg
-        )
+        val grantedLicenses = ClientMsgProtobuf(CMsgClientRequestFreeLicenseResponse::newBuilder, packetMsg)
         val msg = grantedLicenses.body
 
         jobID = grantedLicenses.targetJobID

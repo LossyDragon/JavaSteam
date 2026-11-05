@@ -1,8 +1,8 @@
 package `in`.dragonbra.javasteam.steam.handlers.steamunifiedmessages
 
-import com.google.protobuf.AbstractMessage
 import com.google.protobuf.GeneratedMessage
 import `in`.dragonbra.javasteam.base.PacketClientMsgProtobuf
+import java.util.function.Supplier
 
 /**
  * @author Lossy
@@ -31,27 +31,27 @@ abstract class UnifiedService(val unifiedMessages: SteamUnifiedMessages? = null)
     /**
      * Dispatches the provided data as a service method response.
      * @param TResponse The type of the response.
-     * @param serviceClass The proto class of the response
+     * @param newBody Factory for the response builder, typically a `newBuilder` method reference.
      * @param packetMsg The packet message that contains the data.
      */
     protected fun <TResponse : GeneratedMessage.Builder<TResponse>> postResponseMsg(
-        serviceClass: Class<out AbstractMessage>,
+        newBody: Supplier<TResponse>,
         packetMsg: PacketClientMsgProtobuf,
     ) {
-        unifiedMessages?.handleResponseMsg(serviceClass, packetMsg)
+        unifiedMessages?.handleResponseMsg(newBody, packetMsg)
     }
 
     /**
      * Dispatches the provided data as a service method notification.
      * @param TNotification The type of the notification.
-     * @param serviceClass The proto class of the notification
+     * @param newBody Factory for the notification builder, typically a `newBuilder` method reference.
      * @param packetMsg The packet message that contains the data.
      */
     protected fun <TNotification : GeneratedMessage.Builder<TNotification>> postNotificationMsg(
-        serviceClass: Class<out AbstractMessage>,
+        newBody: Supplier<TNotification>,
         packetMsg: PacketClientMsgProtobuf,
     ) {
-        unifiedMessages?.handleNotificationMsg(serviceClass, packetMsg)
+        unifiedMessages?.handleNotificationMsg(newBody, packetMsg)
     }
 
     /**

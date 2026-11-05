@@ -23,8 +23,8 @@ class SteamWorkshop : ClientMsgHandler() {
      * @return The Job ID of the request. This can be used to find the appropriate [UserActionPublishedFilesCallback].
      */
     fun enumeratePublishedFilesByUserAction(details: EnumerationUserDetails): AsyncJobSingle<UserActionPublishedFilesCallback> {
-        val enumRequest = ClientMsgProtobuf<CMsgClientUCMEnumeratePublishedFilesByUserAction.Builder>(
-            CMsgClientUCMEnumeratePublishedFilesByUserAction::class.java,
+        val enumRequest = ClientMsgProtobuf(
+            CMsgClientUCMEnumeratePublishedFilesByUserAction::newBuilder,
             EMsg.ClientUCMEnumeratePublishedFilesByUserAction
         ).apply {
             sourceJobID = client.getNextJobID()

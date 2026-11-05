@@ -30,10 +30,7 @@ class NetworkingCertificateCallback(packetMsg: IPacketMsg) : CallbackMsg() {
     val caSignature: ByteArray
 
     init {
-        val resp = ClientMsgProtobuf<CMsgClientNetworkingCertReply.Builder>(
-            CMsgClientNetworkingCertReply::class.java,
-            packetMsg
-        )
+        val resp = ClientMsgProtobuf(CMsgClientNetworkingCertReply::newBuilder, packetMsg)
         val msg = resp.body
 
         jobID = resp.targetJobID

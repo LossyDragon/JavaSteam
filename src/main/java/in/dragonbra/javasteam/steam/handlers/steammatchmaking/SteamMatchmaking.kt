@@ -91,10 +91,7 @@ class SteamMatchmaking : ClientMsgHandler() {
 
         val personaName = client.getHandler<SteamFriends>()!!.getPersonaName()
 
-        val createLobby = ClientMsgProtobuf<CMsgClientMMSCreateLobby.Builder>(
-            CMsgClientMMSCreateLobby::class.java,
-            EMsg.ClientMMSCreateLobby
-        ).apply {
+        val createLobby = ClientMsgProtobuf(CMsgClientMMSCreateLobby::newBuilder, EMsg.ClientMMSCreateLobby).apply {
             body.appId = appId
             body.lobbyType = lobbyType.code()
             body.maxMembers = maxMembers
@@ -135,10 +132,7 @@ class SteamMatchmaking : ClientMsgHandler() {
         lobbyFlags: Int = 0,
         metadata: Map<String, String>? = null,
     ): AsyncJobSingle<SetLobbyDataCallback> {
-        val setLobbyData = ClientMsgProtobuf<CMsgClientMMSSetLobbyData.Builder>(
-            CMsgClientMMSSetLobbyData::class.java,
-            EMsg.ClientMMSSetLobbyData
-        ).apply {
+        val setLobbyData = ClientMsgProtobuf(CMsgClientMMSSetLobbyData::newBuilder, EMsg.ClientMMSSetLobbyData).apply {
             body.appId = appId
             body.steamIdLobby = lobbySteamId.convertToUInt64()
             body.steamIdMember = 0
@@ -175,10 +169,7 @@ class SteamMatchmaking : ClientMsgHandler() {
             return null
         }
 
-        val setLobbyData = ClientMsgProtobuf<CMsgClientMMSSetLobbyData.Builder>(
-            CMsgClientMMSSetLobbyData::class.java,
-            EMsg.ClientMMSSetLobbyData
-        ).apply {
+        val setLobbyData = ClientMsgProtobuf(CMsgClientMMSSetLobbyData::newBuilder, EMsg.ClientMMSSetLobbyData).apply {
             body.appId = appId
             body.steamIdLobby = lobbySteamId.convertToUInt64()
             body.steamIdMember = client.steamID!!.convertToUInt64()
@@ -208,8 +199,8 @@ class SteamMatchmaking : ClientMsgHandler() {
         lobbySteamId: SteamID,
         newOwner: SteamID,
     ): AsyncJobSingle<SetLobbyOwnerCallback> {
-        val setLobbyOwner = ClientMsgProtobuf<CMsgClientMMSSetLobbyOwner.Builder>(
-            CMsgClientMMSSetLobbyOwner::class.java,
+        val setLobbyOwner = ClientMsgProtobuf(
+            CMsgClientMMSSetLobbyOwner::newBuilder,
             EMsg.ClientMMSSetLobbyOwner
         ).apply {
             body.appId = appId
@@ -244,10 +235,7 @@ class SteamMatchmaking : ClientMsgHandler() {
             return null
         }
 
-        val getLobbies = ClientMsgProtobuf<CMsgClientMMSGetLobbyList.Builder>(
-            CMsgClientMMSGetLobbyList::class.java,
-            EMsg.ClientMMSGetLobbyList
-        ).apply {
+        val getLobbies = ClientMsgProtobuf(CMsgClientMMSGetLobbyList::newBuilder, EMsg.ClientMMSGetLobbyList).apply {
             body.appId = appId
             body.cellId = client.cellID!!
             body.publicIp = NetHelpers.getMsgIPAddress(client.publicIP!!)
@@ -277,10 +265,7 @@ class SteamMatchmaking : ClientMsgHandler() {
     ): AsyncJobSingle<JoinLobbyCallback>? {
         val personaName = client.getHandler<SteamFriends>()?.getPersonaName() ?: return null
 
-        val joinLobby = ClientMsgProtobuf<CMsgClientMMSJoinLobby.Builder>(
-            CMsgClientMMSJoinLobby::class.java,
-            EMsg.ClientMMSJoinLobby
-        ).apply {
+        val joinLobby = ClientMsgProtobuf(CMsgClientMMSJoinLobby::newBuilder, EMsg.ClientMMSJoinLobby).apply {
             body.appId = appId
             body.personaName = personaName
             body.steamIdLobby = lobbySteamId.convertToUInt64()
@@ -300,10 +285,7 @@ class SteamMatchmaking : ClientMsgHandler() {
      * @return An [LeaveLobbyCallback].
      */
     fun leaveLobby(appId: Int, lobbySteamId: SteamID): AsyncJobSingle<LeaveLobbyCallback> {
-        val leaveLobby = ClientMsgProtobuf<CMsgClientMMSLeaveLobby.Builder>(
-            CMsgClientMMSLeaveLobby::class.java,
-            EMsg.ClientMMSLeaveLobby
-        ).apply {
+        val leaveLobby = ClientMsgProtobuf(CMsgClientMMSLeaveLobby::newBuilder, EMsg.ClientMMSLeaveLobby).apply {
             body.appId = appId
             body.steamIdLobby = lobbySteamId.convertToUInt64()
 
@@ -322,10 +304,7 @@ class SteamMatchmaking : ClientMsgHandler() {
      * @return An [LobbyDataCallback].
      */
     fun getLobbyData(appId: Int, lobbySteamId: SteamID): AsyncJobSingle<LobbyDataCallback> {
-        val getLobbyData = ClientMsgProtobuf<CMsgClientMMSGetLobbyData.Builder>(
-            CMsgClientMMSGetLobbyData::class.java,
-            EMsg.ClientMMSGetLobbyData
-        ).apply {
+        val getLobbyData = ClientMsgProtobuf(CMsgClientMMSGetLobbyData::newBuilder, EMsg.ClientMMSGetLobbyData).apply {
             body.appId = appId
             body.steamIdLobby = lobbySteamId.convertToUInt64()
 
@@ -345,8 +324,8 @@ class SteamMatchmaking : ClientMsgHandler() {
      * @param userSteamId The SteamID of the user we're inviting.
      */
     fun inviteToLobby(appId: Int, lobbySteamId: SteamID, userSteamId: SteamID) {
-        val getLobbyData = ClientMsgProtobuf<CMsgClientMMSInviteToLobby.Builder>(
-            CMsgClientMMSInviteToLobby::class.java,
+        val getLobbyData = ClientMsgProtobuf(
+            CMsgClientMMSInviteToLobby::newBuilder,
             EMsg.ClientMMSInviteToLobby
         ).apply {
             body.appId = appId
@@ -403,10 +382,7 @@ class SteamMatchmaking : ClientMsgHandler() {
     // region ClientMsg Handlers
 
     private fun handleCreateLobbyResponse(packetMsg: IPacketMsg) {
-        val createLobbyResponse = ClientMsgProtobuf<CMsgClientMMSCreateLobbyResponse.Builder>(
-            CMsgClientMMSCreateLobbyResponse::class.java,
-            packetMsg
-        )
+        val createLobbyResponse = ClientMsgProtobuf(CMsgClientMMSCreateLobbyResponse::newBuilder, packetMsg)
         val body = createLobbyResponse.body
 
         lobbyManipulationRequests.remove(createLobbyResponse.targetJobID)?.let { request ->
@@ -443,10 +419,7 @@ class SteamMatchmaking : ClientMsgHandler() {
     }
 
     private fun handleSetLobbyDataResponse(packetMsg: IPacketMsg) {
-        val setLobbyDataResponse = ClientMsgProtobuf<CMsgClientMMSSetLobbyDataResponse.Builder>(
-            CMsgClientMMSSetLobbyDataResponse::class.java,
-            packetMsg
-        )
+        val setLobbyDataResponse = ClientMsgProtobuf(CMsgClientMMSSetLobbyDataResponse::newBuilder, packetMsg)
         val body = setLobbyDataResponse.body
 
         lobbyManipulationRequests.remove(setLobbyDataResponse.targetJobID)?.let { request ->
@@ -497,10 +470,7 @@ class SteamMatchmaking : ClientMsgHandler() {
     }
 
     private fun handleSetLobbyOwnerResponse(packetMsg: IPacketMsg) {
-        val setLobbyOwnerResponse = ClientMsgProtobuf<CMsgClientMMSSetLobbyOwnerResponse.Builder>(
-            CMsgClientMMSSetLobbyOwnerResponse::class.java,
-            packetMsg
-        )
+        val setLobbyOwnerResponse = ClientMsgProtobuf(CMsgClientMMSSetLobbyOwnerResponse::newBuilder, packetMsg)
         val body = setLobbyOwnerResponse.body
 
         lobbyManipulationRequests.remove(setLobbyOwnerResponse.targetJobID)?.let { request ->
@@ -523,10 +493,7 @@ class SteamMatchmaking : ClientMsgHandler() {
     }
 
     private fun handleGetLobbyListResponse(packetMsg: IPacketMsg) {
-        val lobbyListResponse = ClientMsgProtobuf<CMsgClientMMSGetLobbyListResponse.Builder>(
-            CMsgClientMMSGetLobbyListResponse::class.java,
-            packetMsg
-        )
+        val lobbyListResponse = ClientMsgProtobuf(CMsgClientMMSGetLobbyListResponse::newBuilder, packetMsg)
         val body = lobbyListResponse.body
 
         val lobbyList = body.lobbiesList.map { lobby ->
@@ -559,10 +526,7 @@ class SteamMatchmaking : ClientMsgHandler() {
     }
 
     private fun handleJoinLobbyResponse(packetMsg: IPacketMsg) {
-        val joinLobbyResponse = ClientMsgProtobuf<CMsgClientMMSJoinLobbyResponse.Builder>(
-            CMsgClientMMSJoinLobbyResponse::class.java,
-            packetMsg
-        )
+        val joinLobbyResponse = ClientMsgProtobuf(CMsgClientMMSJoinLobbyResponse::newBuilder, packetMsg)
         val body = joinLobbyResponse.body
 
         var joinedLobby: Lobby? = null
@@ -603,10 +567,7 @@ class SteamMatchmaking : ClientMsgHandler() {
     }
 
     private fun handleLeaveLobbyResponse(packetMsg: IPacketMsg) {
-        val leaveLobbyResponse = ClientMsgProtobuf<CMsgClientMMSLeaveLobbyResponse.Builder>(
-            CMsgClientMMSLeaveLobbyResponse::class.java,
-            packetMsg
-        )
+        val leaveLobbyResponse = ClientMsgProtobuf(CMsgClientMMSLeaveLobbyResponse::newBuilder, packetMsg)
         val body = leaveLobbyResponse.body
 
         if (body.eresult == EResult.OK.code()) {
@@ -622,10 +583,7 @@ class SteamMatchmaking : ClientMsgHandler() {
     }
 
     private fun handleLobbyData(packetMsg: IPacketMsg) {
-        val lobbyDataResponse = ClientMsgProtobuf<CMsgClientMMSLobbyData.Builder>(
-            CMsgClientMMSLobbyData::class.java,
-            packetMsg
-        )
+        val lobbyDataResponse = ClientMsgProtobuf(CMsgClientMMSLobbyData::newBuilder, packetMsg)
         val body = lobbyDataResponse.body
 
         val cachedLobby = lobbyCache.getLobby(appId = body.appId, lobbySteamId = body.steamIdLobby)
@@ -664,10 +622,7 @@ class SteamMatchmaking : ClientMsgHandler() {
     }
 
     private fun handleUserJoinedLobby(packetMsg: IPacketMsg) {
-        val userJoinedLobby = ClientMsgProtobuf<CMsgClientMMSUserJoinedLobby.Builder>(
-            CMsgClientMMSUserJoinedLobby::class.java,
-            packetMsg
-        )
+        val userJoinedLobby = ClientMsgProtobuf(CMsgClientMMSUserJoinedLobby::newBuilder, packetMsg)
         val body = userJoinedLobby.body
 
         val lobby = lobbyCache.getLobby(appId = body.appId, lobbySteamId = body.steamIdLobby)
@@ -691,10 +646,7 @@ class SteamMatchmaking : ClientMsgHandler() {
     }
 
     private fun handleUserLeftLobby(packetMsg: IPacketMsg) {
-        val userLeftLobby = ClientMsgProtobuf<CMsgClientMMSUserLeftLobby.Builder>(
-            CMsgClientMMSUserLeftLobby::class.java,
-            packetMsg
-        )
+        val userLeftLobby = ClientMsgProtobuf(CMsgClientMMSUserLeftLobby::newBuilder, packetMsg)
         val body = userLeftLobby.body
 
         val lobby = lobbyCache.getLobby(appId = body.appId, lobbySteamId = body.steamIdLobby)

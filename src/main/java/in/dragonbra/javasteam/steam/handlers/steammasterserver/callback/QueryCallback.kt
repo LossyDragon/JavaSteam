@@ -18,10 +18,7 @@ class QueryCallback(packetMsg: IPacketMsg) : CallbackMsg() {
     val servers: List<Server>
 
     init {
-        val queryResponse = ClientMsgProtobuf<CMsgGMSClientServerQueryResponse.Builder>(
-            CMsgGMSClientServerQueryResponse::class.java,
-            packetMsg
-        )
+        val queryResponse = ClientMsgProtobuf(CMsgGMSClientServerQueryResponse::newBuilder, packetMsg)
         val msg = queryResponse.body
 
         jobID = queryResponse.targetJobID

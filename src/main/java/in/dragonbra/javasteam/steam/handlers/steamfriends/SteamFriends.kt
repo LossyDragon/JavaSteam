@@ -156,10 +156,7 @@ class SteamFriends : ClientMsgHandler() {
         // cache the local name right away, so that early calls to SetPersonaState don't reset the set name
         cache.localUser.name = name
 
-        ClientMsgProtobuf<CMsgClientChangeStatus.Builder>(
-            CMsgClientChangeStatus::class.java,
-            EMsg.ClientChangeStatus
-        ).apply {
+        ClientMsgProtobuf(CMsgClientChangeStatus::newBuilder, EMsg.ClientChangeStatus).apply {
             body.personaState = cache.localUser.personaState.code()
             body.playerName = name
         }.also(client::send)
@@ -180,10 +177,7 @@ class SteamFriends : ClientMsgHandler() {
     fun setPersonaState(state: EPersonaState) {
         cache.localUser.personaState = state
 
-        ClientMsgProtobuf<CMsgClientChangeStatus.Builder>(
-            CMsgClientChangeStatus::class.java,
-            EMsg.ClientChangeStatus
-        ).apply {
+        ClientMsgProtobuf(CMsgClientChangeStatus::newBuilder, EMsg.ClientChangeStatus).apply {
             body.personaState = state.code()
             body.personaSetByUser = true
         }.also(client::send)
@@ -194,10 +188,7 @@ class SteamFriends : ClientMsgHandler() {
      */
     @JavaSteamAddition
     fun resetPersonaStateFlag() {
-        ClientMsgProtobuf<CMsgClientChangeStatus.Builder>(
-            CMsgClientChangeStatus::class.java,
-            EMsg.ClientChangeStatus
-        ).apply {
+        ClientMsgProtobuf(CMsgClientChangeStatus::newBuilder, EMsg.ClientChangeStatus).apply {
             body.personaSetByUser = true
             body.personaStateFlags = 0
         }.also(client::send)
@@ -215,10 +206,7 @@ class SteamFriends : ClientMsgHandler() {
     fun setPersonaStateFlag(flag: EPersonaStateFlag) {
         require(!(flag.code() < EPersonaStateFlag.ClientTypeWeb.code() || flag.code() > EPersonaStateFlag.ClientTypeVR.code())) { "Persona State Flag was not a valid ClientType" }
 
-        ClientMsgProtobuf<CMsgClientChangeStatus.Builder>(
-            CMsgClientChangeStatus::class.java,
-            EMsg.ClientChangeStatus
-        ).apply {
+        ClientMsgProtobuf(CMsgClientChangeStatus::newBuilder, EMsg.ClientChangeStatus).apply {
             body.personaSetByUser = true
             body.personaStateFlags = flag.code()
         }.also(client::send)
@@ -354,10 +342,7 @@ class SteamFriends : ClientMsgHandler() {
      * @param message The message to send.
      */
     fun sendChatMessage(target: SteamID, type: EChatEntryType, message: String) {
-        ClientMsgProtobuf<CMsgClientFriendMsg.Builder>(
-            CMsgClientFriendMsg::class.java,
-            EMsg.ClientFriendMsg
-        ).apply {
+        ClientMsgProtobuf(CMsgClientFriendMsg::newBuilder, EMsg.ClientFriendMsg).apply {
             body.steamid = target.convertToUInt64()
             body.chatEntryType = type.code()
             body.message = ByteString.copyFrom(message, StandardCharsets.UTF_8)
@@ -370,10 +355,7 @@ class SteamFriends : ClientMsgHandler() {
      * @param accountNameOrEmail The account name or email of the user.
      */
     fun addFriend(accountNameOrEmail: String) {
-        ClientMsgProtobuf<CMsgClientAddFriend.Builder>(
-            CMsgClientAddFriend::class.java,
-            EMsg.ClientAddFriend
-        ).apply {
+        ClientMsgProtobuf(CMsgClientAddFriend::newBuilder, EMsg.ClientAddFriend).apply {
             body.accountnameOrEmailToAdd = accountNameOrEmail
         }.also(client::send)
     }
@@ -384,10 +366,7 @@ class SteamFriends : ClientMsgHandler() {
      * @param steamID The SteamID of the friend to add.
      */
     fun addFriend(steamID: SteamID) {
-        ClientMsgProtobuf<CMsgClientAddFriend.Builder>(
-            CMsgClientAddFriend::class.java,
-            EMsg.ClientAddFriend
-        ).apply {
+        ClientMsgProtobuf(CMsgClientAddFriend::newBuilder, EMsg.ClientAddFriend).apply {
             body.steamidToAdd = steamID.convertToUInt64()
         }.also(client::send)
     }
@@ -398,10 +377,7 @@ class SteamFriends : ClientMsgHandler() {
      * @param steamID The SteamID of the friend to remove.
      */
     fun removeFriend(steamID: SteamID) {
-        ClientMsgProtobuf<CMsgClientRemoveFriend.Builder>(
-            CMsgClientRemoveFriend::class.java,
-            EMsg.ClientRemoveFriend
-        ).apply {
+        ClientMsgProtobuf(CMsgClientRemoveFriend::newBuilder, EMsg.ClientRemoveFriend).apply {
             body.friendid = steamID.convertToUInt64()
         }.also(client::send)
     }
@@ -477,10 +453,7 @@ class SteamFriends : ClientMsgHandler() {
     fun inviteUserToChat(steamIdUser: SteamID, steamIdChat: SteamID) {
         val chatID: SteamID = fixChatID(steamIdChat) // copy the steamid so we don't modify it
 
-        ClientMsgProtobuf<CMsgClientChatInvite.Builder>(
-            CMsgClientChatInvite::class.java,
-            EMsg.ClientChatInvite
-        ).apply {
+        ClientMsgProtobuf(CMsgClientChatInvite::newBuilder, EMsg.ClientChatInvite).apply {
             body.steamIdChat = chatID.convertToUInt64()
             body.steamIdInvited = steamIdUser.convertToUInt64()
             // steamclient also sends the steamid of the user that did the invitation
@@ -555,10 +528,7 @@ class SteamFriends : ClientMsgHandler() {
             info = EClientPersonaStateFlag.code(client.configuration.defaultPersonaStateFlags)
         }
 
-        ClientMsgProtobuf<CMsgClientRequestFriendData.Builder>(
-            CMsgClientRequestFriendData::class.java,
-            EMsg.ClientRequestFriendData
-        ).apply {
+        ClientMsgProtobuf(CMsgClientRequestFriendData::newBuilder, EMsg.ClientRequestFriendData).apply {
             body.addAllFriends(steamIdList.map { it.convertToUInt64() })
             body.personaStateRequested = info
         }.also(client::send)
@@ -607,10 +577,7 @@ class SteamFriends : ClientMsgHandler() {
      * @return The Job ID of the request. This can be used to find the appropriate [ProfileInfoCallback].
      */
     fun requestProfileInfo(steamID: SteamID): AsyncJobSingle<ProfileInfoCallback> {
-        val request = ClientMsgProtobuf<CMsgClientFriendProfileInfo.Builder>(
-            CMsgClientFriendProfileInfo::class.java,
-            EMsg.ClientFriendProfileInfo
-        ).apply {
+        val request = ClientMsgProtobuf(CMsgClientFriendProfileInfo::newBuilder, EMsg.ClientFriendProfileInfo).apply {
             sourceJobID = client.getNextJobID()
 
             body.steamidFriend = steamID.convertToUInt64()
@@ -628,8 +595,8 @@ class SteamFriends : ClientMsgHandler() {
      * @param steamID SteamID of the friend
      */
     fun requestMessageHistory(steamID: SteamID) {
-        ClientMsgProtobuf<CMsgClientChatGetFriendMessageHistory.Builder>(
-            CMsgClientChatGetFriendMessageHistory::class.java,
+        ClientMsgProtobuf(
+            CMsgClientChatGetFriendMessageHistory::newBuilder,
             EMsg.ClientChatGetFriendMessageHistory
         ).apply {
             body.steamid = steamID.convertToUInt64()
@@ -642,8 +609,8 @@ class SteamFriends : ClientMsgHandler() {
      * Results are returned in a [FriendMsgHistoryCallback].
      */
     fun requestOfflineMessages() {
-        ClientMsgProtobuf<CMsgClientChatGetFriendMessageHistoryForOfflineMessages.Builder>(
-            CMsgClientChatGetFriendMessageHistoryForOfflineMessages::class.java,
+        ClientMsgProtobuf(
+            CMsgClientChatGetFriendMessageHistoryForOfflineMessages::newBuilder,
             EMsg.ClientChatGetFriendMessageHistoryForOfflineMessages
         ).also(client::send)
     }
@@ -659,8 +626,8 @@ class SteamFriends : ClientMsgHandler() {
     @JavaSteamAddition
     fun setFriendNickname(friendID: SteamID, nickname: String): JobID {
         val jobID: JobID = client.getNextJobID()
-        val request = ClientMsgProtobuf<CMsgClientSetPlayerNickname.Builder>(
-            CMsgClientSetPlayerNickname::class.java,
+        val request = ClientMsgProtobuf(
+            CMsgClientSetPlayerNickname::newBuilder,
             EMsg.AMClientSetPlayerNickname
         ).apply {
             sourceJobID = jobID
@@ -694,8 +661,8 @@ class SteamFriends : ClientMsgHandler() {
     @JavaSteamAddition
     fun requestAliasHistory(steamIDs: List<SteamID>): AsyncJobSingle<AliasHistoryCallback> {
         val jobID: JobID = client.getNextJobID()
-        val request = ClientMsgProtobuf<CMsgClientAMGetPersonaNameHistory.Builder>(
-            CMsgClientAMGetPersonaNameHistory::class.java,
+        val request = ClientMsgProtobuf(
+            CMsgClientAMGetPersonaNameHistory::newBuilder,
             EMsg.ClientAMGetPersonaNameHistory
         ).apply {
             sourceJobID = jobID
@@ -750,26 +717,20 @@ class SteamFriends : ClientMsgHandler() {
     }
 
     private fun handleAccountInfo(packetMsg: IPacketMsg) {
-        val accInfo = ClientMsgProtobuf<SteammessagesClientserverLogin.CMsgClientAccountInfo.Builder>(
-            SteammessagesClientserverLogin.CMsgClientAccountInfo::class.java,
-            packetMsg
-        )
+        val accInfo = ClientMsgProtobuf(SteammessagesClientserverLogin.CMsgClientAccountInfo::newBuilder, packetMsg)
 
         // cache off our local name
         cache.localUser.name = accInfo.body.personaName
     }
 
     private fun handleFriendMessageHistoryResponse(packetMsg: IPacketMsg) {
-        val historyResponse = ClientMsgProtobuf<CMsgClientChatGetFriendMessageHistoryResponse.Builder>(
-            CMsgClientChatGetFriendMessageHistoryResponse::class.java,
-            packetMsg
-        )
+        val historyResponse = ClientMsgProtobuf(CMsgClientChatGetFriendMessageHistoryResponse::newBuilder, packetMsg)
 
         FriendMsgHistoryCallback(historyResponse.body, client.universe).also(client::postCallback)
     }
 
     private fun handleFriendsList(packetMsg: IPacketMsg) {
-        val list = ClientMsgProtobuf<CMsgClientFriendsList.Builder>(CMsgClientFriendsList::class.java, packetMsg)
+        val list = ClientMsgProtobuf(CMsgClientFriendsList::newBuilder, packetMsg)
 
         client.steamID?.let {
             cache.localUser.steamID = it
@@ -782,10 +743,7 @@ class SteamFriends : ClientMsgHandler() {
         }
 
         // we have to request information for all of our friends because steam only sends persona information for online friends
-        val reqInfo = ClientMsgProtobuf<CMsgClientRequestFriendData.Builder>(
-            CMsgClientRequestFriendData::class.java,
-            EMsg.ClientRequestFriendData
-        )
+        val reqInfo = ClientMsgProtobuf(CMsgClientRequestFriendData::newBuilder, EMsg.ClientRequestFriendData)
 
         reqInfo.body.setPersonaStateRequested(
             EClientPersonaStateFlag.code(client.configuration.defaultPersonaStateFlags)
@@ -846,10 +804,7 @@ class SteamFriends : ClientMsgHandler() {
     }
 
     private fun handlePersonaState(packetMsg: IPacketMsg) {
-        val perState = ClientMsgProtobuf<CMsgClientPersonaState.Builder>(
-            CMsgClientPersonaState::class.java,
-            packetMsg
-        )
+        val perState = ClientMsgProtobuf(CMsgClientPersonaState::newBuilder, packetMsg)
 
         val flags = EClientPersonaStateFlag.from(perState.body.statusFlags)
 
@@ -897,10 +852,7 @@ class SteamFriends : ClientMsgHandler() {
     }
 
     private fun handlePersonaChangeResponse(packetMsg: IPacketMsg) {
-        val response = ClientMsgProtobuf<CMsgPersonaChangeResponse.Builder>(
-            CMsgPersonaChangeResponse::class.java,
-            packetMsg
-        )
+        val response = ClientMsgProtobuf(CMsgPersonaChangeResponse::newBuilder, packetMsg)
 
         // update our cache to what steam says our name is
         cache.localUser.name = response.body.playerName

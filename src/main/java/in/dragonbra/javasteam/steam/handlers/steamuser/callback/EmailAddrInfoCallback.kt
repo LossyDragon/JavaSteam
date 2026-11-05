@@ -22,10 +22,7 @@ class EmailAddrInfoCallback(packetMsg: IPacketMsg) : CallbackMsg() {
     val isEmailValidated: Boolean
 
     init {
-        val emailAddrInfo = ClientMsgProtobuf<CMsgClientEmailAddrInfo.Builder>(
-            CMsgClientEmailAddrInfo::class.java,
-            packetMsg
-        )
+        val emailAddrInfo = ClientMsgProtobuf(CMsgClientEmailAddrInfo::newBuilder, packetMsg)
         val msg = emailAddrInfo.body
 
         emailAddress = msg.emailAddress

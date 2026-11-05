@@ -30,8 +30,8 @@ class UserActionPublishedFilesCallback(packetMsg: IPacketMsg) : CallbackMsg() {
     val totalResults: Int
 
     init {
-        val response = ClientMsgProtobuf<CMsgClientUCMEnumeratePublishedFilesByUserActionResponse.Builder>(
-            CMsgClientUCMEnumeratePublishedFilesByUserActionResponse::class.java,
+        val response = ClientMsgProtobuf(
+            CMsgClientUCMEnumeratePublishedFilesByUserActionResponse::newBuilder,
             packetMsg
         )
         val msg = response.body

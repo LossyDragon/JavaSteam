@@ -155,10 +155,7 @@ class LoggedOnCallback : CallbackMsg {
             return
         }
 
-        val loginResp = ClientMsgProtobuf<CMsgClientLogonResponse.Builder>(
-            CMsgClientLogonResponse::class.java,
-            packetMsg
-        )
+        val loginResp = ClientMsgProtobuf(CMsgClientLogonResponse::newBuilder, packetMsg)
         val resp = loginResp.body
 
         result = EResult.from(resp.eresult)
