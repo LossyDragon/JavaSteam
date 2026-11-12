@@ -865,11 +865,20 @@ class SteamFriends : ClientMsgHandler() {
 
                 if (EClientPersonaStateFlag.Presence in flags) {
                     cacheFriend.avatarHash = friend.avatarHash.toByteArray()
-                    cacheFriend.personaState = EPersonaState.from(friend.personaState) ?: EPersonaState.Offline
-                    cacheFriend.personaStateFlags = EPersonaStateFlag.from(friend.personaStateFlags)
+
+                    // JavaSteam addition: SteamKit copies these fields unconditionally.
+                    // Replies to ClientRequestFriendData carry profile data only and omit the
+                    // presence fields; an absent persona_state must not reset a cached state.
+                    // The same presence check guards the GameDataBlob block below.
+                    if (friend.hasPersonaState()) {
+                        cacheFriend.personaState = EPersonaState.from(friend.personaState) ?: EPersonaState.Offline
+                    }
+                    if (friend.hasPersonaStateFlags()) {
+                        cacheFriend.personaStateFlags = EPersonaStateFlag.from(friend.personaStateFlags)
+                    }
                 }
 
-                if (EClientPersonaStateFlag.GameDataBlob in flags) {
+                if (EClientPersonaStateFlag.GameDataBlob in flags && friend.hasGamePlayedAppId()) {
                     cacheFriend.gameName = friend.gameName
                     cacheFriend.gameID = GameID(friend.gameid)
                     cacheFriend.gameAppID = friend.gamePlayedAppId
