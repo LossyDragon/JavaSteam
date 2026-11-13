@@ -76,9 +76,10 @@ object DepotChunk {
             ) {
                 // Zstd
                 writtenDecompressed = VZstdUtil.decompress(
-                    buffer = buffer.copyOfRange(0, written),
+                    buffer = buffer,
                     destination = destination,
                     verifyChecksum = false,
+                    length = written,
                 )
             } else if (buffer[0] == 'V'.code.toByte() &&
                 buffer[1] == 'Z'.code.toByte() &&
@@ -128,7 +129,7 @@ object DepotChunk {
             )
         }
 
-        val dataCrc = Adler32.calculate(destination.sliceArray(0 until writtenDecompressed))
+        val dataCrc = Adler32.calculate(0, destination, 0, writtenDecompressed)
 
         if (dataCrc != info.checksum) {
             throw IOException("Processed data checksum is incorrect ($dataCrc != ${info.checksum})! Downloaded depot chunk is corrupt or invalid/wrong depot key?")

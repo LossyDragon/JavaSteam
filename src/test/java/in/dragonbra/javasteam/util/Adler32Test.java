@@ -34,6 +34,28 @@ public class Adler32Test {
     }
 
     @ParameterizedTest
+    @ValueSource(ints = {0, 1, 15, 16, 17, 1024, 5552 - 1, 5552, 5552 + 1, 5552 * 2 + 3})
+    void rangeMatchesCopyOfRange(int length) {
+        final var seed = 0;
+        final var offset = 7;
+        var data = new byte[offset + length + 11];
+        new Random().nextBytes(data);
+
+        var expected = referenceImplementation(seed, Arrays.copyOfRange(data, offset, offset + length));
+        var actual = Adler32.calculate(seed, data, offset, length);
+
+        Assertions.assertEquals(expected, actual);
+    }
+
+    @Test
+    void rangeOutsideBufferThrows() {
+        var data = new byte[16];
+
+        Assertions.assertThrows(IllegalArgumentException.class, () -> Adler32.calculate(0, data, 8, 9));
+        Assertions.assertThrows(IllegalArgumentException.class, () -> Adler32.calculate(0, data, -1, 4));
+    }
+
+    @ParameterizedTest
     @ValueSource(strings = {"a", "Wikipedia", "123456789", "SteamKit is good software, you should use it. :)"})
     void matchesKnownVectors(String input) {
         final int seed = 1;

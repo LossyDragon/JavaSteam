@@ -21,6 +21,7 @@ import okhttp3.Request
 import okhttp3.coroutines.executeAsync
 import java.io.ByteArrayInputStream
 import java.io.Closeable
+import java.io.EOFException
 import java.io.IOException
 import java.util.concurrent.CompletableFuture
 import java.util.zip.ZipInputStream
@@ -253,19 +254,30 @@ class Client(steamClient: SteamClient) : Closeable {
                     )
                 }
 
-                val responseBody = resp.body.bytes()
-
-                if (responseBody.isEmpty()) {
-                    throw SteamKitWebRequestException("Response is empty")
-                }
-
-                if (responseBody.size != contentLength) {
+                // destination is exactly chunk.compressedLength long (checked above), so the body is
+                // read straight into it instead of into a second array that is then copied.
+                if (contentLength != destination.size) {
                     throw SteamKitWebRequestException(
-                        "Length mismatch after downloading depot chunk! (was ${responseBody.size}, but should be $contentLength)"
+                        "Length mismatch for depot chunk! (was $contentLength, but should be ${destination.size})"
                     )
                 }
 
-                System.arraycopy(responseBody, 0, destination, 0, contentLength)
+                val source = resp.body.source()
+
+                try {
+                    source.readFully(destination)
+                } catch (e: EOFException) {
+                    throw SteamKitWebRequestException(
+                        "Length mismatch after downloading depot chunk! (body ended before $contentLength bytes)"
+                    )
+                }
+
+                if (!source.exhausted()) {
+                    throw SteamKitWebRequestException(
+                        "Length mismatch after downloading depot chunk! (body is longer than $contentLength bytes)"
+                    )
+                }
+
                 return@withContext contentLength
             }
         } catch (e: CancellationException) {

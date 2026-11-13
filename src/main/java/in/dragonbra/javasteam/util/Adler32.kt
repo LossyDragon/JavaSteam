@@ -26,15 +26,30 @@ object Adler32 {
      * @return The updated Adler-32 checksum
      */
     @JvmStatic
-    fun calculate(adler: Int, buffer: ByteArray): Int {
+    fun calculate(adler: Int, buffer: ByteArray): Int = calculate(adler, buffer, 0, buffer.size)
+
+    /**
+     * Calculates the Adler32 checksum over a range of the [ByteArray], without copying it.
+     * @param adler The input Adler32 value. (use 1 for initial calculation)
+     * @param buffer The byte array to process
+     * @param offset Index of the first byte to process
+     * @param length Number of bytes to process
+     * @return The updated Adler-32 checksum
+     */
+    @JvmStatic
+    fun calculate(adler: Int, buffer: ByteArray, offset: Int, length: Int): Int {
+        require(offset >= 0 && length >= 0 && offset <= buffer.size - length) {
+            "Range (offset $offset, length $length) is outside the buffer (size ${buffer.size})."
+        }
+
         var s1 = (adler and 0xFFFF).toLong()
         var s2 = ((adler ushr 16) and 0xFFFF).toLong()
 
-        var offset = 0
-        val length = buffer.size
+        var offset = offset
+        val end = offset + length
 
-        while (offset < length) {
-            val k = minOf(length - offset, NMAX)
+        while (offset < end) {
+            val k = minOf(end - offset, NMAX)
             val chunkEnd = offset + k
             var remaining = k
 
