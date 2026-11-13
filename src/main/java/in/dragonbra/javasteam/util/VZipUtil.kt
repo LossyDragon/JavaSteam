@@ -9,7 +9,7 @@ import org.tukaani.xz.BasicArrayCache
 import org.tukaani.xz.LZMAInputStream
 import java.util.zip.DataFormatException
 
-@Suppress("SpellCheckingInspection", "unused")
+@Suppress("unused")
 object VZipUtil {
 
     private val logger = LogManager.getLogger<VZipUtil>()

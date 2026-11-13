@@ -266,7 +266,7 @@ class Client(steamClient: SteamClient) : Closeable {
 
                 try {
                     source.readFully(destination)
-                } catch (e: EOFException) {
+                } catch (_: EOFException) {
                     throw SteamKitWebRequestException(
                         "Length mismatch after downloading depot chunk! (body ended before $contentLength bytes)"
                     )

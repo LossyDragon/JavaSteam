@@ -193,7 +193,7 @@ public class Adler32Test {
             int iterations = Math.max(1000, baseIterations / (size / 16));
 
             // Warmup
-            for (int i = 0; i < Math.min(100, iterations / 10); i++) {
+            for (int i = 0; i < 100; i++) {
                 referenceImplementation(data);
                 Adler32.calculate(data);
             }
