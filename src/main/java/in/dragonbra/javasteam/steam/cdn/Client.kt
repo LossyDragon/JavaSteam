@@ -8,6 +8,7 @@ import `in`.dragonbra.javasteam.util.SteamKitWebRequestException
 import `in`.dragonbra.javasteam.util.Strings
 import `in`.dragonbra.javasteam.util.log.LogManager
 import `in`.dragonbra.javasteam.util.log.Logger
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -166,6 +167,9 @@ class Client(steamClient: SteamClient) : Closeable {
                     depotManifest
                 }
             }
+        } catch (e: CancellationException) {
+            // Cancellation is not an error.
+            throw e
         } catch (e: Exception) {
             logger.error("Failed to download manifest ${request.url}: ${e.message}", e)
             throw e
@@ -264,6 +268,9 @@ class Client(steamClient: SteamClient) : Closeable {
                 System.arraycopy(responseBody, 0, destination, 0, contentLength)
                 return@withContext contentLength
             }
+        } catch (e: CancellationException) {
+            // Cancellation is not an error.
+            throw e
         } catch (e: Exception) {
             logger.error("Failed to download a depot chunk ${request.url}: ${e.message}", e)
             throw e

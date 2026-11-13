@@ -32,7 +32,10 @@ class CDNClientPool(
     debug: Boolean = false,
 ) : AutoCloseable {
 
-    private var logger: Logger? = null
+    // Errors are always logged.
+    private val log: Logger = LogManager.getLogger(CDNClientPool::class.java)
+
+    private val logger: Logger? = if (debug) log else null
 
     private val servers = AtomicReference<List<Server>>(emptyList())
 
@@ -48,10 +51,6 @@ class CDNClientPool(
 
     init {
         cdnClient = Client(steamSession.steamClient)
-
-        if (debug) {
-            logger = LogManager.getLogger(CDNClientPool::class.java)
-        }
     }
 
     /**
@@ -65,8 +64,6 @@ class CDNClientPool(
 
         cdnClient = null
         proxyServer = null
-
-        logger = null
     }
 
     /**
@@ -133,7 +130,7 @@ class CDNClientPool(
      */
     fun returnConnection(server: Server?) {
         if (server == null) {
-            logger?.error("null server returned to cdn pool.")
+            log.error("null server returned to cdn pool.")
             return
         }
 
@@ -160,7 +157,7 @@ class CDNClientPool(
      */
     fun returnBrokenConnection(server: Server?) {
         if (server == null) {
-            logger?.error("null broken server returned to pool")
+            log.error("null broken server returned to pool")
             return
         }
 
@@ -168,7 +165,7 @@ class CDNClientPool(
 
         val updated = servers.updateAndGet { it.filter { s -> s != server } }
         if (updated.isEmpty()) {
-            logger?.error("No CDN servers remaining after removing broken connection: $server")
+            log.error("No CDN servers remaining after removing broken connection: $server")
         }
 
         // TODO: (SK) Add server to ContentServerPenalty

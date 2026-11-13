@@ -33,6 +33,16 @@ interface IDownloadListener {
     fun onDownloadFailed(item: DownloadItem, error: Throwable) {}
 
     /**
+     * Called when a depot that was part of a download is left out, for example because the account
+     * has no access to it, no depot key could be obtained, or it has no manifest for the branch.
+     * The rest of the download continues; if every depot is skipped, [onDownloadFailed] is called.
+     *
+     * @param depotId The depot that will not be downloaded
+     * @param reason An explanation
+     */
+    fun onDepotSkipped(depotId: Int, reason: String) {}
+
+    /**
      * Called during file preparation with informational messages.
      * Examples: "Pre-allocating depots\441\file.txt", "Validating file.cab"
      */
