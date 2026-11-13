@@ -177,6 +177,7 @@ class Client(steamClient: SteamClient) : Closeable {
         }
     }
 
+    // TODO: depotKey is unused. Restore SK behavior: process the chunk into destination when a key is given.
     /**
      * Downloads the specified depot chunk, and optionally processes the chunk and verifies the checksum if the depot decryption key has been provided.
      * This function will also validate the length of the downloaded chunk with the value of [ChunkData.compressedLength],
