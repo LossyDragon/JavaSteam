@@ -1583,7 +1583,7 @@ class DepotDownloader @JvmOverloads constructor(
                     break
                 }
 
-                log.error("Encountered error downloading chunk $chunkID: ${e.statusCode}")
+                log.error("Encountered error downloading chunk $chunkID from $connection: ${e.statusCode} (${e.message})")
             } catch (e: Exception) {
                 // A real cancellation stops here; a timeout reported as one is retried like any error.
                 if (e is CancellationException) ensureActive()

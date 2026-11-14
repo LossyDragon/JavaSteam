@@ -178,6 +178,7 @@ class Client(steamClient: SteamClient) : Closeable {
     }
 
     // TODO: depotKey is unused. Restore SK behavior: process the chunk into destination when a key is given.
+
     /**
      * Downloads the specified depot chunk, and optionally processes the chunk and verifies the checksum if the depot decryption key has been provided.
      * This function will also validate the length of the downloaded chunk with the value of [ChunkData.compressedLength],
@@ -224,69 +225,61 @@ class Client(steamClient: SteamClient) : Closeable {
                 .build()
         }
 
-        try {
-            val response = httpClient.newCall(request).executeAsync()
+        val response = httpClient.newCall(request).executeAsync()
 
-            response.use { resp ->
-                if (!resp.isSuccessful) {
-                    throw SteamKitWebRequestException(
-                        "Response status code does not indicate success: ${resp.code} (${resp.message})",
-                        resp
-                    )
-                }
-
-                var contentLength = chunk.compressedLength
-
-                if (resp.body.contentLength().toInt() > 0) {
-                    contentLength = resp.body.contentLength().toInt()
-
-                    // assert that lengths match only if the chunk has a length assigned.
-                    if (chunk.compressedLength > 0 && contentLength != chunk.compressedLength) {
-                        throw SteamKitWebRequestException(
-                            "Content-Length mismatch for depot chunk! (was $contentLength, but should be ${chunk.compressedLength})"
-                        )
-                    }
-                } else if (contentLength > 0) {
-                    logger.debug("Response does not have Content-Length, falling back to chunk.CompressedLength.")
-                } else {
-                    throw SteamKitWebRequestException(
-                        "Response does not have Content-Length and chunk.CompressedLength is not set.",
-                        response
-                    )
-                }
-
-                // destination is exactly chunk.compressedLength long (checked above), so the body is
-                // read straight into it instead of into a second array that is then copied.
-                if (contentLength != destination.size) {
-                    throw SteamKitWebRequestException(
-                        "Length mismatch for depot chunk! (was $contentLength, but should be ${destination.size})"
-                    )
-                }
-
-                val source = resp.body.source()
-
-                try {
-                    source.readFully(destination)
-                } catch (_: EOFException) {
-                    throw SteamKitWebRequestException(
-                        "Length mismatch after downloading depot chunk! (body ended before $contentLength bytes)"
-                    )
-                }
-
-                if (!source.exhausted()) {
-                    throw SteamKitWebRequestException(
-                        "Length mismatch after downloading depot chunk! (body is longer than $contentLength bytes)"
-                    )
-                }
-
-                return@withContext contentLength
+        response.use { resp ->
+            if (!resp.isSuccessful) {
+                throw SteamKitWebRequestException(
+                    "Response status code does not indicate success: ${resp.code} (${resp.message})",
+                    resp
+                )
             }
-        } catch (e: CancellationException) {
-            // Cancellation is not an error.
-            throw e
-        } catch (e: Exception) {
-            logger.error("Failed to download a depot chunk ${request.url}: ${e.message}", e)
-            throw e
+
+            var contentLength = chunk.compressedLength
+
+            if (resp.body.contentLength().toInt() > 0) {
+                contentLength = resp.body.contentLength().toInt()
+
+                // assert that lengths match only if the chunk has a length assigned.
+                if (chunk.compressedLength > 0 && contentLength != chunk.compressedLength) {
+                    throw SteamKitWebRequestException(
+                        "Content-Length mismatch for depot chunk! (was $contentLength, but should be ${chunk.compressedLength})"
+                    )
+                }
+            } else if (contentLength > 0) {
+                logger.debug("Response does not have Content-Length, falling back to chunk.CompressedLength.")
+            } else {
+                throw SteamKitWebRequestException(
+                    "Response does not have Content-Length and chunk.CompressedLength is not set.",
+                    response
+                )
+            }
+
+            // destination is exactly chunk.compressedLength long (checked above), so the body is
+            // read straight into it instead of into a second array that is then copied.
+            if (contentLength != destination.size) {
+                throw SteamKitWebRequestException(
+                    "Length mismatch for depot chunk! (was $contentLength, but should be ${destination.size})"
+                )
+            }
+
+            val source = resp.body.source()
+
+            try {
+                source.readFully(destination)
+            } catch (_: EOFException) {
+                throw SteamKitWebRequestException(
+                    "Length mismatch after downloading depot chunk! (body ended before $contentLength bytes)"
+                )
+            }
+
+            if (!source.exhausted()) {
+                throw SteamKitWebRequestException(
+                    "Length mismatch after downloading depot chunk! (body is longer than $contentLength bytes)"
+                )
+            }
+
+            return@withContext contentLength
         }
     }
 
